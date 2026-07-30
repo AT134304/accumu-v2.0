@@ -1,0 +1,1359 @@
+<!-- Accumu — 학생 비교과 활동 참여 · 디지털 포트폴리오 플랫폼 (반응형 프로토타입) -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Accumu</title>
+<style>
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css");
+
+:root{
+  --ink:#16213E; --ink2:#2A3754;
+  --bg:#EAEEF6; --bg2:#E1E7F1;
+  --card:#FFFFFF;
+  --brand:#2563EB; --brand-dk:#1D4ED8; --brand-soft:#DEE9FE;
+  --indigo:#6366F1; --indigo-soft:#E5E7FD;
+  --amber:#E0922F; --amber-soft:#FAE7CE;
+  --rose:#E2556A; --rose-soft:#FBDDE2;
+  --muted:#6A7488; --line:#DCE3EE; --line2:#CBD4E2;
+  --ok:#2563EB;
+  --shadow:0 1px 2px rgba(22,33,62,.04),0 8px 24px rgba(22,33,62,.07);
+  --shadow-lg:0 12px 40px rgba(22,33,62,.16);
+  --r:16px; --r-sm:11px;
+  --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  --maxw:1140px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font); background:var(--bg); color:var(--ink);
+  -webkit-font-smoothing:antialiased; font-variant-numeric:tabular-nums; line-height:1.5;
+}
+button{font-family:inherit; cursor:pointer; border:none; background:none; color:inherit}
+input{font-family:inherit}
+::selection{background:var(--brand-soft)}
+img,svg{display:block}
+
+/* svg icon helper */
+.isvg{display:inline-block; vertical-align:middle; flex:none; color:inherit; fill:currentColor}
+.isvg-13{width:13px;height:13px}.isvg-14{width:14px;height:14px}.isvg-16{width:16px;height:16px}
+.isvg-18{width:18px;height:18px}.isvg-20{width:20px;height:20px}.isvg-22{width:22px;height:22px}
+.isvg-24{width:24px;height:24px}.isvg-26{width:26px;height:26px}.isvg-28{width:28px;height:28px}.isvg-30{width:30px;height:30px}.isvg-32{width:32px;height:32px}
+.isvg-40{width:40px;height:40px}.isvg-46{width:46px;height:46px}
+
+/* ---------- brand mark ---------- */
+.logo{display:inline-flex; align-items:center; gap:9px; cursor:pointer; user-select:none}
+.logo .word{font-weight:800; font-size:20px; letter-spacing:-.6px; color:var(--ink)}
+.logo .word b{color:var(--brand)}
+
+/* ---------- app shell ---------- */
+.nav{
+  position:sticky; top:0; z-index:50; height:62px;
+  display:flex; align-items:center; gap:24px;
+  padding:0 clamp(16px,4vw,30px); background:rgba(255,255,255,.82);
+  backdrop-filter:blur(14px); border-bottom:1px solid var(--line);
+}
+.nav .menu{display:flex; gap:4px; margin-left:10px}
+.nav .menu button{
+  display:flex; align-items:center; gap:7px;
+  padding:8px 14px; border-radius:9px; font-size:14.5px; font-weight:600;
+  color:var(--muted); transition:.18s;
+}
+.nav .menu button .isvg{color:var(--muted); transition:.18s}
+.nav .menu button:hover{color:var(--ink); background:var(--bg2)}
+.nav .menu button:hover .isvg{color:var(--ink2)}
+.nav .menu button.on{color:var(--brand-dk); background:var(--brand-soft)}
+.nav .menu button.on .isvg{color:var(--brand)}
+.nav .spacer{flex:1}
+.nav .me{display:flex; align-items:center; gap:9px; padding:5px 7px 5px 13px; border:1px solid var(--line); border-radius:30px; background:#fff}
+.nav .me .pts{display:flex; align-items:center; gap:5px; font-weight:800; color:var(--amber); font-size:13.5px}
+.nav .me .pts em{color:var(--muted); font-weight:600; font-style:normal}
+.nav .me .av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--ink); color:#fff; font-weight:700; font-size:13px}
+
+.wrap{max-width:var(--maxw); margin:0 auto; padding:clamp(22px,4vw,34px) clamp(16px,4vw,30px) 80px}
+
+/* bottom tab (mobile) */
+.bottomnav{
+  position:fixed; left:0; right:0; bottom:0; z-index:60; display:none;
+  background:rgba(255,255,255,.94); backdrop-filter:blur(14px); border-top:1px solid var(--line);
+  padding:7px 6px calc(7px + env(safe-area-inset-bottom));
+  grid-template-columns:repeat(4,1fr);
+}
+.bottomnav button{display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 0; color:var(--muted); font-size:11px; font-weight:600}
+.bottomnav button .isvg{color:var(--muted)}
+.bottomnav button.on{color:var(--brand-dk)}
+.bottomnav button.on .isvg{color:var(--brand)}
+
+.screen{display:none; animation:fade .4s ease both}
+.screen.on{display:block}
+@keyframes fade{from{opacity:0; transform:translateY(8px)}to{opacity:1; transform:none}}
+
+.eyebrow{font-size:12px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--brand-dk); margin-bottom:10px}
+h2.sec{font-size:clamp(20px,3.4vw,23px); font-weight:800; letter-spacing:-.6px}
+.sec-sub{color:var(--muted); font-size:14.5px; margin-top:4px}
+.sec-head{display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:18px; flex-wrap:wrap}
+
+/* ---------- login ---------- */
+#login{
+  position:fixed; inset:0; z-index:100; display:grid; place-items:center;
+  background:
+    radial-gradient(900px 600px at 78% 12%,rgba(99,102,241,.12),transparent 60%),
+    radial-gradient(820px 540px at 12% 92%,rgba(37,99,235,.14),transparent 60%),
+    var(--bg);
+  padding:20px; overflow:hidden;
+}
+#login .deco{position:absolute; inset:0; pointer-events:none; opacity:.5}
+#login .deco i{position:absolute; border-radius:14px; background:#fff; box-shadow:var(--shadow); border:1px solid var(--line)}
+.lcard{position:relative; width:392px; max-width:100%; background:#fff; border:1px solid var(--line); border-radius:22px; box-shadow:var(--shadow-lg); padding:clamp(28px,6vw,38px) clamp(24px,6vw,36px) 30px}
+.lcard .top{display:flex; flex-direction:column; align-items:center; gap:13px; margin-bottom:24px}
+.lcard h1{font-size:28px; font-weight:800; letter-spacing:-1px}
+.lcard h1 b{color:var(--brand)}
+.lcard .tag{color:var(--muted); font-size:13.5px; text-align:center; margin-top:-4px}
+.field{margin-bottom:13px}
+.field label{display:block; font-size:12.5px; font-weight:700; color:var(--ink2); margin-bottom:6px}
+.field input{width:100%; height:46px; padding:0 14px; font-size:15px; border:1.5px solid var(--line2); border-radius:11px; background:#fff; transition:.16s}
+.field input:focus{outline:none; border-color:var(--brand); box-shadow:0 0 0 4px var(--brand-soft)}
+.btn-primary{width:100%; height:48px; margin-top:8px; border-radius:11px; background:var(--ink); color:#fff; font-weight:700; font-size:15.5px; display:flex; align-items:center; justify-content:center; gap:8px; transition:.16s}
+.btn-primary:hover{background:var(--brand); transform:translateY(-1px)}
+.lcard .hint{text-align:center; font-size:12px; color:var(--muted); margin-top:16px}
+
+/* ---------- hero ---------- */
+.hero{
+  background:linear-gradient(135deg,var(--ink) 0%,#1E2F57 55%,#1B3566 100%);
+  border-radius:24px; padding:clamp(28px,5vw,42px); color:#fff; position:relative; overflow:hidden;
+  display:grid; grid-template-columns:1.15fr .85fr; gap:30px; align-items:center;
+}
+.hero .glow{position:absolute; width:420px; height:420px; border-radius:50%; background:radial-gradient(circle,rgba(37,99,235,.45),transparent 65%); top:-160px; right:-120px}
+.hero .eyebrow{color:#93B4FF}
+.hero h1{font-size:clamp(27px,5vw,36px); line-height:1.18; font-weight:800; letter-spacing:-1.3px}
+.hero h1 b{color:#86B4FF}
+.hero p{color:#C3CCDE; font-size:15.5px; margin-top:14px; max-width:430px}
+.hero .cta{display:flex; gap:10px; margin-top:24px; flex-wrap:wrap}
+.hero .cta button{display:flex; align-items:center; gap:7px; padding:12px 19px; border-radius:11px; font-weight:700; font-size:14.5px; transition:.16s}
+.hero .cta .g{background:var(--brand); color:#fff}
+.hero .cta .g:hover{background:#fff; color:var(--ink)}
+.hero .cta .o{background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.22)}
+.hero .cta .o:hover{background:rgba(255,255,255,.18)}
+.stackviz{position:relative; height:230px; display:flex; align-items:flex-end; justify-content:center; gap:13px}
+.stackviz .col{display:flex; flex-direction:column-reverse; gap:6px; width:46px}
+.stackviz .blk{height:30px; border-radius:7px; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.16); transform-origin:bottom; animation:grow .6s cubic-bezier(.2,.7,.3,1) both}
+.stackviz .blk.fill{background:var(--brand); border-color:transparent; box-shadow:0 6px 16px rgba(37,99,235,.45)}
+.stackviz .blk.fill.i{background:var(--indigo); box-shadow:0 6px 16px rgba(99,102,241,.45)}
+.stackviz .blk.fill.a{background:var(--amber); box-shadow:0 6px 16px rgba(224,146,47,.4)}
+.stackviz .cap{position:absolute; bottom:-26px; font-size:11.5px; color:#9FB0C9; width:46px; text-align:center}
+@keyframes grow{from{transform:scaleY(0); opacity:0}to{transform:scaleY(1); opacity:1}}
+
+/* overview */
+.overview{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; margin:22px 0 40px}
+.ov{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:18px 20px; box-shadow:var(--shadow)}
+.ov .ic{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;margin-bottom:12px}
+.ov h4{font-size:15.5px; font-weight:800}
+.ov p{font-size:13px; color:var(--muted); margin-top:5px; line-height:1.5}
+
+/* program cards */
+.cards-row{display:grid; grid-template-columns:repeat(auto-fill,minmax(218px,1fr)); gap:16px}
+.pcard{background:var(--card); border:1px solid var(--line); border-radius:var(--r); overflow:hidden; box-shadow:var(--shadow); transition:.2s; cursor:pointer; display:flex; flex-direction:column}
+.pcard:hover{transform:translateY(-4px); box-shadow:var(--shadow-lg); border-color:var(--line2)}
+.pcard .thumb{height:108px; position:relative; display:grid; place-items:center}
+.pcard .thumb .tag{position:absolute; top:10px; left:10px; font-size:10.5px; font-weight:700; padding:4px 9px; border-radius:20px; background:rgba(255,255,255,.92); color:var(--ink2)}
+.pcard .thumb .matchbadge{position:absolute; top:10px; right:10px; display:flex; align-items:center; gap:4px; font-size:10.5px; font-weight:700; padding:4px 9px 4px 7px; border-radius:20px; background:var(--brand); color:#fff}
+.pcard .thumb .matchbadge .isvg{color:#fff}
+.pcard .body{padding:13px 15px 15px; flex:1; display:flex; flex-direction:column}
+.pcard .body h4{font-size:14.5px; font-weight:700; letter-spacing:-.3px; line-height:1.35}
+.pcard .meta{font-size:12px; color:var(--muted); margin-top:7px; display:flex; gap:6px; align-items:center}
+.pcard .meta .isvg{color:var(--line2)}
+.pcard .foot{display:flex; align-items:center; justify-content:space-between; margin-top:13px}
+.pcard .pt{display:flex; align-items:center; gap:4px; font-weight:800; color:var(--amber); font-size:14px}
+.pcard .pt em{font-size:11px; color:var(--muted); font-weight:600; font-style:normal}
+.join-btn{padding:8px 14px; border-radius:9px; background:var(--brand); color:#fff; font-weight:700; font-size:12.5px; transition:.15s}
+.join-btn:hover{background:var(--brand-dk)}
+.join-btn:disabled{background:var(--bg2); color:var(--muted); cursor:not-allowed}
+
+/* program select */
+.toolbar{display:flex; gap:12px; margin-bottom:8px; align-items:center}
+.search{flex:1; position:relative}
+.search input{width:100%; height:46px; padding:0 16px 0 44px; font-size:14.5px; border:1px solid var(--line); border-radius:12px; background:#fff}
+.search input:focus{outline:none; border-color:var(--brand); box-shadow:0 0 0 4px var(--brand-soft)}
+.search .si{position:absolute; left:14px; top:13px; color:var(--muted)}
+.sort{position:relative}
+.sort>button{height:46px; padding:0 15px; border:1px solid var(--line); border-radius:12px; background:#fff; font-weight:600; font-size:14px; display:flex; align-items:center; gap:7px; white-space:nowrap}
+.sort>button:hover{border-color:var(--line2)}
+.sort .pop{position:absolute; right:0; top:52px; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow-lg); padding:6px; width:140px; display:none; z-index:20}
+.sort .pop.on{display:block}
+.sort .pop button{width:100%; height:38px; padding:0 10px; display:flex; align-items:center; border-radius:8px; font-size:13.5px}
+.sort .pop button:hover{background:var(--bg2)}
+.sort .pop button.on{color:var(--brand-dk); font-weight:700}
+
+/* type/track filter (independent axes, AND-combined with search) */
+.filterbar{display:flex; flex-direction:column; gap:14px; margin:16px 0 26px}
+.filtergroup{display:flex; flex-direction:column; gap:9px}
+.filtergroup .fg-label{display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:800; letter-spacing:.6px; color:var(--muted); text-transform:uppercase}
+.filtergroup .fg-label .isvg{color:var(--brand)}
+.chiprow{display:flex; flex-wrap:wrap; gap:8px}
+.chip{display:flex; align-items:center; gap:6px; padding:7px 13px; border:1.5px solid var(--line2); border-radius:20px; font-size:13px; font-weight:600; color:var(--ink2); background:#fff; transition:.14s; white-space:nowrap}
+.chip:hover{border-color:var(--brand)}
+.chip.on{border-color:var(--brand); background:var(--brand-soft); color:var(--brand-dk)}
+.chipdot{width:7px; height:7px; border-radius:50%; flex-shrink:0}
+
+.catgroup{margin-top:30px}
+.catgroup>.gl{font-size:12.5px; font-weight:800; letter-spacing:1px; color:var(--ink2); text-transform:uppercase; margin-bottom:14px; display:flex; align-items:center; gap:8px}
+.catgroup>.gl .isvg{color:var(--brand)}
+.catgroup>.gl::after{content:""; flex:1; height:1px; background:var(--line)}
+.catgroup.past{margin-top:40px; padding-top:26px; border-top:1px solid var(--line2)}
+.catgroup.past>.gl{color:var(--muted)}
+.catgroup.past>.gl .isvg{color:var(--muted)}
+.catgroup.past .pcard{opacity:.82}
+.catgroup.past .pcard:hover{opacity:1}
+.catrow{margin-bottom:22px}
+.catrow .ch{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:11px}
+.catrow .ch .nm{font-size:16px; font-weight:800; letter-spacing:-.3px; display:flex; align-items:center; gap:9px}
+.catrow .ch .dot{width:9px;height:9px;border-radius:3px; transform:translateY(-1px)}
+.catrow .ch .cnt{font-size:12.5px; color:var(--muted)}
+.strip{display:flex; gap:14px; overflow-x:auto; padding:4px 2px 12px; scroll-snap-type:x proximity; cursor:grab; scrollbar-width:thin; -webkit-overflow-scrolling:touch}
+.strip.drag{cursor:grabbing; scroll-behavior:auto}
+.strip::-webkit-scrollbar{height:7px}
+.strip::-webkit-scrollbar-thumb{background:var(--line2); border-radius:10px}
+.strip .pcard{min-width:236px; max-width:236px; scroll-snap-align:start}
+
+/* modal */
+.overlay{position:fixed; inset:0; z-index:200; background:rgba(18,26,46,.5); backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; padding:clamp(12px,4vw,24px); animation:fade .2s both}
+.overlay.on{display:flex}
+.modal{background:#fff; border-radius:20px; width:460px; max-width:100%; max-height:90vh; overflow:auto; box-shadow:var(--shadow-lg); animation:pop .26s cubic-bezier(.2,.8,.3,1) both}
+@keyframes pop{from{opacity:0; transform:translateY(14px) scale(.97)}to{opacity:1; transform:none}}
+.modal .mthumb{height:120px; display:grid; place-items:center; position:relative}
+.modal .mclose{position:absolute; top:12px; right:12px; width:32px;height:32px;border-radius:50%; background:rgba(255,255,255,.92); display:grid; place-items:center; color:var(--ink2)}
+.modal .mbody{padding:22px 24px 24px}
+.modal .mtag{font-size:11px; font-weight:700; color:var(--brand-dk); background:var(--brand-soft); padding:4px 10px; border-radius:20px; display:inline-block}
+.modal h3{font-size:21px; font-weight:800; letter-spacing:-.5px; margin:11px 0 6px}
+.modal .desc{font-size:14px; color:var(--ink2); line-height:1.6}
+.infogrid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:18px 0}
+.infogrid .it{background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px 14px}
+.infogrid .it .k{font-size:11.5px; color:var(--muted); font-weight:600; display:flex; align-items:center; gap:5px}
+.infogrid .it .k .isvg{color:var(--muted)}
+.infogrid .it .v{font-size:15px; font-weight:800; margin-top:4px}
+.infogrid .it .v.pt{color:var(--amber)}
+.statusline{display:flex; align-items:center; gap:9px; margin-bottom:16px; font-size:13px; flex-wrap:wrap}
+.badge{font-size:11.5px; font-weight:700; padding:5px 11px; border-radius:20px}
+.b-ok{background:var(--brand-soft); color:var(--brand-dk)}
+.b-ing{background:var(--indigo-soft); color:var(--indigo)}
+.b-wait{background:var(--amber-soft); color:var(--amber)}
+.b-full,.b-close{background:#EEF1F6; color:var(--ink2)}
+.b-over{background:var(--rose-soft); color:var(--rose)}
+.modal .mbtn{width:100%; height:50px; border-radius:12px; background:var(--brand); color:#fff; font-weight:800; font-size:15.5px; transition:.16s; display:flex; align-items:center; justify-content:center; gap:8px}
+.modal .mbtn:hover{background:var(--brand-dk)}
+.modal .mbtn:disabled{background:var(--bg2); color:var(--muted); cursor:not-allowed}
+
+/* qr */
+.qrbox{display:flex; flex-direction:column; align-items:center; text-align:center; padding:8px 0}
+.qr{width:188px; height:188px; padding:12px; background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow)}
+.qr svg{width:100%; height:100%}
+.qrbox h3{margin:18px 0 6px}
+.qrbox .desc{font-size:13.5px; color:var(--muted); max-width:300px}
+.countdown{margin-top:15px; font-size:13px; color:var(--muted); font-weight:600}
+.countdown #cdn{display:inline-grid; place-items:center; min-width:26px; height:26px; padding:0 4px; border-radius:8px; background:var(--brand-soft); color:var(--brand-dk); font-weight:800; font-size:15px; margin-right:3px}
+.scan-done{display:flex; flex-direction:column; align-items:center; text-align:center; padding:14px 0; animation:pop .32s cubic-bezier(.2,.8,.3,1) both}
+.scan-done .check{width:78px; height:78px; border-radius:50%; background:var(--brand); color:#fff; display:grid; place-items:center; box-shadow:0 12px 30px rgba(37,99,235,.42); margin-bottom:16px}
+.scan-done h3{margin-bottom:6px}
+.scan-done .desc{max-width:300px; color:var(--muted); font-size:13.5px}
+
+/* archive */
+.arch-grid{display:grid; grid-template-columns:1.05fr .95fr; gap:20px; align-items:start}
+.panel{background:var(--card); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow)}
+.panel .ph{padding:18px 20px 0; display:flex; align-items:center; justify-content:space-between}
+.panel .ph h3{font-size:16px; font-weight:800}
+.totals{display:flex; gap:10px; padding:16px 20px}
+.tot{flex:1; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:13px 14px}
+.tot .n{font-size:26px; font-weight:800; letter-spacing:-1px}
+.tot .l{font-size:12px; color:var(--muted); font-weight:600; margin-top:2px}
+.tot.hl{background:var(--ink); border-color:var(--ink)}
+.tot.hl .n{color:#fff} .tot.hl .l{color:#A9B6CE}
+.catcounts{padding:4px 20px 18px}
+.cc{display:flex; align-items:center; gap:12px; padding:11px 0; border-top:1px solid var(--line)}
+.cc .dot{width:10px;height:10px;border-radius:3px; flex-shrink:0}
+.cc .nm{font-size:13.5px; font-weight:600; flex:1}
+.cc .bar{flex:1.4; height:7px; background:var(--bg2); border-radius:10px; overflow:hidden}
+.cc .bar i{display:block; height:100%; border-radius:10px}
+.cc .v{font-size:13px; font-weight:800; width:18px; text-align:right}
+.alist{padding:4px 20px 18px}
+.ai{display:flex; align-items:center; gap:13px; padding:13px 0; border-top:1px solid var(--line)}
+.ai .ic{width:42px;height:42px;border-radius:11px; display:grid; place-items:center; flex-shrink:0}
+.ai .info{flex:1; min-width:0}
+.ai .info h5{font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.ai .info .m{font-size:12px; color:var(--muted); margin-top:2px}
+.ai .pt{font-weight:800; color:var(--amber); font-size:13.5px; white-space:nowrap}
+.radar-wrap{display:grid; place-items:center; padding:10px 20px 6px}
+.radar-wrap svg{width:100%; max-width:300px; height:auto; overflow:visible}
+.legend{display:flex; flex-wrap:wrap; gap:8px 14px; padding:6px 20px 20px; justify-content:center}
+.legend span{font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px}
+.legend span i{width:8px;height:8px;border-radius:2px}
+.pdf-note{font-size:12px; color:var(--muted); text-align:center; margin:6px 20px 8px}
+.pdfbtn{display:flex; align-items:center; justify-content:center; gap:9px; margin:0 20px 22px; height:54px; border-radius:14px; background:var(--brand); color:#fff; font-weight:800; font-size:15.5px; transition:.18s; box-shadow:0 8px 22px rgba(37,99,235,.30)}
+.pdfbtn:hover{background:var(--brand-dk); transform:translateY(-2px); box-shadow:0 13px 28px rgba(37,99,235,.40)}
+
+/* mypage */
+.my-grid{display:grid; grid-template-columns:.95fr 1.05fr; gap:20px; align-items:start}
+.profile{background:var(--card); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow); overflow:hidden}
+.profile .pbanner{height:84px; background:linear-gradient(120deg,var(--ink),#27406A)}
+.profile .pmain{padding:0 22px 22px; margin-top:-34px}
+.profile .pav{width:68px;height:68px;border-radius:18px; background:var(--brand); color:#fff; display:grid; place-items:center; font-size:26px; font-weight:800; border:3px solid #fff; box-shadow:var(--shadow)}
+.profile h3{font-size:20px; font-weight:800; margin-top:13px}
+.profile .role{font-size:13px; color:var(--muted)}
+.prows{margin-top:16px}
+.prow{display:flex; justify-content:space-between; padding:11px 0; border-top:1px solid var(--line); font-size:13.5px}
+.prow .k{color:var(--muted); font-weight:600}
+.prow .v{font-weight:700}
+.trackpick{margin-top:18px; padding-top:16px; border-top:1px solid var(--line)}
+.trackpick .tp-label{display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:800; letter-spacing:.5px; color:var(--ink2); text-transform:uppercase; margin-bottom:5px}
+.trackpick .tp-note{font-size:12px; color:var(--muted); margin-bottom:10px}
+.qrcheck{display:flex; align-items:center; justify-content:center; gap:8px; margin-top:18px; width:100%; height:46px; border-radius:12px; background:var(--indigo); color:#fff; font-weight:700; font-size:14.5px; transition:.16s}
+.qrcheck:hover{background:#4f52d8}
+.pointcard{background:var(--card); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow); padding:22px}
+.pointcard .ptop{display:flex; align-items:flex-start; justify-content:space-between}
+.pointcard .big{font-size:clamp(34px,7vw,42px); font-weight:800; letter-spacing:-2px; line-height:1}
+.pointcard .big small{font-size:18px; color:var(--muted); font-weight:700; margin-left:4px}
+.pointcard .pl{font-size:13px; color:var(--muted); font-weight:600; margin-top:4px}
+.pointcard .psub{font-size:12px; color:var(--muted); font-weight:600; margin-top:7px}
+.pointcard .psub b{color:var(--amber); font-weight:800}
+.convertbtn{display:flex; align-items:center; justify-content:center; gap:8px; margin-top:18px; width:100%; height:48px; border-radius:12px; background:var(--brand); color:#fff; font-weight:800; font-size:15px; transition:.16s; box-shadow:0 8px 20px rgba(37,99,235,.26)}
+.convertbtn:hover{background:var(--brand-dk); transform:translateY(-1px); box-shadow:0 11px 24px rgba(37,99,235,.34)}
+.convertbtn:disabled{background:var(--bg2); color:var(--muted); cursor:not-allowed; box-shadow:none; transform:none}
+.convbal{display:flex; justify-content:space-between; align-items:center; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:13px 16px; font-size:13.5px; color:var(--muted); font-weight:600}
+.convbal b{font-size:17px; color:var(--ink); font-weight:800}
+.amtgrid{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin:14px 0 6px}
+.amt{padding:13px; border:1.5px solid var(--line2); border-radius:11px; font-weight:700; font-size:14px; color:var(--ink2); transition:.14s}
+.amt:hover{border-color:var(--brand)}
+.amt.on{border-color:var(--brand); background:var(--brand-soft); color:var(--brand-dk)}
+.amt.full{grid-column:1/-1}
+.convresult{display:flex; justify-content:space-between; align-items:center; padding:12px 4px 16px; font-size:14px; color:var(--muted); font-weight:600}
+.convresult strong{font-size:24px; color:var(--amber); font-weight:800; letter-spacing:-.5px}
+.convnote{font-size:11.5px; color:var(--muted); text-align:center; margin-top:12px; line-height:1.5}
+.coin{width:46px;height:46px;border-radius:13px; background:var(--amber-soft); display:grid; place-items:center}
+.fieldpts{margin-top:24px}
+.fieldpts .fl{font-size:12.5px; font-weight:800; letter-spacing:.5px; color:var(--ink2); text-transform:uppercase; margin-bottom:14px}
+.fp{margin-bottom:14px}
+.fp .top{display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px}
+.fp .top .nm{font-weight:600; display:flex; align-items:center; gap:6px}
+.fp .top .vv{font-weight:800; color:var(--ink)}
+.fp .track{height:9px; background:var(--bg2); border-radius:10px; overflow:hidden}
+.fp .track i{display:block; height:100%; border-radius:10px; transition:width 1s cubic-bezier(.2,.8,.3,1)}
+
+/* qr list modal */
+.qrlist .qi{display:flex; align-items:center; gap:13px; padding:14px 0; border-top:1px solid var(--line)}
+.qrlist .qi:first-child{border-top:none}
+.qrlist .qi .ic{width:40px;height:40px;border-radius:11px; display:grid; place-items:center; flex-shrink:0}
+.qrlist .qi .info{flex:1; min-width:0}
+.qrlist .qi .info h5{font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.qrlist .qi .info .m{font-size:11.5px; color:var(--muted); margin-top:2px}
+.scanbtn{padding:8px 13px; border-radius:9px; font-weight:700; font-size:12px; white-space:nowrap; transition:.15s; border:1.5px solid var(--line)}
+.scanbtn.enter{background:var(--brand); color:#fff; border-color:transparent}
+.scanbtn.enter:hover{background:var(--brand-dk)}
+.scanbtn.exit{background:var(--indigo); color:#fff; border-color:transparent}
+.scanbtn.exit:hover{background:#4f52d8}
+.scanbtn.done{background:var(--brand-soft); color:var(--brand-dk); border-color:transparent; cursor:default}
+
+/* notification bell */
+.bell{position:relative; width:40px; height:40px; border-radius:11px; display:grid; place-items:center; color:var(--ink2); transition:.15s}
+.bell:hover{background:var(--bg2)}
+.bell .ndot{position:absolute; top:5px; right:5px; min-width:16px; height:16px; padding:0 4px; border-radius:9px; background:var(--rose); color:#fff; font-size:10px; font-weight:800; display:none; place-items:center; line-height:1}
+.bell .ndot.on{display:grid}
+.readall{font-size:12.5px; font-weight:700; color:var(--brand-dk); padding:4px 9px; border-radius:8px}
+.readall:hover{background:var(--brand-soft)}
+
+/* calendar popup */
+.calhead{display:flex; align-items:center; justify-content:space-between; margin-bottom:4px}
+.calhead button{width:34px; height:34px; border-radius:10px; display:grid; place-items:center; color:var(--ink2); transition:.14s}
+.calhead button:hover{background:var(--bg2)}
+.calhead button:disabled{opacity:.25; cursor:not-allowed}
+.caltitle{font-size:16.5px; font-weight:800; letter-spacing:-.3px}
+.calgrid{display:grid; grid-template-columns:repeat(7,1fr); gap:3px}
+.calgrid .dow{text-align:center; font-size:11px; font-weight:700; color:var(--muted); padding:2px 0 3px; align-self:center}
+.calgrid .dow.sun{color:var(--rose)}
+.cday{height:38px; border-radius:9px; display:flex; flex-direction:column; align-items:center; padding-top:4px; position:relative; font-size:12px; font-weight:600; color:var(--ink2)}
+.cday.empty{visibility:hidden}
+.cday.has{cursor:pointer; background:var(--bg)}
+.cday.has:hover{background:var(--brand-soft)}
+.cday.today{background:var(--ink); color:#fff}
+.cday.today .dn{color:#fff}
+.cday .dots{display:flex; gap:2px; margin-top:2px; flex-wrap:wrap; justify-content:center; max-width:32px}
+.cday .dots i{width:4px; height:4px; border-radius:50%}
+.callist{margin-top:13px}
+.callist .fl{font-size:12px; font-weight:800; letter-spacing:.5px; color:var(--ink2); text-transform:uppercase; margin-bottom:7px}
+.cev{display:flex; align-items:center; gap:11px; padding:8px 6px; border-top:1px solid var(--line); cursor:pointer; transition:.12s; border-radius:10px; margin:0 -6px}
+.cev:first-of-type{border-top:none}
+.cev:hover{background:var(--bg)}
+.cev .cevic{width:31px; height:31px; border-radius:9px; display:grid; place-items:center; flex-shrink:0}
+.cev .cevinfo{flex:1; min-width:0}
+.cev .cevinfo h5{font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.cev .cevinfo .m{font-size:11.5px; color:var(--muted); margin-top:1px}
+.cb{font-size:10.5px; font-weight:700; padding:4px 9px; border-radius:20px; white-space:nowrap}
+.cb.done{background:var(--brand-soft); color:var(--brand-dk)}
+.cb.ing{background:var(--indigo-soft); color:var(--indigo)}
+.cb.up{background:var(--amber-soft); color:var(--amber)}
+.notiflist{margin-top:8px}
+.nf{display:flex; gap:12px; padding:13px 2px; border-top:1px solid var(--line); position:relative}
+.nf:first-child{border-top:none}
+.nf .nic{width:38px; height:38px; border-radius:11px; display:grid; place-items:center; flex-shrink:0}
+.nf .ninfo{flex:1; min-width:0}
+.nf .ninfo h5{font-size:13.5px; font-weight:700; color:var(--ink2)}
+.nf.unread .ninfo h5{color:var(--ink)}
+.nf .nb{font-size:12.5px; color:var(--ink2); margin-top:2px; line-height:1.45}
+.nf .nt{font-size:11px; color:var(--muted); margin-top:3px}
+.nf.unread::after{content:""; position:absolute; right:0; top:18px; width:7px; height:7px; border-radius:50%; background:var(--rose)}
+
+/* satisfaction survey */
+.survey{display:flex; flex-direction:column; align-items:center; text-align:center}
+.stars{display:flex; gap:5px; margin:4px 0 2px}
+.stars .star{padding:5px; transition:transform .12s}
+.stars .star:hover{transform:scale(1.16)}
+.stars .star.on .isvg{filter:drop-shadow(0 2px 5px rgba(224,146,47,.4))}
+.ratelabel{font-size:13px; font-weight:700; color:var(--amber); min-height:18px; margin-bottom:12px}
+.reviewinput{display:block; width:100%; border:1.5px solid var(--line2); border-radius:12px; padding:11px 13px; font-size:14px; resize:none; font-family:inherit; line-height:1.5; transition:.15s; color:var(--ink); background:#fff; text-align:left; min-height:60px; -webkit-text-fill-color:var(--ink)}
+.reviewinput::placeholder{color:var(--muted); -webkit-text-fill-color:var(--muted)}
+.reviewinput:focus{outline:none; border-color:var(--brand); box-shadow:0 0 0 4px var(--brand-soft)}
+.skipbtn{margin-top:10px; font-size:13px; color:var(--muted); font-weight:600; padding:6px}
+.skipbtn:hover{color:var(--ink2)}
+.smini{display:inline-flex; gap:1px; align-items:center}
+
+/* review card + clickable activity */
+.ai{cursor:pointer; transition:.12s; border-radius:11px; margin:0 -8px; padding-left:8px; padding-right:8px}
+.ai:hover{background:var(--bg)}
+.revline{margin-top:4px; display:flex; align-items:center; gap:6px}
+.rt{font-size:11px; color:var(--amber); font-weight:700}
+.rt.none{color:var(--muted); font-weight:600}
+.revcard{background:var(--bg); border:1px solid var(--line); border-radius:13px; padding:15px 16px}
+.revcard.empty{text-align:center}
+.revhead{display:flex; align-items:center; justify-content:space-between; font-size:12.5px; font-weight:800; color:var(--ink2); margin-bottom:9px}
+.revtext{font-size:14.5px; line-height:1.6; color:var(--ink); font-weight:500}
+.revtext.muted{color:var(--muted); font-size:13.5px; font-weight:400}
+.revedit{margin-top:12px; font-size:12.5px; font-weight:700; color:var(--brand-dk); padding:2px 0}
+.revedit:hover{text-decoration:underline}
+
+/* toast */
+#toast{position:fixed; bottom:26px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--ink); color:#fff; padding:13px 20px; border-radius:13px; font-size:14px; font-weight:600; box-shadow:var(--shadow-lg); z-index:300; opacity:0; pointer-events:none; transition:.3s; display:flex; align-items:center; gap:9px; max-width:90vw}
+#toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
+#toast .tic{font-size:17px}
+.empty{text-align:center; padding:38px 20px; color:var(--muted); font-size:13.5px}
+
+/* ============ RESPONSIVE ============ */
+@media (max-width:980px){
+  .arch-grid,.my-grid{grid-template-columns:1fr}
+}
+@media (max-width:768px){
+  .nav .menu{display:none}
+  .bottomnav{display:grid}
+  .wrap{padding-bottom:86px}
+  .hero{grid-template-columns:1fr; gap:8px}
+  .stackviz{margin-top:10px}
+  #toast{bottom:84px}
+}
+@media (max-width:600px){
+  .stackviz{display:none}
+  .nav .me .pts em{display:none}
+  .hero p{font-size:14.5px}
+}
+@media (max-width:430px){
+  .strip .pcard{min-width:210px; max-width:210px}
+  .infogrid{grid-template-columns:1fr}
+  .nav{gap:10px}
+  .logo .word{font-size:18px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+
+/* print -> PDF portfolio */
+@media print{
+  body{background:#fff}
+  .nav,.bottomnav,.pdfbtn,.pdf-note,#toast,.overlay{display:none!important}
+  .screen{display:none!important}
+  #print-area{display:block!important}
+}
+#print-area{display:none}
+</style>
+
+<!-- ===== SVG ICON SPRITE (단색 듀오톤) ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- brand mark: 누적되는 막대 (단색 블루 톤 변화) -->
+  <symbol id="ic-logo" viewBox="0 0 32 30">
+    <rect x="2"  y="19" width="5.4" height="9"  rx="2.1" fill="#BCD0FF"/>
+    <rect x="9"  y="14" width="5.4" height="14" rx="2.1" fill="#7098EE"/>
+    <rect x="16" y="9"  width="5.4" height="19" rx="2.1" fill="#3463DA"/>
+    <rect x="23" y="3"  width="5.4" height="25" rx="2.1" fill="#16213E"/>
+  </symbol>
+  <!-- categories -->
+  <symbol id="ic-book" viewBox="0 0 24 24"><path opacity=".34" d="M4 4.5h7.2V20H6.2A2.2 2.2 0 0 1 4 17.8V4.5z"/><path d="M12.8 4.5H20v13.3a2.2 2.2 0 0 1-2.2 2.2h-5V4.5z"/></symbol>
+  <symbol id="ic-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.3"/><path d="M3.2 19.2a5.8 5.8 0 0 1 11.6 0v.6H3.2v-.6z"/><circle cx="16.8" cy="9" r="2.6" opacity=".34"/><path opacity=".34" d="M15.2 14.6a5.2 5.2 0 0 1 5.6 4.6v.6h-4.2v-.6c0-1.7-.5-3.3-1.4-4.6z"/></symbol>
+  <symbol id="ic-trophy" viewBox="0 0 24 24"><path d="M7 4h10v4.2a5 5 0 0 1-10 0V4z"/><path opacity=".34" d="M10.4 12.4h3.2v3.4h-3.2zM8 17.8h8V20H8z"/><path opacity=".34" d="M5 5.2H3.2V7A3.2 3.2 0 0 0 7 10.1V8a1.4 1.4 0 0 1-2-1.3V5.2zM19 5.2h1.8V7A3.2 3.2 0 0 1 17 10.1V8a1.4 1.4 0 0 0 2-1.3V5.2z"/></symbol>
+  <symbol id="ic-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.7"/><rect x="13" y="4" width="7" height="7" rx="1.7" opacity=".34"/><rect x="4" y="13" width="7" height="7" rx="1.7" opacity=".34"/><rect x="13" y="13" width="7" height="7" rx="1.7"/></symbol>
+  <symbol id="ic-building" viewBox="0 0 24 24"><path opacity=".34" d="M3 9.5h7v10.5H3z"/><path d="M10 4h11v16h-11z"/><rect x="13" y="7" width="2" height="2" rx=".5" fill="#fff" opacity=".55"/><rect x="16.7" y="7" width="2" height="2" rx=".5" fill="#fff" opacity=".55"/><rect x="13" y="11" width="2" height="2" rx=".5" fill="#fff" opacity=".55"/><rect x="16.7" y="11" width="2" height="2" rx=".5" fill="#fff" opacity=".55"/></symbol>
+  <symbol id="ic-heart" viewBox="0 0 24 24"><path d="M12 20.5S3.3 14.8 3.3 8.9A4.4 4.4 0 0 1 12 6.4 4.4 4.4 0 0 1 20.7 8.9C20.7 14.8 12 20.5 12 20.5z"/><path opacity=".34" d="M12 6.4A4.4 4.4 0 0 0 3.3 8.9c0 2.4 1.4 4.6 3.2 6.5L12 6.4z"/></symbol>
+  <symbol id="ic-rocket" viewBox="0 0 24 24"><path d="M12 2.2c3.6 2.1 5.2 5.6 5.2 9.2l-2.6 2.6H9.4L6.8 11.4c0-3.6 1.6-7.1 5.2-9.2z"/><circle cx="12" cy="9" r="1.7" fill="#fff" opacity=".9"/><path opacity=".34" d="M9 15.4 7.4 20.5l3.2-1.7M15 15.4l1.6 5.1-3.2-1.7"/></symbol>
+  <symbol id="ic-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><g fill="none" stroke="#fff" stroke-width="1.4" opacity=".8"><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3.4 9.5h17.2M3.4 14.5h17.2"/></g></symbol>
+  <!-- features / nav -->
+  <symbol id="ic-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" opacity=".3"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.8" fill="#fff" opacity=".95"/></symbol>
+  <symbol id="ic-coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="6.2" fill="none" stroke="#fff" stroke-width="1.4" opacity=".55"/><text x="12" y="15.6" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" font-family="Pretendard,sans-serif">P</text></symbol>
+  <symbol id="ic-folder" viewBox="0 0 24 24"><path opacity=".34" d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v2H3V7z"/><path d="M3 10.2h18V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7.8z"/></symbol>
+  <symbol id="ic-home" viewBox="0 0 24 24"><path opacity=".34" d="M3.5 11 12 3.8 20.5 11V20a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-9z"/><path d="M9 21v-6h6v6z"/></symbol>
+  <symbol id="ic-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" opacity=".3"/><path d="m16 8-2.3 6L7.8 16l2.3-6L16 8z"/><circle cx="12" cy="12" r="1.3" fill="#fff" opacity=".95"/></symbol>
+  <symbol id="ic-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path opacity=".34" d="M4 21a8 8 0 0 1 16 0v.5H4V21z"/></symbol>
+  <!-- util -->
+  <symbol id="ic-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="16" rx="2.6" opacity=".3"/><rect x="3.5" y="5" width="17" height="4.4" rx="2"/><rect x="7" y="2.6" width="2" height="4.2" rx="1"/><rect x="15" y="2.6" width="2" height="4.2" rx="1"/></symbol>
+  <symbol id="ic-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" opacity=".3"/><path d="M12 7v5l3.4 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ic-tag" viewBox="0 0 24 24"><path d="M4 4.5h7L20 13l-7 7-9-9V4.5z"/><circle cx="8.4" cy="8.4" r="1.7" fill="#fff" opacity=".9"/></symbol>
+  <symbol id="ic-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.4" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m15.4 15.4 5.1 5.1" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="ic-sort" viewBox="0 0 24 24"><path d="M7 4.5v15M7 19.5l-3-3M7 4.5l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path opacity=".4" d="M17 19.5v-15M17 4.5l3 3M17 19.5l-3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ic-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6" opacity=".34"/><rect x="3" y="14" width="7" height="7" rx="1.6" opacity=".34"/><rect x="14" y="14" width="3" height="3"/><rect x="18.2" y="14" width="2.8" height="3"/><rect x="14" y="18.2" width="3" height="2.8"/><rect x="18.2" y="18.2" width="2.8" height="2.8" opacity=".5"/></symbol>
+  <symbol id="ic-doc" viewBox="0 0 24 24"><path opacity=".32" d="M6 3h7.5L19 8.5V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M13.5 3 19 8.5h-5.5V3z"/><rect x="8" y="12" width="8" height="1.8" rx=".9"/><rect x="8" y="15.5" width="6" height="1.8" rx=".9"/></symbol>
+  <symbol id="ic-school" viewBox="0 0 24 24"><path d="M12 3 22 8l-10 5L2 8l10-5z"/><path opacity=".34" d="M6 11.2v4.4c0 1.5 2.7 2.9 6 2.9s6-1.4 6-2.9v-4.4l-6 3-6-3z"/></symbol>
+  <symbol id="ic-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="ic-bell" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-6 6c0 3.8-1.3 5.3-1.9 6.1-.4.5 0 1.1.6 1.1h14.6c.6 0 1-.6.6-1.1-.6-.8-1.9-2.3-1.9-6.1a6 6 0 0 0-6-6z"/><path opacity=".34" d="M9.5 19.2a2.5 2.5 0 0 0 5 0z"/></symbol>
+  <symbol id="ic-star" viewBox="0 0 24 24"><path d="M12 2.6l2.7 5.55 6.1.9-4.4 4.3 1.04 6.05L12 17.8l-5.44 2.6L7.6 13.35 3.2 9.05l6.1-.9L12 2.6z"/></symbol>
+  <symbol id="ic-chevL" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ic-chevR" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="login">
+  <div class="deco" id="ldeco"></div>
+  <div class="lcard">
+    <div class="top">
+      <svg class="isvg" style="width:54px;height:50px" aria-hidden="true"><use href="#ic-logo"/></svg>
+      <h1>Accu<b>mu</b></h1>
+      <div class="tag">참여가 쌓여 나의 커리어가 됩니다</div>
+    </div>
+    <div class="field"><label>학번</label><input id="in-sid" placeholder="예: 10718" value="10718"></div>
+    <div class="field"><label>이름</label><input id="in-name" placeholder="이름을 입력하세요" value="신지훈"></div>
+    <div class="field"><label>비밀번호</label><input id="in-pw" type="password" placeholder="비밀번호" value="········"></div>
+    <button class="btn-primary" onclick="doLogin()">로그인 <span>→</span></button>
+    <div class="hint">프로토타입 — 입력값과 무관하게 로그인됩니다</div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app" style="display:none">
+  <nav class="nav">
+    <div class="logo" onclick="go('main')">
+      <svg class="isvg" style="width:30px;height:28px" aria-hidden="true"><use href="#ic-logo"/></svg>
+      <span class="word">Accu<b>mu</b></span>
+    </div>
+    <div class="menu">
+      <button data-nav="programs" onclick="go('programs')"><svg class="isvg isvg-18"><use href="#ic-compass"/></svg>프로그램</button>
+      <button data-nav="archive" onclick="go('archive')"><svg class="isvg isvg-18"><use href="#ic-folder"/></svg>디지털 아카이브</button>
+      <button data-nav="mypage" onclick="go('mypage')"><svg class="isvg isvg-18"><use href="#ic-user"/></svg>마이페이지</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="bell" onclick="openCalendar()" aria-label="활동 캘린더"><svg class="isvg isvg-22"><use href="#ic-calendar"/></svg></button>
+    <button class="bell" onclick="openNotif()" aria-label="알림"><svg class="isvg isvg-22"><use href="#ic-bell"/></svg><span class="ndot" id="notif-badge"></span></button>
+    <div class="me">
+      <div class="pts"><svg class="isvg isvg-18" style="color:var(--amber)"><use href="#ic-coin"/></svg><span id="nav-pts">0</span><em>P</em></div>
+      <div class="av" id="nav-av">신</div>
+    </div>
+  </nav>
+
+  <div class="wrap">
+    <!-- ===== MAIN ===== -->
+    <section class="screen" id="screen-main">
+      <div class="hero">
+        <div class="glow"></div>
+        <div>
+          <div class="eyebrow">Accumulate your activity</div>
+          <h1>참여가 쌓여<br><b>나의 커리어</b>가 된다</h1>
+          <p>학교 안팎의 활동에 참여하고, 지역화폐 포인트를 모으고, 흩어져 있던 나의 활동을 하나의 디지털 포트폴리오로 완성하세요.</p>
+          <div class="cta">
+            <button class="g" onclick="go('programs')"><svg class="isvg isvg-18"><use href="#ic-compass"/></svg>프로그램 둘러보기</button>
+            <button class="o" onclick="go('archive')"><svg class="isvg isvg-18"><use href="#ic-folder"/></svg>내 아카이브 보기</button>
+          </div>
+        </div>
+        <div class="stackviz" id="stackviz"></div>
+      </div>
+
+      <div class="overview">
+        <div class="ov"><div class="ic" style="background:var(--brand-soft)"><svg class="isvg isvg-22" style="color:var(--brand)"><use href="#ic-target"/></svg></div>
+          <h4>활동을 찾고 참여</h4><p>방과후·동아리·봉사·기업 프로그램까지, 진로에 도움되는 활동을 카테고리별로 모아봅니다.</p></div>
+        <div class="ov"><div class="ic" style="background:var(--amber-soft)"><svg class="isvg isvg-22" style="color:var(--amber)"><use href="#ic-coin"/></svg></div>
+          <h4>지역화폐 포인트</h4><p>입장·퇴장 QR을 인증하면 참여가 확인되고, 분야별 포인트가 정직하게 쌓입니다.</p></div>
+        <div class="ov"><div class="ic" style="background:var(--indigo-soft)"><svg class="isvg isvg-22" style="color:var(--indigo)"><use href="#ic-folder"/></svg></div>
+          <h4>디지털 포트폴리오</h4><p>참여 이력이 자동으로 정리되고, 진로·진학에 쓰는 PDF 포트폴리오로 내려받습니다.</p></div>
+      </div>
+
+      <div class="sec-head">
+        <div><div class="eyebrow">Recommended</div><h2 class="sec">추천 프로그램</h2>
+        <div class="sec-sub">신지훈님의 관심 분야를 바탕으로 골라봤어요</div></div>
+        <button class="join-btn" style="background:var(--bg2);color:var(--ink2)" onclick="go('programs')">전체 보기 →</button>
+      </div>
+      <div class="cards-row" id="reco-row"></div>
+    </section>
+
+    <!-- ===== PROGRAMS ===== -->
+    <section class="screen" id="screen-programs">
+      <div class="sec-head" style="margin-bottom:16px">
+        <div><div class="eyebrow">Explore</div><h2 class="sec">프로그램 선택</h2>
+        <div class="sec-sub">카테고리를 가로로 넘기며 둘러보세요</div></div>
+      </div>
+      <div class="toolbar">
+        <div class="search"><svg class="si isvg isvg-20"><use href="#ic-search"/></svg><input id="search" placeholder="프로그램, 주최, 키워드 검색" oninput="renderPrograms()"></div>
+        <div class="sort">
+          <button onclick="toggleSort(event)"><svg class="isvg isvg-18"><use href="#ic-sort"/></svg><span id="sort-label">인기순</span></button>
+          <div class="pop" id="sort-pop">
+            <button class="on" onclick="setSort('popular',this)">인기순</button>
+            <button onclick="setSort('recent',this)">최신순</button>
+            <button onclick="setSort('points',this)">포인트순</button>
+          </div>
+        </div>
+      </div>
+      <div class="filterbar" id="filter-bar"></div>
+      <div id="cat-area"></div>
+    </section>
+
+    <!-- ===== ARCHIVE ===== -->
+    <section class="screen" id="screen-archive">
+      <div class="sec-head"><div><div class="eyebrow">Digital archive</div><h2 class="sec">디지털 아카이브</h2>
+      <div class="sec-sub">참여한 활동이 자동으로 기록됩니다</div></div></div>
+      <div class="arch-grid">
+        <div class="panel">
+          <div class="totals">
+            <div class="tot hl"><div class="n" id="arch-total">0</div><div class="l">총 참여 활동</div></div>
+            <div class="tot"><div class="n" id="arch-incat">0</div><div class="l">교내 활동</div></div>
+            <div class="tot"><div class="n" id="arch-excat">0</div><div class="l">교외 활동</div></div>
+          </div>
+          <div class="ph"><h3>카테고리별 참여</h3></div>
+          <div class="catcounts" id="catcounts"></div>
+          <div class="ph"><h3>활동 목록</h3></div>
+          <div class="alist" id="alist"></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><h3>많이 참여한 분야</h3></div>
+          <div class="radar-wrap" id="radar"></div>
+          <div class="legend" id="radar-legend"></div>
+          <div class="pdf-note">활동 이력을 진로·진학용 포트폴리오로 내보냅니다</div>
+          <button class="pdfbtn" onclick="savePDF()"><svg class="isvg isvg-20"><use href="#ic-doc"/></svg>PDF로 포트폴리오 저장하기</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== MYPAGE ===== -->
+    <section class="screen" id="screen-mypage">
+      <div class="sec-head"><div><div class="eyebrow">My page</div><h2 class="sec">마이페이지</h2>
+      <div class="sec-sub">나의 정보와 모은 포인트를 확인하세요</div></div></div>
+      <div class="my-grid">
+        <div class="profile">
+          <div class="pbanner"></div>
+          <div class="pmain">
+            <div class="pav">신</div>
+            <h3>신지훈</h3>
+            <div class="role">학생 · 진로 탐색 중</div>
+            <div class="prows">
+              <div class="prow"><span class="k">학번</span><span class="v">10718</span></div>
+              <div class="prow"><span class="k">학교</span><span class="v">청매실고등학교</span></div>
+              <div class="prow"><span class="k">학년</span><span class="v">2학년</span></div>
+              <div class="prow"><span class="k">가입일</span><span class="v">2026.03.02</span></div>
+            </div>
+            <div class="trackpick">
+              <div class="tp-label"><svg class="isvg isvg-14" style="color:var(--brand)"><use href="#ic-target"/></svg>관심 진로 계열</div>
+              <div class="tp-note" id="track-note"></div>
+              <div class="chiprow" id="track-picker"></div>
+            </div>
+            <button class="qrcheck" onclick="openQrList()"><svg class="isvg isvg-18"><use href="#ic-qr"/></svg>QR 확인 · 입퇴장 인증</button>
+          </div>
+        </div>
+        <div class="pointcard">
+          <div class="ptop">
+            <div><div class="big"><span id="my-pts">0</span><small>P</small></div>
+            <div class="pl">사용 가능한 포인트 · 1P = 1원</div>
+            <div class="psub" id="my-sub"></div></div>
+            <div class="coin"><svg class="isvg isvg-26" style="color:var(--amber)"><use href="#ic-coin"/></svg></div>
+          </div>
+          <button class="convertbtn" id="convert-btn" onclick="openConvert()"><svg class="isvg isvg-18"><use href="#ic-coin"/></svg>지역화폐로 전환</button>
+          <div class="fieldpts"><div class="fl">분야별 획득 포인트 (누적)</div><div id="fieldpts"></div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- bottom tab (mobile) -->
+  <nav class="bottomnav">
+    <button data-nav="main" onclick="go('main')"><svg class="isvg isvg-22"><use href="#ic-home"/></svg><span>홈</span></button>
+    <button data-nav="programs" onclick="go('programs')"><svg class="isvg isvg-22"><use href="#ic-compass"/></svg><span>프로그램</span></button>
+    <button data-nav="archive" onclick="go('archive')"><svg class="isvg isvg-22"><use href="#ic-folder"/></svg><span>아카이브</span></button>
+    <button data-nav="mypage" onclick="go('mypage')"><svg class="isvg isvg-22"><use href="#ic-user"/></svg><span>마이</span></button>
+  </nav>
+</div>
+
+<!-- modals -->
+<div class="overlay" id="ov-join" onclick="closeOverlay(event,'ov-join')"><div class="modal" id="join-modal"></div></div>
+<div class="overlay" id="ov-qr" onclick="closeOverlay(event,'ov-qr')"><div class="modal" id="qr-modal"></div></div>
+<div class="overlay" id="ov-qrlist" onclick="closeOverlay(event,'ov-qrlist')"><div class="modal" id="qrlist-modal"></div></div>
+<div class="overlay" id="ov-convert" onclick="closeOverlay(event,'ov-convert')"><div class="modal" id="convert-modal"></div></div>
+<div class="overlay" id="ov-notif" onclick="closeOverlay(event,'ov-notif')"><div class="modal" id="notif-modal"></div></div>
+<div class="overlay" id="ov-cal" onclick="closeOverlay(event,'ov-cal')"><div class="modal" id="cal-modal"></div></div>
+<div class="overlay" id="ov-detail" onclick="closeOverlay(event,'ov-detail')"><div class="modal" id="detail-modal"></div></div>
+<div class="overlay" id="ov-survey" onclick="closeOverlay(event,'ov-survey')"><div class="modal" id="survey-modal"></div></div>
+<div id="toast"></div>
+<div id="print-area"></div>
+
+<script>
+/* ============ DATA ============ */
+const CAT = {
+  hbk:{group:"교내", name:"방과후", color:"#3B6FEF", soft:"#E2EAFE", icon:"ic-book"},
+  hdo:{group:"교내", name:"동아리", color:"#0EA5E9", soft:"#DBF0FD", icon:"ic-users"},
+  hdc:{group:"교내", name:"대회",   color:"#E0922F", soft:"#FAE7CE", icon:"ic-trophy"},
+  het:{group:"교내", name:"기타",   color:"#64748B", soft:"#E9EDF3", icon:"ic-grid"},
+  ecp:{group:"교외", name:"기업·국가기관", color:"#8B5CF0", soft:"#EBE2FD", icon:"ic-building"},
+  evo:{group:"교외", name:"봉사활동", color:"#0E7490", soft:"#D6EAF0", icon:"ic-heart"},
+  edc:{group:"교외", name:"대회",   color:"#E2556A", soft:"#FBDDE2", icon:"ic-rocket"},
+  eet:{group:"교외", name:"기타",   color:"#0FA9C4", soft:"#D4F0F5", icon:"ic-globe"},
+};
+// 진로 계열 태그 — 활동 유형(CAT)과는 별개 축. 학생의 관심 진로 분야 분류.
+const TRACK = {
+  sci:{name:"이공계·자연과학", color:"#0284C7"},
+  it:{name:"IT·소프트웨어",   color:"#2563EB"},
+  hum:{name:"인문·사회",      color:"#6D5CE0"},
+  biz:{name:"경영·경제",      color:"#475569"},
+  art:{name:"예술·체육",      color:"#D6336C"},
+};
+const STATUS = {
+  open:{label:"참석 가능", cls:"b-ok",   join:true},
+  ing:{label:"참석 중",   cls:"b-ing",  join:false},
+  wait:{label:"대기",     cls:"b-wait", join:true},
+  full:{label:"마감",     cls:"b-close",join:false},
+  over:{label:"정원 초과", cls:"b-over", join:false},
+};
+const DOW=['일','월','화','수','목','금','토'];
+function fmtDate(iso){if(!iso)return'';const a=iso.split('-').map(Number);const dt=new Date(a[0],a[1]-1,a[2]);return `${a[1]}월 ${a[2]}일 (${DOW[dt.getDay()]})`;}
+let PID=0; const P=(cat,title,org,d,time,pts,status,desc,pop,track)=>({id:++PID,cat,title,org,d,date:fmtDate(d),time,pts,status,desc,pop,track});
+const PROGRAMS=[
+  P("hbk","파이썬 코딩 기초 방과후","정보교과부","2026-03-17","15:30–17:00",400,"open","코딩이 처음인 학생을 위한 8주 방과후 과정. 간단한 게임을 직접 만들며 프로그래밍의 기초를 익힙니다.",98,"it"),
+  P("hbk","수학 심화 탐구반","수학교과부","2026-04-14","16:00–17:30",350,"ing","교과 과정 너머의 수학 주제를 탐구하고 발표하는 심화반입니다.",61,"sci"),
+  P("hbk","영어 회화 클럽","영어교과부","2026-07-10","15:30–16:30",300,"open","원어민 교사와 함께하는 실전 영어 회화 연습.",40,"hum"),
+  P("hdo","발명·메이커 동아리","창의융합부","2026-03-24","방과후",350,"open","아두이노와 3D 프린터로 나만의 아이디어를 직접 만들어보는 자율동아리.",87,"it"),
+  P("hdo","교지편집부","도서관","2026-07-13","점심·방과후",250,"open","학교 소식을 취재하고 교지를 직접 디자인·편집합니다.",33,"hum"),
+  P("hdo","수리과학 탐구 동아리","과학교과부","2026-07-15","방과후",300,"wait","실험과 데이터 분석을 중심으로 운영되는 과학 탐구 동아리.",52,"sci"),
+  P("hdc","교내 과학탐구대회","과학교과부","2026-05-21","09:00–12:00",700,"open","자유 주제 과학 탐구 보고서를 작성해 발표하는 교내 대회. 수상 시 생기부 기재.",120,"sci"),
+  P("hdc","교내 토론대회","사회교과부","2026-07-08","13:00–16:00",600,"open","시사 주제로 진행되는 2인 1팀 토론 대회.",74,"hum"),
+  P("hdc","교내 UCC 공모전","방송부","2026-07-16","마감 18:00",500,"over","우리 학교를 소개하는 1분 영상 공모전.",90,"art"),
+  P("het","또래 멘토링 프로그램","상담부","2026-07-09","협의",200,"open","후배에게 공부 방법을 알려주며 함께 성장하는 또래 멘토링.",29,"hum"),
+  P("het","학생자치회 정책 제안","학생자치회","2026-07-06","점심시간",250,"open","학교에 바라는 점을 정책으로 제안하고 직접 추진해봅니다.",46,"biz"),
+  P("het","도서부 큐레이션 활동","도서관","2026-07-20","방과후",150,"open","주제별 추천 도서를 선정하고 전시를 기획합니다.",18,"hum"),
+  P("ecp","삼성 주니어 SW 아카데미","삼성전자","2026-04-11","10:00–17:00",1200,"open","현직 개발자와 함께하는 1일 소프트웨어 집중 캠프. 수료증 발급.",210,"it"),
+  P("ecp","카카오 진로 멘토링 데이","카카오","2026-07-11","13:00–16:00",900,"wait","IT 기업 현직자에게 직무와 진로를 직접 묻는 멘토링 행사.",165,"it"),
+  P("ecp","네이버 커넥트 코딩 클래스","네이버 커넥트재단","2026-07-18","10:00–15:00",1100,"open","청소년을 위한 무료 코딩 교육 프로그램.",140,"it"),
+  P("ecp","교육부 진로체험 캠프","교육부","2026-07-22","09:30–16:00",1500,"full","다양한 직업을 체험하는 1박 진로 캠프.",96,"hum"),
+  P("evo","지역 아동센터 학습 봉사","OO시 자원봉사센터","2026-05-09","10:00–12:00",400,"open","지역 아동센터 아이들의 학습을 돕는 정기 봉사. 봉사시간 인정.",110,"hum"),
+  P("evo","하천 환경 정화 봉사","OO시청","2026-07-25","09:00–11:00",300,"open","우리 지역 하천을 함께 정화하는 환경 봉사 활동.",58,"sci"),
+  P("evo","노인복지관 디지털 교육 봉사","OO복지관","2026-07-19","14:00–16:00",400,"ing","어르신께 스마트폰 사용법을 알려드리는 디지털 봉사.",43,"hum"),
+  P("edc","전국 청소년 창업 경진대회","중소벤처기업부","2026-06-13","온라인 접수",3000,"open","아이디어를 사업 모델로 발전시켜 겨루는 전국 단위 창업 대회.",230,"biz"),
+  P("edc","경기도 메이커 챌린지","경기도교육청","2026-07-26","09:00–18:00",2000,"open","주어진 미션을 직접 제작물로 해결하는 메이커 경진대회.",128,"it"),
+  P("edc","대학 연계 주니어 해커톤","OO대학교","2026-08-09","무박 2일",2500,"wait","대학생 멘토와 팀을 이뤄 24시간 동안 결과물을 만드는 해커톤.",101,"it"),
+  P("eet","OO시청 청소년 정책 참여단","OO시청","2026-06-03","16:00–18:00",500,"open","청소년의 시선으로 지역 정책을 제안하는 참여단 활동.",67,"hum"),
+  P("eet","대학 전공 체험의 날","OO대학교","2026-07-30","10:00–15:00",600,"open","관심 전공의 수업을 미리 체험해보는 진로 탐색 프로그램.",83,"hum"),
+  P("eet","지역 연계 진로 박람회","OO교육지원청","2026-07-17","10:00–16:00",400,"open","100여 개 직업 부스를 둘러보는 대규모 진로 박람회.",55,"hum"),
+  P("hbk","AI·데이터 기초 방과후","정보교과부","2026-07-07","15:30–17:00",450,"open","엑셀과 파이썬으로 데이터를 다뤄보는 입문 방과후 과정.",72,"it"),
+  P("hbk","독서토론·논술 방과후","국어교과부","2026-07-24","16:00–17:30",350,"open","책을 읽고 토론하며 자기 생각을 글로 정리하는 훈련.",44,"hum"),
+  P("hdo","밴드부 정기공연 준비","음악교과부","2026-08-07","방과후",300,"open","악기 파트를 맡아 정기공연 무대를 함께 준비하는 동아리.",49,"art"),
+  P("hdo","로봇축구 동아리","창의융합부","2026-08-12","방과후",350,"wait","자율주행 로봇을 만들어 대회에 출전하는 메이커 동아리.",66,"it"),
+  P("hdc","교내 수학경시대회","수학교과부","2026-07-29","13:00–15:00",600,"open","사고력 문제 중심으로 진행되는 교내 수학 경시대회.",88,"sci"),
+  P("hdc","교내 영어 에세이 대회","영어교과부","2026-08-14","14:00–16:00",500,"open","주어진 주제로 영어 에세이를 작성해 겨루는 대회.",53,"hum"),
+  P("het","교내 환경 캠페인 기획단","환경동아리","2026-08-05","협의",200,"open","분리수거·에너지 절약 캠페인을 직접 기획하고 운영합니다.",31,"sci"),
+  P("ecp","구글 청소년 AI 챌린지 설명회","구글","2026-08-01","14:00–16:00",1000,"open","청소년 대상 AI 챌린지 소개와 멘토링 설명회.",152,"it"),
+  P("ecp","현대차 미래모빌리티 캠프","현대자동차","2026-08-21","10:00–16:00",1300,"wait","미래 모빌리티를 주제로 한 1일 진로 체험 캠프.",118,"sci"),
+  P("evo","유기동물 보호소 봉사","OO동물보호센터","2026-08-02","10:00–13:00",350,"open","유기동물을 돌보고 입양 홍보를 돕는 정기 봉사. 봉사시간 인정.",97,"sci"),
+  P("evo","지역 도서관 책 정리 봉사","OO시립도서관","2026-08-08","09:00–12:00",300,"open","도서 분류와 서가 정리를 돕는 도서관 봉사 활동.",51,"hum"),
+  P("edc","전국 고교생 과학 올림피아드","한국과학창의재단","2026-08-16","온라인 접수",2500,"open","물리·화학·생명 분야로 겨루는 전국 단위 과학 올림피아드.",139,"sci"),
+  P("edc","청소년 앱 개발 공모전","과학기술정보통신부","2026-08-23","온라인 접수",2000,"open","사회 문제를 해결하는 앱 아이디어와 시제품을 겨루는 공모전.",112,"it"),
+  P("eet","대학 연구실 체험 프로그램","OO대학교","2026-08-13","10:00–15:00",700,"open","관심 분야 대학 연구실에서 연구 과정을 직접 체험합니다.",78,"hum"),
+  P("eet","지역 스타트업 인턴십 데이","OO창조경제혁신센터","2026-08-20","13:00–17:00",900,"open","지역 스타트업에서 하루 동안 실무를 체험하는 인턴십.",64,"biz"),
+];
+const findP=id=>PROGRAMS.find(p=>p.id===id);
+
+const state={joined:[],completed:[],converted:0,localCurrency:0,reviews:{},notifs:[],interestTracks:[]};
+[1,4,7,13,17,20,23,2].forEach(id=>state.completed.push(id));
+state.joined.push({id:14,entered:false,exited:false});
+state.joined.push({id:11,entered:true,exited:false});
+// 일부 활동에 미리 작성된 평가(별점+한 줄 평) 시드
+state.reviews[20]={rating:5,text:"팀과 밤새 아이디어를 다듬은 과정이 가장 값진 경험이었다."};
+state.reviews[13]={rating:5,text:"현직 개발자의 코드 리뷰가 인상 깊었다."};
+state.reviews[7]={rating:4,text:"발표 준비는 힘들었지만 데이터 해석 능력이 늘었다."};
+state.reviews[17]={rating:5,text:"아이들이 이해하는 순간이 정말 보람찼다."};
+state.reviews[1]={rating:4,text:"처음으로 직접 게임을 만들어봤다."};
+// 알림 시드 (최신순)
+let NID=0;
+state.notifs=[
+  {id:++NID,type:'new',title:'새 프로그램이 등록되었어요',body:'전국 청소년 창업 경진대회 · 중소벤처기업부',time:'방금 전',read:false},
+  {id:++NID,type:'new',title:'새 프로그램이 등록되었어요',body:'네이버 커넥트 코딩 클래스 · 7/19 (토)',time:'1시간 전',read:false},
+  {id:++NID,type:'qr',title:'참여 QR이 발급되었습니다',body:'카카오 진로 멘토링 데이 · 마이페이지에서 확인',time:'어제',read:true},
+];
+
+/* ============ ICON HELPER ============ */
+function ic(id,size,color){return `<svg class="isvg isvg-${size}"${color?` style="color:${color}"`:''} aria-hidden="true"><use href="#${id}"/></svg>`;}
+
+/* ============ NAV ============ */
+function go(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById('screen-'+name).classList.add('on');
+  document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('on',b.dataset.nav===name));
+  window.scrollTo({top:0,behavior:'instant'});
+  if(name==='main') renderMain();
+  if(name==='archive') renderArchive();
+  if(name==='mypage') renderMypage();
+  if(name==='programs') renderPrograms();
+}
+function doLogin(){
+  document.getElementById('login').style.display='none';
+  document.getElementById('app').style.display='block';
+  go('main'); refreshPoints(); refreshNotifBadge();
+}
+
+/* ============ POINTS ============ */
+function totalPoints(){return state.completed.reduce((s,id)=>s+findP(id).pts,0);}
+function availablePoints(){return Math.max(0,totalPoints()-state.converted);}
+function pointsByCat(){const m={};state.completed.forEach(id=>{const p=findP(id);m[p.cat]=(m[p.cat]||0)+p.pts;});return m;}
+function countByCat(){const m={};state.completed.forEach(id=>{const p=findP(id);m[p.cat]=(m[p.cat]||0)+1;});return m;}
+function refreshPoints(){animateNum(document.getElementById('nav-pts'),availablePoints());}
+function animateNum(el,to){if(!el)return;const from=parseInt((el.textContent||'0').replace(/,/g,''))||0;const dur=600,t0=performance.now();
+  (function step(t){const k=Math.min(1,(t-t0)/dur);el.textContent=Math.round(from+(to-from)*(1-Math.pow(1-k,3))).toLocaleString();if(k<1)requestAnimationFrame(step);})(t0);}
+
+/* ============ CARD ============ */
+function thumbStyle(cat){const c=CAT[cat];return `background:linear-gradient(135deg,${c.soft},#fff);`;}
+const isJoined=id=>state.joined.some(j=>j.id===id);
+const isCompleted=id=>state.completed.includes(id);
+function pcardHTML(p,opts){
+  opts=opts||{};
+  const c=CAT[p.cat],st=STATUS[p.status];
+  const joined=isJoined(p.id)||isCompleted(p.id);
+  const btnLabel=isCompleted(p.id)?'참여 완료':isJoined(p.id)?'신청됨':(st.join?'참여':st.label);
+  const disabled=!st.join||joined;
+  const matched=opts.trackBadge&&state.interestTracks.includes(p.track);
+  return `<div class="pcard" onclick="openJoin(${p.id})">
+    <div class="thumb" style="${thumbStyle(p.cat)}"><span class="tag">${c.group} · ${c.name}</span>${matched?`<span class="matchbadge">${ic('ic-target',12)}내 관심 계열</span>`:''}${ic(c.icon,40,c.color)}</div>
+    <div class="body">
+      <h4>${p.title}</h4>
+      <div class="meta">${ic('ic-tag',13)} ${p.org}</div>
+      <div class="meta">${ic('ic-calendar',13)} ${p.date} · ${p.time}</div>
+      <div class="foot">
+        <div class="pt">+${p.pts}<em>P</em></div>
+        <button class="join-btn" ${disabled?'disabled':''} onclick="event.stopPropagation();openJoin(${p.id})">${btnLabel}</button>
+      </div>
+    </div></div>`;
+}
+
+/* ============ MAIN ============ */
+function recommended(n){
+  const pool=PROGRAMS.filter(p=>STATUS[p.status].join && !isJoined(p.id) && !isCompleted(p.id) && p.d>=TODAY_ISO);
+  const byPop=(a,b)=>b.pop-a.pop;
+  if(!state.interestTracks.length) return pool.slice().sort(byPop).slice(0,n||8);
+  // 계열 일치 프로그램을 인기순으로 먼저, 이어서 불일치 프로그램도 인기순으로 채움
+  const matched=pool.filter(p=>state.interestTracks.includes(p.track)).sort(byPop);
+  const unmatched=pool.filter(p=>!state.interestTracks.includes(p.track)).sort(byPop);
+  return matched.concat(unmatched).slice(0,n||8);
+}
+function renderMain(){
+  buildStack();
+  const recs=recommended(8);
+  const host=document.getElementById('reco-row');
+  if(!recs.length)host.innerHTML=`<div class="empty">지금 추천할 새 프로그램이 없어요.<br>곧 새로운 프로그램이 등록됩니다.</div>`;
+  else host.innerHTML=recs.map(p=>pcardHTML(p,{trackBadge:true})).join('');
+}
+function buildStack(){
+  const data=[[1,0,0,0],[1,1,0,2],[1,1,1,0],[1,2,0,0],[1,1,1,1]];
+  const caps=['3월','4월','5월','6월','이번 달'];let h='';
+  data.forEach((col,ci)=>{h+=`<div class="col">`;
+    col.forEach((v,bi)=>{const cls=v===1?'fill':v===2?'fill i':v===3?'fill a':'';h+=`<div class="blk ${cls}" style="animation-delay:${ci*.08+bi*.05}s"></div>`;});
+    h+=`<div class="cap">${caps[ci]}</div></div>`;});
+  document.getElementById('stackviz').innerHTML=h;
+}
+
+/* ============ PROGRAMS ============ */
+let sortMode='popular';
+let typeFilter='all';   // CAT key | 'all' — 활동 유형 필터
+let trackFilter='all';  // TRACK key | 'all' — 진로 계열 필터
+function setTypeFilter(k){typeFilter=k;renderPrograms();}
+function setTrackFilter(k){trackFilter=k;renderPrograms();}
+function buildFilterBar(){
+  const host=document.getElementById('filter-bar');
+  if(!host)return;
+  const typeChips=[`<button class="chip${typeFilter==='all'?' on':''}" onclick="setTypeFilter('all')">전체</button>`]
+    .concat(Object.keys(CAT).map(k=>{const c=CAT[k];
+      return `<button class="chip${typeFilter===k?' on':''}" onclick="setTypeFilter('${k}')"><i class="chipdot" style="background:${c.color}"></i>${c.group} ${c.name}</button>`;}))
+    .join('');
+  const trackChips=[`<button class="chip${trackFilter==='all'?' on':''}" onclick="setTrackFilter('all')">전체</button>`]
+    .concat(Object.keys(TRACK).map(k=>{const t=TRACK[k];
+      return `<button class="chip${trackFilter===k?' on':''}" onclick="setTrackFilter('${k}')"><i class="chipdot" style="background:${t.color}"></i>${t.name}</button>`;}))
+    .join('');
+  host.innerHTML=`
+    <div class="filtergroup"><div class="fg-label">${ic('ic-grid',13)}유형</div><div class="chiprow">${typeChips}</div></div>
+    <div class="filtergroup"><div class="fg-label">${ic('ic-target',13)}계열</div><div class="chiprow">${trackChips}</div></div>`;
+}
+function toggleSort(e){e.stopPropagation();document.getElementById('sort-pop').classList.toggle('on');}
+function setSort(m,el){sortMode=m;document.getElementById('sort-label').textContent=el.textContent;
+  document.querySelectorAll('#sort-pop button').forEach(b=>b.classList.remove('on'));el.classList.add('on');
+  document.getElementById('sort-pop').classList.remove('on');renderPrograms();}
+document.addEventListener('click',()=>document.getElementById('sort-pop')?.classList.remove('on'));
+function sortProgs(arr){const a=[...arr];
+  if(sortMode==='popular')a.sort((x,y)=>y.pop-x.pop);
+  if(sortMode==='points')a.sort((x,y)=>y.pts-x.pts);
+  if(sortMode==='recent')a.sort((x,y)=>y.id-x.id);return a;}
+function catRow(catKey,list,past){
+  const c=CAT[catKey];
+  const label=past?`${c.group} · ${c.name}`:c.name;
+  const row=document.createElement('div');row.className='catrow';
+  row.innerHTML=`<div class="ch"><div class="nm"><span class="dot" style="background:${c.color}"></span>${label}</div>
+    <div class="cnt">${list.length}개 프로그램</div></div>
+    <div class="strip">${list.map(pcardHTML).join('')}</div>`;
+  return row;
+}
+function renderPrograms(){
+  buildFilterBar();
+  const q=(document.getElementById('search').value||'').trim().toLowerCase();
+  const area=document.getElementById('cat-area');area.innerHTML='';
+  const groups={"교내":["hbk","hdo","hdc","het"],"교외":["ecp","evo","edc","eet"]};
+  const match=p=>!q||(p.title+p.org+CAT[p.cat].name).toLowerCase().includes(q);
+  const trackOk=p=>trackFilter==='all'||p.track===trackFilter;
+  const isPast=p=>p.d<TODAY_ISO;
+  // ---- 진행 예정 프로그램 (교내/교외 그룹) ----
+  for(const g in groups){
+    const gw=document.createElement('div');gw.className='catgroup';
+    gw.innerHTML=`<div class="gl">${g==='교내'?ic('ic-school',16)+' 학교 내 활동':ic('ic-globe',16)+' 학교 외 활동'}</div>`;
+    let any=false;
+    groups[g].forEach(catKey=>{
+      if(typeFilter!=='all'&&catKey!==typeFilter)return;
+      const list=sortProgs(PROGRAMS.filter(p=>p.cat===catKey&&!isPast(p)&&match(p)&&trackOk(p)));
+      if(!list.length)return;any=true;
+      gw.appendChild(catRow(catKey,list,false));
+    });
+    if(any)area.appendChild(gw);
+  }
+  // ---- 날짜 지난 프로그램 (하나의 큰 카테고리, 안에 작은 카테고리) ----
+  const past=PROGRAMS.filter(p=>isPast(p)&&match(p)&&trackOk(p));
+  if(past.length){
+    const pg=document.createElement('div');pg.className='catgroup past';
+    pg.innerHTML=`<div class="gl">${ic('ic-clock',16)} 날짜 지난 프로그램</div>`;
+    [].concat(groups["교내"],groups["교외"]).forEach(catKey=>{
+      if(typeFilter!=='all'&&catKey!==typeFilter)return;
+      const list=sortProgs(past.filter(p=>p.cat===catKey));
+      if(!list.length)return;
+      pg.appendChild(catRow(catKey,list,true));
+    });
+    area.appendChild(pg);
+  }
+  if(!area.children.length){
+    const cond=[];
+    if(q)cond.push(`'${q}'`);
+    if(typeFilter!=='all')cond.push(CAT[typeFilter].name);
+    if(trackFilter!=='all')cond.push(TRACK[trackFilter].name);
+    area.innerHTML=`<div class="empty">${cond.length?cond.join(' · ')+' ':''}검색 결과가 없습니다. 다른 키워드나 필터를 확인해보세요.</div>`;
+  }
+  enableDrag();
+}
+function enableDrag(){
+  document.querySelectorAll('.strip').forEach(s=>{
+    if(s._drag)return;s._drag=true;let down=false,sx,sl;
+    s.addEventListener('mousedown',e=>{if(e.target.closest('button'))return;down=true;s.classList.add('drag');sx=e.pageX;sl=s.scrollLeft;});
+    window.addEventListener('mouseup',()=>{down=false;s.classList.remove('drag');});
+    s.addEventListener('mousemove',e=>{if(!down)return;e.preventDefault();s.scrollLeft=sl-(e.pageX-sx);});
+  });
+}
+
+/* ============ JOIN ============ */
+function openJoin(id){
+  const p=findP(id),c=CAT[p.cat],st=STATUS[p.status];
+  const done=isCompleted(id),joined=isJoined(id);
+  let btn;
+  if(done)btn=`<button class="mbtn" disabled>이미 참여 완료한 활동입니다</button>`;
+  else if(joined)btn=`<button class="mbtn" disabled>이미 신청했습니다 · 마이페이지에서 QR 확인</button>`;
+  else if(st.join)btn=`<button class="mbtn" onclick="confirmJoin(${id})">${ic('ic-qr',20)}참석하기 · QR 발급받기</button>`;
+  else btn=`<button class="mbtn" disabled>${st.label} — 신청할 수 없습니다</button>`;
+  document.getElementById('join-modal').innerHTML=`
+    <div class="mthumb" style="${thumbStyle(p.cat)}"><button class="mclose" onclick="closeAll()"><svg class="isvg isvg-18"><use href="#ic-close"/></svg></button>${ic(c.icon,46,c.color)}</div>
+    <div class="mbody">
+      <span class="mtag">${c.group} · ${c.name}</span>
+      <h3>${p.title}</h3>
+      <div class="statusline">주최 <b>${p.org}</b> <span class="badge ${st.cls}">${st.label}</span></div>
+      <p class="desc">${p.desc}</p>
+      <div class="infogrid">
+        <div class="it"><div class="k">${ic('ic-calendar',14)} 날짜</div><div class="v">${p.date}</div></div>
+        <div class="it"><div class="k">${ic('ic-clock',14)} 시간</div><div class="v">${p.time}</div></div>
+        <div class="it" style="grid-column:1/-1"><div class="k">${ic('ic-coin',14,'var(--amber)')} 참여 시 지급 포인트</div><div class="v pt">+${p.pts} P <span style="font-size:12px;color:var(--muted);font-weight:600">· 지역화폐 전환 가능</span></div></div>
+      </div>${btn}
+    </div>`;
+  document.getElementById('ov-join').classList.add('on');
+}
+function confirmJoin(id){
+  state.joined.push({id,entered:false,exited:false});
+  closeAll();openQrIssue(id);
+  notify('qr','참여 QR이 발급되었습니다',findP(id).title);
+  toast('✅','QR이 발급되었어요. 마이페이지에서 확인하세요');
+  if(document.getElementById('screen-programs').classList.contains('on'))renderPrograms();
+}
+
+/* ============ QR ============ */
+function qrSVG(seed){
+  const N=21;let rng=seed*9301+49297;const r=()=>{rng=(rng*9301+49297)%233280;return rng/233280;};let cells='';
+  const finder=(x,y)=>{for(let i=0;i<7;i++)for(let j=0;j<7;j++){const edge=i===0||i===6||j===0||j===6,core=i>=2&&i<=4&&j>=2&&j<=4;if(edge||core)cells+=`<rect x="${(x+i)*4}" y="${(y+j)*4}" width="4" height="4"/>`;}};
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){if((x<7&&y<7)||(x>N-8&&y<7)||(x<7&&y>N-8))continue;if(r()>.52)cells+=`<rect x="${x*4}" y="${y*4}" width="4" height="4"/>`;}
+  finder(0,0);finder(N-7,0);finder(0,N-7);
+  return `<svg viewBox="0 0 ${N*4} ${N*4}" fill="#16213E" xmlns="http://www.w3.org/2000/svg">${cells}</svg>`;
+}
+function openQrIssue(id){
+  const p=findP(id);
+  document.getElementById('qr-modal').innerHTML=`
+    <div class="mbody"><div class="qrbox">
+      <div class="qr">${qrSVG(id)}</div>
+      <h3>참여 QR이 발급되었습니다</h3>
+      <div class="desc"><b>${p.title}</b><br>현장에서 <b>입장</b>과 <b>퇴장</b> 시 두 번 인증하면 포인트가 지급됩니다. 이 QR은 마이페이지 → QR 확인에서 다시 볼 수 있어요.</div>
+      <button class="mbtn" style="margin-top:22px" onclick="closeAll()">확인</button>
+    </div></div>`;
+  document.getElementById('ov-qr').classList.add('on');
+}
+function openQrList(){
+  const items=state.joined;let body;
+  if(!items.length)body=`<div class="empty">발급된 QR이 없습니다.<br>프로그램에 참여하면 입퇴장 QR이 발급됩니다.</div>`;
+  else body=`<div class="qrlist">${items.map(j=>{
+    const p=findP(j.id),c=CAT[p.cat];let btn;
+    if(!j.entered)btn=`<button class="scanbtn enter" onclick="showScan(${j.id},'enter')">입장 QR</button>`;
+    else if(!j.exited)btn=`<button class="scanbtn exit" onclick="showScan(${j.id},'exit')">퇴장 QR</button>`;
+    else btn=`<button class="scanbtn done">완료 ✓</button>`;
+    const stt=!j.entered?'입장 대기':!j.exited?'참석 중 (퇴장 전)':'완료';
+    return `<div class="qi"><div class="ic" style="background:${c.soft}">${ic(c.icon,20,c.color)}</div>
+      <div class="info"><h5>${p.title}</h5><div class="m">${p.date} · +${p.pts}P · ${stt}</div></div>${btn}</div>`;
+  }).join('')}</div>`;
+  document.getElementById('qrlist-modal').innerHTML=`
+    <div class="mbody">
+      <span class="mtag" style="background:var(--indigo-soft);color:var(--indigo)">QR 인증</span>
+      <h3 style="margin-bottom:4px">발급된 QR</h3>
+      <p class="desc" style="margin-bottom:6px">버튼을 누르면 해당 프로그램의 QR이 표시됩니다. 현장 리더기에 인식시키면 입장·퇴장이 인증됩니다.</p>
+      ${body}
+    </div>`;
+  document.getElementById('ov-qrlist').classList.add('on');
+}
+let scanIv;
+function showScan(id,type){
+  const p=findP(id),enter=type==='enter';
+  document.getElementById('ov-qrlist').classList.remove('on');
+  const tagStyle=enter?'':'background:var(--indigo-soft);color:var(--indigo)';
+  document.getElementById('qr-modal').innerHTML=`
+    <div class="mbody"><div class="qrbox" id="scanbox">
+      <span class="mtag" style="${tagStyle}">${enter?'입장':'퇴장'} 인증</span>
+      <div class="qr" style="margin-top:14px">${qrSVG(id)}</div>
+      <h3 style="margin-top:16px">${p.title}</h3>
+      <div class="desc">현장의 QR 리더기에 이 코드를 인식시켜 주세요.</div>
+      <div class="countdown"><span id="cdn">5</span>초 후 ${enter?'입장':'퇴장'}이 자동 처리됩니다</div>
+    </div></div>`;
+  document.getElementById('ov-qr').classList.add('on');
+  let n=5;clearInterval(scanIv);
+  scanIv=setInterval(()=>{n--;const e=document.getElementById('cdn');if(e)e.textContent=Math.max(0,n);if(n<=0){clearInterval(scanIv);finishScan(id,type);}},1000);
+}
+function finishScan(id,type){
+  const p=findP(id),enter=type==='enter';
+  const j=state.joined.find(x=>x.id===id);if(!j)return;
+  if(enter){j.entered=true;notify('enter','입장이 확인되었습니다',p.title);}
+  else{j.exited=true;state.joined=state.joined.filter(x=>x.id!==id);if(!isCompleted(id))state.completed.push(id);refreshPoints();notify('exit',`참여 완료 · +${p.pts}P 지급`,p.title);}
+  const box=document.getElementById('scanbox');
+  if(box){box.style.transition='opacity .35s';box.style.opacity='0';
+    setTimeout(()=>{box.style.opacity='1';
+      box.innerHTML=`<div class="scan-done">
+        <div class="check"><svg class="isvg isvg-40"><use href="#ic-check"/></svg></div>
+        <h3>${enter?'입장 완료':'퇴장 완료'}</h3>
+        <div class="desc">${enter?p.title+' 입장이 인증되었습니다.':'참여가 완료되어 +'+p.pts+'P가 지급되었습니다.'}</div>
+      </div>`;},350);}
+  toast(enter?'🟢':'🎉',enter?'입장이 확인되었습니다':`참여 완료! +${p.pts}P 지급`);
+  if(enter){
+    setTimeout(()=>{document.getElementById('ov-qr').classList.remove('on');
+      if(document.getElementById('screen-mypage').classList.contains('on'))renderMypage();
+      openQrList();},2000);
+  }else{
+    surveyReturn='exit';
+    setTimeout(()=>{const b=document.getElementById('scanbox');if(b)b.innerHTML=surveyBody(id);},1600);
+  }
+}
+
+/* ============ 만족도 평가 (별점 + 한 줄 평) ============ */
+let surveyRating=0,surveyForId=null,surveyReturn=null;
+const RATE_TXT=['별점을 선택해 주세요','별로였어요','아쉬웠어요','보통이었어요','좋았어요','최고였어요!'];
+function starButtons(rating){let h='';for(let i=1;i<=5;i++){const on=i<=rating;h+=`<button class="star ${on?'on':''}" onclick="setStar(${i})">${ic('ic-star',28,on?'var(--amber)':'#D7DEEA')}</button>`;}return h;}
+function setStar(n){surveyRating=n;const s=document.getElementById('surveyStars');if(s)s.innerHTML=starButtons(n);const l=document.getElementById('rateLabel');if(l)l.textContent=RATE_TXT[n];}
+function surveyBody(id){
+  surveyForId=id;const p=findP(id),r=state.reviews[id];
+  surveyRating=r?r.rating:0;
+  return `<div class="survey">
+    <span class="mtag" style="background:var(--amber-soft);color:var(--amber)">만족도 평가</span>
+    <h3 style="margin:11px 0 3px">활동은 어떠셨나요?</h3>
+    <div class="desc" style="margin-bottom:14px">${p.title}</div>
+    <div class="stars" id="surveyStars">${starButtons(surveyRating)}</div>
+    <div class="ratelabel" id="rateLabel">${RATE_TXT[surveyRating]}</div>
+    <textarea id="reviewText" class="reviewinput" rows="2" maxlength="60" placeholder="한 줄 평을 남겨보세요 (선택) · 포트폴리오에 함께 기록됩니다">${r?r.text:''}</textarea>
+    <button class="mbtn" style="margin-top:14px" onclick="submitSurvey()">평가 제출하기</button>
+    <button class="skipbtn" onclick="skipSurvey()">건너뛰기</button>
+  </div>`;
+}
+function openSurvey(id){
+  surveyReturn='detail';
+  document.getElementById('survey-modal').innerHTML=`<div class="mbody">${surveyBody(id)}</div>`;
+  document.getElementById('ov-detail').classList.remove('on');
+  document.getElementById('ov-survey').classList.add('on');
+}
+function submitSurvey(){
+  if(!surveyRating){toast('⭐','별점을 먼저 선택해 주세요');return;}
+  const text=(document.getElementById('reviewText').value||'').trim();
+  const id=surveyForId,ret=surveyReturn;
+  state.reviews[id]={rating:surveyRating,text};
+  closeAll();
+  toast('✅','평가가 저장되었어요 · 포트폴리오에 반영됩니다');
+  if(document.getElementById('screen-archive').classList.contains('on'))renderArchive();
+  if(document.getElementById('screen-mypage').classList.contains('on'))renderMypage();
+  if(ret==='detail')setTimeout(()=>openActivityDetail(id),260);
+  surveyReturn=null;
+}
+function skipSurvey(){
+  const id=surveyForId,ret=surveyReturn;closeAll();
+  if(document.getElementById('screen-archive').classList.contains('on'))renderArchive();
+  if(ret==='detail')setTimeout(()=>openActivityDetail(id),260);
+  surveyReturn=null;
+}
+function starsMini(rating,size){size=size||14;let h='<span class="smini">';for(let i=1;i<=5;i++)h+=ic('ic-star',size,i<=rating?'var(--amber)':'#D7DEEA');return h+'</span>';}
+
+/* ============ 활동 상세 (아카이브에서 클릭) ============ */
+function openActivityDetail(id){
+  const p=findP(id),c=CAT[p.cat],r=state.reviews[id];
+  const reviewBlock = r
+    ? `<div class="revcard"><div class="revhead"><span>나의 평가</span>${starsMini(r.rating,16)}</div>
+        ${r.text?`<p class="revtext">"${r.text}"</p>`:`<p class="revtext muted">한 줄 평은 작성하지 않았어요.</p>`}
+        <button class="revedit" onclick="openSurvey(${id})">평가 수정하기</button></div>`
+    : `<div class="revcard empty"><p class="revtext muted">아직 이 활동에 대한 평가를 작성하지 않았어요.</p>
+        <button class="mbtn" style="height:44px;margin-top:11px" onclick="openSurvey(${id})">${ic('ic-star',18)} 별점·한 줄 평 남기기</button></div>`;
+  document.getElementById('detail-modal').innerHTML=`
+    <div class="mthumb" style="${thumbStyle(p.cat)}"><button class="mclose" onclick="closeAll()"><svg class="isvg isvg-18"><use href="#ic-close"/></svg></button>${ic(c.icon,46,c.color)}</div>
+    <div class="mbody">
+      <span class="mtag">${c.group} · ${c.name}</span>
+      <h3>${p.title}</h3>
+      <div class="statusline">주최 <b>${p.org}</b> <span class="badge b-ok">참여 완료</span></div>
+      <p class="desc">${p.desc}</p>
+      <div class="infogrid">
+        <div class="it"><div class="k">${ic('ic-calendar',14)} 날짜</div><div class="v">${p.date}</div></div>
+        <div class="it"><div class="k">${ic('ic-clock',14)} 시간</div><div class="v">${p.time}</div></div>
+        <div class="it"><div class="k">${ic('ic-coin',14,'var(--amber)')} 획득 포인트</div><div class="v pt">+${p.pts} P</div></div>
+        <div class="it"><div class="k">${ic('ic-tag',14)} 분류</div><div class="v">${c.group} · ${c.name}</div></div>
+      </div>
+      <div class="fl" style="font-size:12.5px;font-weight:800;letter-spacing:.5px;color:var(--ink2);text-transform:uppercase;margin:18px 0 9px">나의 만족도 · 한 줄 평</div>
+      ${reviewBlock}
+    </div>`;
+  document.getElementById('ov-detail').classList.add('on');
+}
+
+/* ============ 알림 ============ */
+const NOTIF_IC={new:'ic-compass',qr:'ic-qr',enter:'ic-check',exit:'ic-coin'};
+const NOTIF_COLOR={new:'var(--brand)',qr:'var(--indigo)',enter:'var(--brand)',exit:'var(--amber)'};
+const NOTIF_SOFT={new:'var(--brand-soft)',qr:'var(--indigo-soft)',enter:'var(--brand-soft)',exit:'var(--amber-soft)'};
+function refreshNotifBadge(){const n=state.notifs.filter(x=>!x.read).length;const b=document.getElementById('notif-badge');if(!b)return;b.textContent=n>9?'9+':n;b.classList.toggle('on',n>0);}
+function notify(type,title,body){state.notifs.unshift({id:++NID,type,title,body,time:'방금 전',read:false});refreshNotifBadge();}
+function openNotif(){
+  const list=state.notifs;
+  const body=list.length?`<div class="notiflist">${list.map(nf=>`
+    <div class="nf ${nf.read?'':'unread'}">
+      <div class="nic" style="background:${NOTIF_SOFT[nf.type]||'var(--brand-soft)'}">${ic(NOTIF_IC[nf.type]||'ic-bell',20,NOTIF_COLOR[nf.type]||'var(--brand)')}</div>
+      <div class="ninfo"><h5>${nf.title}</h5><div class="nb">${nf.body}</div><div class="nt">${nf.time}</div></div>
+    </div>`).join('')}</div>`:`<div class="empty">새로운 알림이 없습니다.</div>`;
+  document.getElementById('notif-modal').innerHTML=`<div class="mbody">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <h3 style="margin:0">알림</h3><button class="readall" onclick="markAllRead()">모두 읽음</button></div>
+    ${body}</div>`;
+  document.getElementById('ov-notif').classList.add('on');
+  setTimeout(()=>{state.notifs.forEach(n=>n.read=true);refreshNotifBadge();},1000);
+}
+function markAllRead(){state.notifs.forEach(n=>n.read=true);refreshNotifBadge();openNotif();}
+
+/* ============ 활동 캘린더 ============ */
+const TODAY_ISO='2026-07-02';
+let calYear=2026,calMonth=6;
+function myCalendarEvents(){
+  const evs={};
+  state.completed.forEach(id=>{const p=findP(id);if(!p||!p.d)return;(evs[p.d]=evs[p.d]||[]).push({id,kind:'done'});});
+  state.joined.forEach(j=>{const p=findP(j.id);if(!p||!p.d)return;(evs[p.d]=evs[p.d]||[]).push({id:j.id,kind:j.entered?'ing':'up'});});
+  return evs;
+}
+function openCalendar(){calYear=2026;calMonth=6;renderCalendar();document.getElementById('ov-cal').classList.add('on');}
+function calNav(delta){let mo=calMonth+delta,y=calYear;if(mo<0){mo=11;y--;}if(mo>11){mo=0;y++;}if(y!==2026)return;calMonth=mo;calYear=y;renderCalendar();}
+function renderCalendar(){
+  const evs=myCalendarEvents(),y=calYear,mo=calMonth;
+  const startDow=new Date(y,mo,1).getDay(),days=new Date(y,mo+1,0).getDate();
+  let cells='';
+  for(let i=0;i<startDow;i++)cells+=`<div class="cday empty"></div>`;
+  for(let d=1;d<=days;d++){
+    const iso=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const de=evs[iso]||[],today=iso===TODAY_ISO;
+    const dots=de.slice(0,3).map(e=>`<i style="background:${CAT[findP(e.id).cat].color}"></i>`).join('');
+    cells+=`<div class="cday ${de.length?'has':''} ${today?'today':''}" ${de.length?`onclick="calOpen(${de[0].id},'${de[0].kind}')"`:''}>
+      <span class="dn">${d}</span><div class="dots">${dots}</div></div>`;
+  }
+  const monthEvs=[];
+  Object.keys(evs).forEach(iso=>{const a=iso.split('-').map(Number);if(a[0]===y&&a[1]-1===mo)evs[iso].forEach(e=>monthEvs.push({iso,...e}));});
+  monthEvs.sort((a,b)=>a.iso<b.iso?-1:1);
+  const KB={done:'<span class="cb done">참여 완료</span>',ing:'<span class="cb ing">참석 중</span>',up:'<span class="cb up">참여 예정</span>'};
+  const list=monthEvs.length?monthEvs.map(e=>{const p=findP(e.id),c=CAT[p.cat];
+    return `<div class="cev" onclick="calOpen(${e.id},'${e.kind}')"><div class="cevic" style="background:${c.soft}">${ic(c.icon,18,c.color)}</div>
+      <div class="cevinfo"><h5>${p.title}</h5><div class="m">${fmtDate(p.d)} · ${p.time}</div></div>${KB[e.kind]}</div>`;}).join('')
+    :`<div class="empty" style="padding:22px">이 달에는 나의 활동 기록이 없어요.<br>양옆 화살표로 다른 달을 확인해 보세요.</div>`;
+  document.getElementById('cal-modal').innerHTML=`<div class="mbody">
+    <div class="calhead">
+      <button onclick="calNav(-1)" ${mo===0?'disabled':''} aria-label="이전 달">${ic('ic-chevL',20)}</button>
+      <div class="caltitle">${y}년 ${mo+1}월</div>
+      <button onclick="calNav(1)" ${mo===11?'disabled':''} aria-label="다음 달">${ic('ic-chevR',20)}</button>
+    </div>
+    <div class="calgrid">
+      <span class="dow sun">일</span><span class="dow">월</span><span class="dow">화</span><span class="dow">수</span><span class="dow">목</span><span class="dow">금</span><span class="dow">토</span>
+      ${cells}
+    </div>
+    <div class="callist"><div class="fl">이 달의 나의 활동</div>${list}</div>
+  </div>`;
+}
+function calOpen(id,kind){
+  document.getElementById('ov-cal').classList.remove('on');
+  if(kind==='done')openActivityDetail(id); else openJoin(id);
+}
+
+/* ============ POINT CONVERSION ============ */
+let convertSel=0;
+function openConvert(sel){
+  const avail=availablePoints();
+  if(avail<=0){
+    document.getElementById('convert-modal').innerHTML=`<div class="mbody">
+      <span class="mtag">포인트 전환</span>
+      <h3 style="margin-bottom:4px">전환할 포인트가 없어요</h3>
+      <p class="desc">프로그램에 참여해 포인트를 모으면 지역화폐로 전환할 수 있어요.</p>
+      <button class="mbtn" style="margin-top:18px" onclick="closeAll()">확인</button></div>`;
+    document.getElementById('ov-convert').classList.add('on'); return;
+  }
+  let chips=[1000,3000,5000,10000].filter(v=>v<=avail);
+  if(!chips.length)chips=[avail];
+  if(!sel||sel>avail)sel=chips[0];
+  convertSel=sel;
+  const chipHTML=chips.map(v=>`<button class="amt ${v===sel?'on':''}" onclick="openConvert(${v})">${v.toLocaleString()}P</button>`).join('')
+    +`<button class="amt full ${sel===avail?'on':''}" onclick="openConvert(${avail})">전액 전환 · ${avail.toLocaleString()}P</button>`;
+  document.getElementById('convert-modal').innerHTML=`<div class="mbody">
+    <span class="mtag">포인트 전환</span>
+    <h3 style="margin-bottom:4px">지역화폐로 전환</h3>
+    <p class="desc" style="margin-bottom:16px">모은 포인트를 지역화폐로 전환합니다. <b>1P = 1원</b>이며, 전환한 만큼 포인트가 차감됩니다.</p>
+    <div class="convbal"><span>전환 가능 포인트</span><b>${avail.toLocaleString()} P</b></div>
+    <div class="amtgrid">${chipHTML}</div>
+    <div class="convresult"><span>받을 지역화폐</span><strong>₩ ${convertSel.toLocaleString()}</strong></div>
+    <button class="mbtn" onclick="doConvert()">${ic('ic-coin',18)} ₩${convertSel.toLocaleString()} 지역화폐로 전환하기</button>
+    <div class="convnote">※ 프로토타입에서는 실제 지역화폐 계좌로 연동되지 않으며, 전환 결과만 표시됩니다.</div>
+  </div>`;
+  document.getElementById('ov-convert').classList.add('on');
+}
+function doConvert(){
+  const amt=convertSel; if(amt<=0||amt>availablePoints())return;
+  state.converted+=amt; state.localCurrency+=amt;
+  closeAll(); refreshPoints(); renderMypage();
+  toast('💸',`₩${amt.toLocaleString()} 지역화폐로 전환되었습니다`);
+}
+
+/* ============ ARCHIVE ============ */
+function renderArchive(){
+  const counts=countByCat(),total=state.completed.length;
+  const inC=state.completed.filter(id=>CAT[findP(id).cat].group==='교내').length;
+  document.getElementById('arch-total').textContent=total;
+  document.getElementById('arch-incat').textContent=inC;
+  document.getElementById('arch-excat').textContent=total-inC;
+  const maxc=Math.max(1,...Object.values(counts));
+  document.getElementById('catcounts').innerHTML=Object.keys(CAT).map(k=>{const c=CAT[k],n=counts[k]||0;
+    return `<div class="cc"><span class="dot" style="background:${c.color}"></span><span class="nm">${c.group} · ${c.name}</span>
+      <span class="bar"><i style="width:${n/maxc*100}%;background:${c.color}"></i></span><span class="v">${n}</span></div>`;}).join('');
+  const al=document.getElementById('alist');
+  if(!total)al.innerHTML=`<div class="empty">아직 완료한 활동이 없습니다.<br>프로그램에 참여하고 입퇴장 QR을 인증해보세요.</div>`;
+  else al.innerHTML=state.completed.slice().reverse().map(id=>{const p=findP(id),c=CAT[p.cat],r=state.reviews[id];
+    const rev=r?`${starsMini(r.rating,13)}<span class="rt">평가 완료</span>`:`<span class="rt none">평가 미작성 · 탭하여 남기기</span>`;
+    return `<div class="ai" onclick="openActivityDetail(${id})"><div class="ic" style="background:${c.soft}">${ic(c.icon,22,c.color)}</div>
+      <div class="info"><h5>${p.title}</h5><div class="m">${c.group} · ${c.name} · ${p.date}</div>
+      <div class="m revline">${rev}</div></div><div class="pt">+${p.pts}P</div></div>`;}).join('');
+  renderRadar(counts);
+}
+function renderRadar(counts){
+  const keys=Object.keys(CAT),N=keys.length,cx=150,cy=140,R=98;
+  const maxv=Math.max(1,...keys.map(k=>counts[k]||0));
+  const ang=i=>(-90+i*360/N)*Math.PI/180,pt=(i,r)=>[cx+r*Math.cos(ang(i)),cy+r*Math.sin(ang(i))];
+  let svg='';
+  for(let g=1;g<=4;g++){const rr=R*g/4,d=keys.map((_,i)=>{const[x,y]=pt(i,rr);return `${x.toFixed(1)},${y.toFixed(1)}`;}).join(' ');svg+=`<polygon points="${d}" fill="none" stroke="#E3E9F2" stroke-width="1"/>`;}
+  keys.forEach((k,i)=>{const[x,y]=pt(i,R);svg+=`<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#E3E9F2" stroke-width="1"/>`;
+    const[lx,ly]=pt(i,R+20);svg+=`<text x="${lx}" y="${ly}" font-size="10.5" fill="#6A7488" font-weight="700" text-anchor="middle" dominant-baseline="middle">${CAT[k].name}</text>`;});
+  const dpts=keys.map((k,i)=>{const v=(counts[k]||0)/maxv;const[x,y]=pt(i,R*Math.max(.04,v));return `${x.toFixed(1)},${y.toFixed(1)}`;}).join(' ');
+  svg+=`<polygon points="${dpts}" fill="rgba(37,99,235,.20)" stroke="#2563EB" stroke-width="2.5" stroke-linejoin="round"/>`;
+  keys.forEach((k,i)=>{const v=(counts[k]||0)/maxv;const[x,y]=pt(i,R*Math.max(.04,v));if(counts[k])svg+=`<circle cx="${x}" cy="${y}" r="3.5" fill="#2563EB"/>`;});
+  document.getElementById('radar').innerHTML=`<svg viewBox="0 0 300 280">${svg}</svg>`;
+  const sorted=keys.filter(k=>counts[k]).sort((a,b)=>counts[b]-counts[a]).slice(0,3);
+  document.getElementById('radar-legend').innerHTML=`<span style="font-weight:700;color:var(--ink)">주력 분야</span>`+
+    sorted.map(k=>`<span><i style="background:${CAT[k].color}"></i>${CAT[k].group} ${CAT[k].name} ${counts[k]}회</span>`).join('');
+}
+
+/* ============ MYPAGE ============ */
+function renderTrackPicker(){
+  const note=document.getElementById('track-note');
+  if(note)note.textContent=state.interestTracks.length
+    ? '선택한 계열은 메인 화면 추천에 바로 반영돼요 · 최대 2개'
+    : '아직 설정하지 않았어요 · 설정하기 (최대 2개)';
+  const host=document.getElementById('track-picker');
+  if(!host)return;
+  host.innerHTML=Object.keys(TRACK).map(k=>{
+    const t=TRACK[k],on=state.interestTracks.includes(k);
+    return `<button class="chip${on?' on':''}" onclick="toggleTrack('${k}')"><i class="chipdot" style="background:${t.color}"></i>${t.name}</button>`;
+  }).join('');
+}
+function toggleTrack(key){
+  const i=state.interestTracks.indexOf(key);
+  if(i>-1){
+    state.interestTracks.splice(i,1);
+  }else{
+    if(state.interestTracks.length>=2){toast(ic('ic-target',16,'var(--brand)'),'최대 2개까지 선택할 수 있어요');return;}
+    state.interestTracks.push(key);
+  }
+  renderTrackPicker();
+}
+function renderMypage(){
+  renderTrackPicker();
+  const avail=availablePoints(),earned=totalPoints();
+  animateNum(document.getElementById('my-pts'),avail);
+  document.getElementById('my-sub').innerHTML=`누적 획득 ${earned.toLocaleString()}P · 전환한 지역화폐 <b>₩${state.localCurrency.toLocaleString()}</b>`;
+  const cb=document.getElementById('convert-btn'); if(cb)cb.disabled=avail<=0;
+  const pc=pointsByCat(),max=Math.max(1,...Object.values(pc));
+  const keys=Object.keys(CAT).filter(k=>pc[k]).sort((a,b)=>pc[b]-pc[a]);
+  const host=document.getElementById('fieldpts');
+  if(!keys.length){host.innerHTML=`<div class="empty">아직 획득한 포인트가 없습니다.</div>`;return;}
+  host.innerHTML=keys.map(k=>{const c=CAT[k];
+    return `<div class="fp"><div class="top"><span class="nm">${ic(c.icon,16,c.color)} ${c.group} · ${c.name}</span><span class="vv">${pc[k]} P</span></div>
+      <div class="track"><i style="width:0;background:${c.color}" data-w="${pc[k]/max*100}"></i></div></div>`;}).join('');
+  requestAnimationFrame(()=>host.querySelectorAll('.track i').forEach(i=>i.style.width=i.dataset.w+'%'));
+}
+
+/* ============ PDF ============ */
+function savePDF(){
+  const counts=countByCat();
+  const rows=state.completed.slice().reverse().map(id=>{const p=findP(id),c=CAT[p.cat];
+    return `<tr><td>${p.title}</td><td>${c.group} · ${c.name}</td><td>${p.org}</td><td>${p.date}</td><td style="text-align:right">+${p.pts}P</td></tr>`;}).join('');
+  document.getElementById('print-area').innerHTML=`
+    <div style="font-family:var(--font);padding:40px;color:#16213E;max-width:760px;margin:0 auto">
+      <div style="display:flex;align-items:center;gap:10px;border-bottom:3px solid #2563EB;padding-bottom:14px">
+        <div style="font-size:24px;font-weight:800;letter-spacing:-1px">Accu<span style="color:#2563EB">mu</span></div>
+        <div style="flex:1"></div><div style="font-size:13px;color:#6A7488">디지털 활동 포트폴리오</div></div>
+      <h1 style="font-size:24px;margin:22px 0 4px">신지훈 <span style="font-size:15px;color:#6A7488;font-weight:600">· 청매실고등학교 2학년 (10718)</span></h1>
+      <div style="display:flex;gap:14px;margin:20px 0">
+        <div style="flex:1;border:1px solid #DCE3EE;border-radius:12px;padding:14px"><div style="font-size:26px;font-weight:800">${state.completed.length}</div><div style="font-size:12px;color:#6A7488">총 참여 활동</div></div>
+        <div style="flex:1;border:1px solid #DCE3EE;border-radius:12px;padding:14px"><div style="font-size:26px;font-weight:800">${Object.keys(counts).length}</div><div style="font-size:12px;color:#6A7488">참여 분야</div></div>
+        <div style="flex:1;border:1px solid #DCE3EE;border-radius:12px;padding:14px"><div style="font-size:26px;font-weight:800;color:#E0922F">${totalPoints().toLocaleString()}P</div><div style="font-size:12px;color:#6A7488">누적 포인트</div></div></div>
+      <h3 style="font-size:15px;margin:24px 0 10px">활동 내역</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:#F2F4F8;text-align:left"><th style="padding:9px 10px">활동명</th><th style="padding:9px 10px">분류</th><th style="padding:9px 10px">주최</th><th style="padding:9px 10px">일자</th><th style="padding:9px 10px;text-align:right">포인트</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+      <div style="margin-top:18px;font-size:11px;color:#9AA4B5">본 포트폴리오는 Accumu에서 자동 생성되었습니다 · 발급일 2026.06.18</div>
+    </div>`;
+  toast('📄','인쇄창에서 "PDF로 저장"을 선택하세요');
+  setTimeout(()=>window.print(),400);
+}
+
+/* ============ UTIL ============ */
+function closeAll(){clearInterval(scanIv);document.querySelectorAll('.overlay').forEach(o=>o.classList.remove('on'));}
+function closeOverlay(e,id){if(e.target.id===id)document.getElementById(id).classList.remove('on');}
+let toastT;
+function toast(ic,msg){const t=document.getElementById('toast');t.innerHTML=`<span class="tic">${ic}</span>${msg}`;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),2600);}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll();});
+(function(){const d=document.getElementById('ldeco');[[60,80,70,70,8],[250,140,40,40,-6],[120,560,90,90,5],[600,120,50,50,10],[700,520,80,80,-8],[40,420,46,46,4]].forEach(([l,t,w,h,r])=>{const i=document.createElement('i');i.style.cssText=`left:${l}px;top:${t}px;width:${w}px;height:${h}px;transform:rotate(${r}deg)`;d.appendChild(i);});})();
+</script>
+
+<!-- check icon symbol (used in scan-done) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="ic-check" viewBox="0 0 24 24"><path d="M5 12.5 10 17.5 19.5 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>

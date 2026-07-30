@@ -1,0 +1,157 @@
+/* Accumu v2 — 아카이브 공용 표현 (학생 아카이브 + 관리자 담당 학생 아카이브 공유)
+   Accumu_prototype.html의 .panel/.totals/.tot/.alist/.ai CSS 값을 그대로 옮기고,
+   막대 게이지(.catcounts .bar)는 옮기지 않았다 — 결정 C(원칙 1: 게이지 금지).
+   레이더(.radar-wrap 282줄)는 확정 M-2로 되살아났다 — 아래 .arc-radar 블록(건수만, 범례 없음).
+
+   [클래스 접두사 arc-] AdminShell.css의 .adm-* / 프로토타입의 .ai 와 겹치지 않게 분리했다.
+   이 파일은 src/components/archive/* 가 직접 import 한다(페이지가 import 를 잊어도 무스타일이 되지 않게).
+   인쇄 규칙은 여기가 아니라 전역 src/styles/print.css 한 곳에 있다. */
+
+/* ---------- 어두운 히어로 (마일스톤 전용 패널) ----------
+   [왜 어두운 패널인가] StackViz의 빈 블록은 rgba(255,255,255,.14)라 흰 카드 위에서는 보이지 않는다.
+   학생 홈의 .hero 와 같은 계열의 배경 위에 놓아야 "쌓이는 블록"이 읽힌다 (admin-students 이슈 5).
+   600px 이하에서는 StackViz 자체가 display:none 이므로 패널째 숨긴다(빈 검은 상자를 남기지 않는다).
+   인쇄에서도 숨긴다 — 요약 블록이 그 역할을 대신한다(print.css). */
+.arc-hero {
+  position: relative; overflow: hidden; margin-bottom: 16px;
+  background: linear-gradient(135deg, var(--ink) 0%, #1E2F57 55%, #1B3566 100%);
+  border-radius: 24px; padding: 24px clamp(18px, 4vw, 32px) 48px; color: #fff;
+}
+.arc-hero .glow {
+  position: absolute; width: 380px; height: 380px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(37, 99, 235, .40), transparent 65%); top: -170px; right: -110px;
+}
+.arc-hero .arc-herohead { position: relative; z-index: 1; }
+.arc-hero .eyebrow { color: #93B4FF; margin-bottom: 4px; }
+.arc-hero h3 { font-size: 17px; font-weight: 800; letter-spacing: -.4px; }
+.arc-hero p { color: #C3CCDE; font-size: 13px; margin-top: 5px; }
+.arc-hero .stackviz { margin-top: 14px; }
+
+/* ---------- 흰 패널 (프로토타입 .panel 259줄) ---------- */
+.arc-panel {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: var(--shadow); margin-bottom: 16px;
+}
+.arc-panel .ph { padding: 18px 20px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.arc-panel .ph h3 { font-size: 16px; font-weight: 800; }
+.arc-panel .ph .phnote { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+
+/* ---------- 요약 3칸 (프로토타입 .totals 262줄) ----------
+   [원칙 4] 3칸은 전부 "활동 수"다. 포인트 총액 칸을 추가하지 말 것 — 요약이 활동 수라는 것이 위계의 핵심이다.
+   [원칙 1] 카운트업 애니메이션(프로토타입 animateNum)을 옮기지 않았다. 숫자는 그냥 렌더된다. */
+.arc-totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 16px 20px 4px; }
+.arc-tot { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; }
+.arc-tot .n { font-size: 26px; font-weight: 800; letter-spacing: -1px; }
+.arc-tot .l { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+.arc-tot.hl { background: var(--ink); border-color: var(--ink); }
+.arc-tot.hl .n { color: #fff; }
+.arc-tot.hl .l { color: #A9B6CE; }
+
+/* ---------- 유형 분포 · 활동 기간 (결정 C — 사실 기술 텍스트) ----------
+   막대/퍼센트 없음. 점은 유형 색 식별용이지 값의 크기를 나타내지 않는다.
+   (계열 분포는 별개 축이라 아래 .arc-radar 가 그린다 — 여기는 활동 유형 CAT 8종이다) */
+.arc-facts { padding: 12px 20px 18px; display: flex; flex-direction: column; gap: 9px; }
+.arc-factrow { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.arc-factrow .k { font-size: 11.5px; font-weight: 700; color: var(--muted); flex: none; }
+.arc-dist { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.arc-dist .d { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink2); }
+.arc-dist .d i { width: 8px; height: 8px; border-radius: 3px; flex: none; }
+.arc-dist .d b { font-weight: 800; color: var(--ink); }
+.arc-dist .d.none i { background: var(--line2); }
+.arc-period { font-size: 13px; font-weight: 700; color: var(--ink2); }
+
+/* ---------- 진로 계열별 레이더 (확정 M-2 / 프로토타입 .radar-wrap 282줄) ----------
+   [단일 시리즈] 범례 없음. 면·선은 brand blue 하나이고 TRACK[].color 를 축마다 칠하지 않는다.
+   [색 규율] 글자는 전부 ink/muted 토큰. amber(포인트 전용)·초록 없음.
+   [recessive 격자] 거미줄과 축선은 --line/--line2 수준으로만 보인다 — 값이 아니라 배경이다.
+   [인쇄] .no-print 를 붙이지 않는다. 흰 패널 안이라 종이에서 그대로 읽힌다(어두운 .arc-hero 와 반대). */
+.arc-radar .ph { padding-bottom: 2px; }
+.arc-radarbox { display: grid; place-items: center; padding: 4px 20px 6px; }
+/* viewBox 비례 축소 -> 폭이 줄어도 라벨이 겹치지 않는다. 통째로 숨기지 않는다(케빈 요청 핵심 요소). */
+.arc-radarbox svg { width: 100%; max-width: 520px; height: auto; overflow: visible; }
+
+.arc-radar .grid { fill: none; stroke: var(--line); stroke-width: 1; }
+.arc-radar .zeroring { fill: none; stroke: var(--line2); stroke-width: 1; }
+.arc-radar .spoke { stroke: var(--line); stroke-width: 1; }
+/* 하나의 프로필 도형. 저투명도 채움 + 2px 실선 */
+.arc-radar .shape { fill: rgba(37, 99, 235, .16); stroke: var(--brand); stroke-width: 2; stroke-linejoin: round; }
+/* 꼭짓점 지름 10px — 1건인 축도 확실히 보인다. 0건은 속 빈 점으로 톤을 낮춘다 */
+.arc-radar .dot { fill: var(--brand); stroke: #fff; stroke-width: 1.5; }
+.arc-radar .dot.zero { fill: #fff; stroke: var(--line2); stroke-width: 1.5; }
+/* 눈금은 정수만 렌더된다(TrackRadar.scaleOf). 도형 위에 겹쳐도 읽히게 흰 테두리를 먼저 칠한다 */
+.arc-radar .tick {
+  font-size: 9px; font-weight: 700; fill: var(--muted);
+  stroke: #fff; stroke-width: 2.5; paint-order: stroke;
+}
+.arc-radar .ax-name { font-size: 11px; font-weight: 700; fill: var(--ink2); }
+.arc-radar .ax-val { font-size: 12.5px; font-weight: 800; fill: var(--ink); }
+.arc-radar .ax-val.zero { font-weight: 700; fill: var(--muted); }
+
+.arc-radarnote { padding: 0 20px 16px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.arc-radarnote b { color: var(--ink2); font-weight: 800; }
+
+/* ---------- 활동 목록 (프로토타입 .alist/.ai 275줄) ---------- */
+.arc-list { padding: 4px 20px 14px; list-style: none; }
+.arc-row {
+  /* 좌우 -8px 만큼 넓혀 호버 배경이 목록 여백까지 덮게 한다(프로토타입 .ai 416줄).
+     <button> 의 width:auto 는 브라우저에 따라 shrink-to-fit 이라 calc 로 못박는다. */
+  width: calc(100% + 16px); display: flex; align-items: center; gap: 13px; text-align: left;
+  padding: 13px 8px; margin: 0 -8px; border-top: 1px solid var(--line); border-radius: 11px;
+  background: none; color: inherit; transition: background .12s;
+}
+.arc-list > li:first-child .arc-row { border-top: none; }
+button.arc-row { cursor: pointer; }
+button.arc-row:hover { background: var(--bg); }
+button.arc-row:focus-visible { outline: none; background: var(--bg); box-shadow: 0 0 0 3px var(--brand-soft); }
+.arc-row .ic { width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; }
+.arc-row .info { flex: 1; min-width: 0; display: block; }
+.arc-row .info .t,
+.arc-row .info .m { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arc-row .info .t { font-size: 14px; font-weight: 700; letter-spacing: -.2px; }
+.arc-row .info .m { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.arc-row .info .m.confirm { color: var(--brand-dk); font-weight: 600; }
+/* 게시중단 등으로 프로그램 정보를 못 읽은 행 — 사라지지 않되 톤을 낮춘다 */
+.arc-row.unknown .info .t { color: var(--ink2); font-weight: 600; }
+/* 행이 열린다는 표시 — 이모지 금지(CLAUDE.md 8장)라 CSS 삼각형으로 만든다 (AdminShell.css .chev 와 같은 방식) */
+.arc-row .chev {
+  flex: none; width: 0; height: 0; margin-left: 2px;
+  border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 6px solid var(--line2);
+}
+
+/* ---------- 인쇄 전용 머리글 ----------
+   화면에서는 숨기고 print.css 가 인쇄에서만 보여준다(display:block + 밑줄). */
+.arc-printhead { display: none; }
+.arc-printhead h2 { font-size: 19px; font-weight: 800; letter-spacing: -.5px; }
+.arc-printhead .who { font-size: 14px; font-weight: 700; margin-top: 4px; }
+.arc-printhead .meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+
+/* ============ RESPONSIVE (CLAUDE.md 8장: 980/768/600/430) ============ */
+@media (max-width: 768px) {
+  .arc-hero { padding-bottom: 44px; }
+  /* 제목 옆 설명이 좁은 폭에서 붙지 않게 아래로 흘린다(레이더 헤더는 문장이 길다) */
+  .arc-radar .ph { flex-wrap: wrap; }
+}
+@media (max-width: 600px) {
+  /* StackViz 가 이 폭에서 display:none 이므로 패널째 숨긴다. 요약 블록은 패널 밖이라 그대로 남는다. */
+  .arc-hero { display: none; }
+  .arc-totals { padding: 14px 16px 4px; gap: 8px; }
+  .arc-tot { padding: 11px 12px; }
+  .arc-tot .n { font-size: 22px; }
+  .arc-facts, .arc-list { padding-left: 16px; padding-right: 16px; }
+  .arc-panel .ph { padding: 16px 16px 0; }
+  /* [레이더는 숨기지 않는다] StackViz 와 다르다 — 케빈이 요청한 핵심 요소다.
+     viewBox 비례 축소라 라벨은 겹치지 않는다. 좌우 여백만 줄여 도형을 최대한 키운다. */
+  .arc-radarbox { padding: 4px 10px 4px; }
+  .arc-radarbox svg { max-width: 100%; }
+  .arc-radarnote { padding: 0 16px 14px; }
+}
+@media (max-width: 430px) {
+  .arc-tot .n { font-size: 19px; }
+  .arc-tot .l { font-size: 11px; }
+  .arc-row { gap: 10px; }
+  .arc-row .ic { width: 36px; height: 36px; border-radius: 10px; }
+  /* 축소된 SVG 에서 라벨이 너무 작아지지 않게 폰트만 키운다(위치는 비율 그대로라 여전히 안 겹친다) */
+  .arc-radar .ax-name { font-size: 12px; }
+  .arc-radar .ax-val { font-size: 13.5px; }
+  .arc-radarbox { padding: 2px 4px 4px; }
+}

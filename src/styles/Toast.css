@@ -1,0 +1,27 @@
+/* Accumu v2 — 공통 토스트 (Accumu_prototype.html #toast 430~432줄 값 그대로) */
+
+.toast {
+  position: fixed; bottom: 26px; left: 50%; z-index: 300;
+  display: flex; align-items: center; gap: 9px; max-width: 90vw;
+  padding: 13px 20px; border-radius: 13px;
+  background: var(--ink); color: #fff; font-size: 14px; font-weight: 600;
+  box-shadow: var(--shadow-lg); pointer-events: none;
+  animation: toast-in .3s ease both;
+}
+/* 아이콘 자리(.tic) — 프로토타입은 이모지 문자였고 여기선 duotone SVG (CLAUDE.md 8장) */
+.toast .tic { display: grid; place-items: center; color: #fff; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* prefers-reduced-motion에서 animation이 꺼지면(tokens.css) translateX(-50%)까지 사라져
+   가운데 정렬이 깨지므로 기본 transform을 따로 둔다. */
+.toast { transform: translateX(-50%); }
+
+/* ============ RESPONSIVE (CLAUDE.md 8장: 980/768/600/430) ============ */
+@media (max-width: 768px) {
+  /* 하단 탭바(.bottomnav)를 가리지 않도록 (프로토타입 445줄) */
+  .toast { bottom: 84px; }
+}

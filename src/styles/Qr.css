@@ -1,0 +1,103 @@
+/* Accumu v2 — QR 인증 (학생 발급/표시 + 마이페이지 진입 버튼)
+   Accumu_prototype.html의 .qrcheck(306줄) / .qrlist(339줄) / .scanbtn(345줄) /
+   .qrbox·.qr·.countdown·.scan-done(245~255줄) CSS 값을 그대로 재사용한다.
+   [색 규칙] 입장 = brand blue / 퇴장 = indigo. 초록 계열 금지(CLAUDE.md 8장). 포인트만 amber. */
+
+/* ---------- 마이페이지 진입 버튼 (프로토타입 652줄 위치·카피·indigo — 확정 F-1) ---------- */
+.qrcheck {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 18px; width: 100%; max-width: 320px; height: 46px; border-radius: 12px;
+  background: var(--indigo); color: #fff; font-weight: 700; font-size: 14.5px; transition: .16s;
+}
+.qrcheck:hover { background: #4F52D8; }
+/* placeholder 패널은 가운데 정렬이라 버튼 폭을 감싸는 래퍼가 필요하다 */
+.ph-qr { display: flex; justify-content: center; }
+
+/* ---------- 모달 공통 (QR 전용 태그/문구) ----------
+   .mtag 는 참여 신청 팝업(.join-modal .mtag)이 소유한 클래스라 건드리지 않고 별도 이름을 쓴다. */
+.qtag {
+  display: inline-block; font-size: 11.5px; font-weight: 700; padding: 5px 11px; border-radius: 20px;
+  background: var(--brand-soft); color: var(--brand-dk);
+}
+.qtag.exit { background: var(--indigo-soft); color: var(--indigo); }
+
+.qr-lead { font-size: 13.5px; color: var(--muted); line-height: 1.55; margin-bottom: 6px; }
+.qr-notice {
+  margin-top: 12px; padding: 10px 12px; border-radius: 10px;
+  background: var(--amber-soft); color: #8A5A15; font-size: 12.5px; font-weight: 600; line-height: 1.5;
+}
+
+/* ---------- 발급 목록 (프로토타입 339~350줄) ---------- */
+.qrlist .qi { display: flex; align-items: center; gap: 13px; padding: 14px 0; border-top: 1px solid var(--line); }
+.qrlist .qi:first-child { border-top: none; }
+.qrlist .qi .ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; }
+.qrlist .qi .info { flex: 1; min-width: 0; }
+.qrlist .qi .info h5 { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qrlist .qi .info .m { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+.scanbtn {
+  padding: 8px 13px; border-radius: 9px; font-weight: 700; font-size: 12px;
+  white-space: nowrap; transition: .15s; border: 1.5px solid var(--line);
+}
+.scanbtn.enter { background: var(--brand); color: #fff; border-color: transparent; }
+.scanbtn.enter:hover:not(:disabled) { background: var(--brand-dk); }
+.scanbtn.exit { background: var(--indigo); color: #fff; border-color: transparent; }
+.scanbtn.exit:hover:not(:disabled) { background: #4F52D8; }
+.scanbtn:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ---------- QR 표시 (프로토타입 245~250줄) ---------- */
+.qrbox { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 8px 0; }
+.qrbox .qr {
+  width: 188px; height: 188px; padding: 12px; background: #fff; border: 1px solid var(--line);
+  border-radius: 16px; box-shadow: var(--shadow); display: grid; place-items: center;
+}
+/* [QR 은 프레임 안쪽 폭에 맞춘다] box-sizing:border-box 라 .qr 의 내부 폭은 188-24-2=162px,
+   430px 구간에서는 168-20-2=146px 다. QRCodeSVG 의 size 는 고정값이라 그대로 두면 프레임을
+   비어져 나온다(모바일에서 특히 크게). SVG 를 100% 로 늘려 어느 구간에서도 딱 맞게 한다.
+   QR 은 벡터라 확대·축소해도 인식률이 떨어지지 않는다. */
+.qrbox .qr svg { display: block; width: 100%; height: auto; }
+/* 만료 시 QR 을 흐리게 (스펙 B절). 판정 자체는 서버가 하며 이건 표시일 뿐이다. */
+.qrbox .qr.is-expired { opacity: .28; filter: grayscale(1); }
+.qrbox h3 { font-size: 19px; font-weight: 800; letter-spacing: -.4px; }
+.qrbox .desc { font-size: 13.5px; color: var(--muted); max-width: 300px; margin-top: 6px; }
+
+/* 프로토타입의 "5초 후 자동 처리" 자리에 남은 유효시간을 둔다(가짜 타이머를 재현하지 않는다). */
+.countdown { margin-top: 15px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.countdown .cdn {
+  display: inline-grid; place-items: center; min-width: 26px; height: 26px; padding: 0 8px;
+  border-radius: 8px; background: var(--brand-soft); color: var(--brand-dk);
+  font-weight: 800; font-size: 15px; margin-right: 5px; vertical-align: middle;
+}
+.countdown.expired { color: var(--rose); font-weight: 700; }
+
+.qr-reissue {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 13px; height: 40px; padding: 0 18px;
+  border-radius: 11px; background: var(--brand); color: #fff; font-weight: 700; font-size: 13.5px; transition: .16s;
+}
+.qr-reissue:hover:not(:disabled) { background: var(--brand-dk); }
+.qr-reissue:disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; }
+
+.qr-code-text { margin-top: 14px; font-size: 12px; color: var(--muted); }
+.qr-code-text b { font-size: 14px; color: var(--ink2); letter-spacing: 2px; font-weight: 800; }
+
+.qr-back { margin-top: 16px; font-size: 13px; font-weight: 700; color: var(--brand-dk); padding: 6px 12px; border-radius: 9px; }
+.qr-back:hover { background: var(--brand-soft); }
+
+/* ---------- 완료 화면 (프로토타입 252~255줄) ----------
+   [원칙 1] 컨페티·폭죽·사운드·숫자 카운트업 없음. 담백한 체크 아이콘 + 문구까지만.
+   [원칙 4] h3(포트폴리오 서사)가 가장 큰 요소이고, 포인트(.done-pts)는 그 아래 한 줄이다. */
+.scan-done { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 14px 0; }
+.scan-done .check {
+  width: 78px; height: 78px; border-radius: 50%; background: var(--brand); color: #fff;
+  display: grid; place-items: center; box-shadow: 0 12px 30px rgba(37, 99, 235, .42); margin-bottom: 16px;
+}
+.scan-done h3 { font-size: 21px; font-weight: 800; letter-spacing: -.5px; margin-bottom: 6px; }
+.scan-done .desc { max-width: 300px; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
+.scan-done .done-pts { margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--amber); }
+
+/* ============ RESPONSIVE (CLAUDE.md 8장: 980/768/600/430) ============ */
+@media (max-width: 430px) {
+  .qrbox .qr { width: 168px; height: 168px; padding: 10px; }
+  .qrlist .qi { gap: 10px; }
+  .scanbtn { padding: 8px 10px; }
+}

@@ -1,0 +1,348 @@
+/* Accumu v2 — 관리자 화면 (셸 + 홈 + QR 스캔)
+   공통 시각 언어(.nav / .wrap / .bottomnav / .screen / .empty)는 StudentShell.css 가 소유한다.
+   이 파일에는 관리자 화면에만 있는 것만 둔다.
+
+   [색 규칙] 브랜드는 blue 계열. 초록 계열 금지. 입장 = brand / 퇴장 = indigo / 거부 = rose /
+   포인트 = amber(스캔 결과 한 줄에서만). 관리자 화면에 포인트 UI를 더 만들지 않는다(원칙 4). */
+
+/* ---------- 셸 ---------- */
+.adminbadge {
+  margin-left: 4px; font-size: 10.5px; font-weight: 800; letter-spacing: .3px;
+  padding: 3px 8px; border-radius: 20px; background: var(--ink); color: #fff;
+}
+.nav .me .adminname {
+  display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25;
+  font-size: 13.5px; font-weight: 700; color: var(--ink2);
+}
+.nav .me .adminname em { font-size: 11px; font-weight: 600; font-style: normal; color: var(--muted); }
+.logoutbtn { margin-left: 2px; }
+
+.sec.sm { font-size: 18px; }
+
+/* ---------- 관리자 홈 목록 ---------- */
+.adm-scanall {
+  display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 16px; border-radius: 11px;
+  background: var(--brand); color: #fff; font-weight: 700; font-size: 13.5px; transition: .16s;
+}
+.adm-scanall:hover { background: var(--brand-dk); }
+
+.adm-list { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 4px 18px; }
+.adm-list.muted { box-shadow: none; background: transparent; }
+.adm-row { display: flex; align-items: center; gap: 13px; padding: 14px 0; border-top: 1px solid var(--line); }
+.adm-row:first-child { border-top: none; }
+.adm-row .ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; }
+.adm-row .info { flex: 1; min-width: 0; }
+.adm-row .info h5 { font-size: 14.5px; font-weight: 700; letter-spacing: -.2px; }
+.adm-row .info .m { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+.adm-row .pt { font-size: 13px; font-weight: 800; color: var(--amber); white-space: nowrap; }
+.adm-scan {
+  display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 9px;
+  background: var(--brand); color: #fff; font-weight: 700; font-size: 12.5px; transition: .15s; white-space: nowrap;
+}
+.adm-scan:hover { background: var(--brand-dk); }
+
+/* ==========================================================================
+   프로그램 관리 (docs/specs/admin-programs.md)
+   관리자 홈의 .adm-list / .adm-row 를 확장한다. 새 디자인 언어를 발명하지 않는다
+   (Accumu_prototype.html 에 관리자 화면이 없어 시각 레퍼런스가 여기뿐이다).
+   ========================================================================== */
+
+/* ---------- 그룹 헤더 / 접기 (확정 C: 날짜 축 2그룹) ---------- */
+.adm-grouphead { display: flex; align-items: center; gap: 9px; margin: 4px 2px 10px; }
+.adm-grouphead h3 { font-size: 14.5px; font-weight: 800; letter-spacing: -.3px; color: var(--ink2); }
+.adm-grouphead .cnt,
+.adm-foldbtn .cnt {
+  font-size: 11.5px; font-weight: 700; color: var(--muted);
+  background: var(--bg2); border-radius: 20px; padding: 3px 9px;
+}
+.adm-fold { margin-top: 26px; }
+.adm-foldbtn {
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 11px 14px;
+  border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--card);
+  font-size: 13.5px; font-weight: 700; color: var(--ink2); transition: .16s;
+}
+.adm-foldbtn:hover { background: var(--bg); }
+.adm-foldbtn .isvg { color: var(--muted); }
+/* 접힘/펼침 표시 — 이모지 금지(CLAUDE.md 8장)라 CSS 삼각형으로 만든다 */
+.adm-foldbtn .chev {
+  margin-left: auto; width: 0; height: 0; border-left: 5px solid transparent;
+  border-right: 5px solid transparent; border-top: 6px solid var(--line2); transition: transform .18s;
+}
+.adm-foldbtn .chev.on { transform: rotate(180deg); }
+.adm-fold .adm-list { margin-top: 10px; }
+
+/* ---------- 목록 행 확장 ---------- */
+.adm-row.prog { transition: background .25s, box-shadow .25s, opacity .2s; }
+.adm-row.prog .badges { display: flex; align-items: center; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+
+/* 게시 배지 — 모집 상태 배지(.badge, soft 채움)와 형태를 다르게 해서 두 배지가 섞여 읽히지 않게 한다.
+   게시 상태는 테두리 + 점, 모집 상태는 채움. 초록 계열 없음. */
+.pubbadge {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700;
+  padding: 4px 10px 4px 8px; border-radius: 20px;
+  border: 1px solid var(--line2); background: #fff; color: var(--muted);
+}
+.pubbadge::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  border: 1.5px solid var(--line2); background: transparent;
+}
+.pubbadge.on { border-color: var(--brand); color: var(--brand-dk); background: var(--brand-soft); }
+.pubbadge.on::before { border-color: var(--brand); background: var(--brand); }
+
+/* 미게시 = 행 흐림 (확정 B). 배지와 액션 버튼은 흐리지 않는다 — 흐리면 "올리기"를 누를 수 없어 보인다. */
+.adm-row.unpub .ic,
+.adm-row.unpub .info h5,
+.adm-row.unpub .info .m,
+.adm-row.unpub .pt { opacity: .48; }
+
+/* 저장·토글 직후 하이라이트. 날짜 축 정렬이라 새 행이 맨 위에 오지 않아서 필요하다(확정 C x D).
+   [애니메이션이 아니라 클래스 상태로 표현한다] prefers-reduced-motion 에서 전역으로 animation 이 꺼지는데,
+   그때도 "방금 저장한 행"은 보여야 한다. */
+.adm-row.hl {
+  background: var(--brand-soft); border-radius: 10px;
+  box-shadow: 0 0 0 5px var(--brand-soft), inset 3px 0 0 var(--brand);
+}
+
+/* ---------- 행 액션 (수정 / 올리기·내리기) ---------- */
+.adm-acts { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.adm-act {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 9px;
+  border: 1px solid var(--line); background: #fff; color: var(--ink2);
+  font-weight: 700; font-size: 12.5px; white-space: nowrap; transition: .15s;
+}
+.adm-act .isvg { color: var(--muted); }
+.adm-act:hover:not(:disabled) { background: var(--bg); border-color: var(--line2); }
+.adm-act:disabled { opacity: .5; cursor: not-allowed; }
+.adm-act.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+.adm-act.primary .isvg { color: #fff; }
+.adm-act.primary:hover:not(:disabled) { background: var(--brand-dk); border-color: var(--brand-dk); }
+/* 내리기 — 파괴적이지 않지만(되돌릴 수 있다) 결과 고지가 필요한 동작이라 톤만 구분한다. */
+.adm-act.warn { color: var(--rose); border-color: var(--rose-soft); background: var(--rose-soft); }
+.adm-act.warn .isvg { color: var(--rose); }
+.adm-act.warn:hover:not(:disabled) { background: #F8D2D9; border-color: #F8D2D9; }
+
+/* ---------- 실패 배너 (조용히 삼키지 않는다) ---------- */
+.adm-alert {
+  display: flex; align-items: center; gap: 9px; margin-bottom: 16px; padding: 12px 14px;
+  border-radius: var(--r-sm); background: var(--rose-soft); color: var(--rose);
+  font-size: 13px; font-weight: 600; line-height: 1.5;
+}
+.adm-alert .isvg { color: var(--rose); flex: none; }
+.adm-alert .x { margin-left: auto; color: var(--rose); opacity: .7; display: grid; place-items: center; }
+.adm-alert .x:hover { opacity: 1; }
+
+/* ==========================================================================
+   등록·수정 모달 (확정 A — Modal.jsx 재사용)
+   ========================================================================== */
+.modal.pform-modal { width: 560px; }
+.modal.confirm-modal { width: 440px; }
+
+.pform-lead { font-size: 13px; color: var(--muted); line-height: 1.6; margin: 7px 0 16px; }
+
+.pf-alert {
+  display: flex; align-items: flex-start; gap: 8px; margin-bottom: 14px; padding: 11px 13px;
+  border-radius: 10px; background: var(--rose-soft); color: var(--rose);
+  font-size: 12.5px; font-weight: 600; line-height: 1.55;
+}
+.pf-alert .isvg { color: var(--rose); flex: none; margin-top: 1px; }
+
+.pform { display: flex; flex-direction: column; gap: 13px; }
+.pf-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+
+.pf label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 700; color: var(--ink2); margin-bottom: 6px;
+}
+.pf label .req {
+  font-size: 10px; font-weight: 700; font-style: normal; color: var(--brand-dk);
+  background: var(--brand-soft); border-radius: 20px; padding: 2px 7px;
+}
+.pf input,
+.pf select,
+.pf textarea {
+  width: 100%; padding: 0 13px; font-size: 14.5px; font-family: inherit; color: var(--ink);
+  border: 1.5px solid var(--line2); border-radius: 10px; background: #fff; transition: .16s;
+}
+.pf input, .pf select { height: 44px; }
+.pf textarea { padding: 11px 13px; line-height: 1.6; resize: vertical; min-height: 84px; }
+.pf select { appearance: none; padding-right: 34px; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--line2) 50%), linear-gradient(135deg, var(--line2) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 20px, calc(100% - 12px) 20px;
+  background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+}
+.pf input:focus, .pf select:focus, .pf textarea:focus {
+  outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-soft);
+}
+.pf.err input, .pf.err select, .pf.err textarea { border-color: var(--rose); }
+.pf.err input:focus, .pf.err select:focus, .pf.err textarea:focus { box-shadow: 0 0 0 4px var(--rose-soft); }
+
+.pf-msg { font-size: 11.5px; line-height: 1.5; margin-top: 6px; display: flex; align-items: flex-start; gap: 5px; }
+.pf-msg.hint { color: var(--muted); }
+.pf-msg.err { color: var(--rose); font-weight: 600; }
+/* 지난 날짜 경고 — 저장을 막지 않는다(확정 H). 그래서 오류(rose)가 아니라 주의(amber)다. */
+.pf-msg.warn { color: var(--amber); font-weight: 600; }
+.pf-msg.warn .isvg { color: var(--amber); flex: none; margin-top: 1px; }
+
+/* 항상 표시되는 고지(확정 I / F). 참여자 유무를 알 권한이 없어 조건부 표시가 구조적으로 불가능하다. */
+.pf-note {
+  font-size: 12px; color: var(--muted); line-height: 1.6; background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px;
+}
+.pf-note b { color: var(--ink2); }
+
+.pf-actions { display: flex; gap: 9px; margin-top: 4px; }
+.pf-btn {
+  flex: 1; height: 48px; border-radius: 11px; font-weight: 700; font-size: 14.5px; transition: .16s;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+}
+.pf-btn.primary { background: var(--brand); color: #fff; }
+.pf-btn.primary:hover:not(:disabled) { background: var(--brand-dk); }
+.pf-btn.ghost { flex: 0 0 34%; background: var(--bg2); color: var(--ink2); }
+.pf-btn.ghost:hover:not(:disabled) { background: var(--line); }
+.pf-btn.danger { background: var(--rose); color: #fff; }
+.pf-btn.danger:hover:not(:disabled) { background: #CE4359; }
+.pf-btn:disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; }
+
+/* ---------- 내리기 확인 창 (확정 J) ---------- */
+.confirm-target {
+  margin: 12px 0 10px; padding: 10px 13px; border-radius: 10px; background: var(--bg);
+  border: 1px solid var(--line); font-size: 13.5px; font-weight: 700; color: var(--ink2);
+}
+.confirm-desc { font-size: 13px; color: var(--muted); line-height: 1.65; margin-bottom: 18px; }
+.confirm-desc b { color: var(--ink2); }
+
+/* ---------- QR 스캔 화면 ---------- */
+.scan-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 20px; align-items: start; }
+
+.scan-cam, .scan-result > .rpanel, .scan-result > .manual {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow);
+}
+.scan-cam { padding: 16px 18px 18px; }
+.camhead { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; margin-bottom: 12px; }
+.camhead .live {
+  margin-left: auto; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;
+  background: var(--brand-soft); color: var(--brand-dk);
+}
+
+.camview {
+  position: relative; border-radius: 14px; overflow: hidden; background: var(--ink);
+  min-height: 260px; display: grid; place-items: center;
+}
+.camview .reader { width: 100%; }
+.camview .reader video { width: 100% !important; height: auto !important; display: block; }
+/* 스캔 프레임 — html5-qrcode 가 자체 하이라이트를 그리지 않는 경우를 위한 정적 가이드 */
+.camview .reader.on::after {
+  content: ''; position: absolute; inset: 50% auto auto 50%; width: 210px; height: 210px;
+  transform: translate(-50%, -50%); border: 2px solid rgba(255, 255, 255, .85); border-radius: 14px;
+  box-shadow: 0 0 0 2000px rgba(22, 33, 62, .28); pointer-events: none;
+}
+.camoverlay {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; text-align: center; padding: 24px; background: var(--ink); color: #fff;
+}
+.camoverlay .t { font-size: 15px; font-weight: 800; letter-spacing: -.3px; }
+.camoverlay .d { font-size: 12.5px; color: #C3CCDE; line-height: 1.55; max-width: 330px; }
+.camoverlay.err .t { color: #FFC9D1; }
+.camoverlay .retry {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; height: 38px; padding: 0 16px;
+  border-radius: 10px; background: var(--brand); color: #fff; font-weight: 700; font-size: 13px; transition: .16s;
+}
+.camoverlay .retry:hover { background: var(--brand-dk); }
+
+.camhint { margin-top: 12px; font-size: 12.5px; color: var(--muted); text-align: center; }
+.envnote {
+  margin-top: 12px; padding: 11px 13px; border-radius: 11px; background: var(--bg);
+  border: 1px solid var(--line); font-size: 11.5px; color: var(--muted); line-height: 1.6;
+}
+.envnote b { color: var(--ink2); }
+.envnote code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--brand-dk); }
+
+/* ---------- 결과 패널 ---------- */
+.scan-result { display: flex; flex-direction: column; gap: 14px; }
+.rpanel { padding: 22px 20px; min-height: 200px; display: flex; flex-direction: column; justify-content: center; }
+.rpanel .tag {
+  display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
+  font-size: 11.5px; font-weight: 800; padding: 5px 11px; border-radius: 20px; margin-bottom: 12px;
+}
+.rpanel .t { font-size: 20px; font-weight: 800; letter-spacing: -.6px; }
+.rpanel .who { font-size: 14px; font-weight: 700; color: var(--ink2); margin-top: 7px; }
+.rpanel .d { font-size: 12.5px; color: var(--muted); margin-top: 6px; line-height: 1.55; }
+.rpanel .raw { font-size: 11px; color: var(--line2); margin-top: 10px; word-break: break-all; }
+
+.rpanel.wait { align-items: center; text-align: center; color: var(--muted); font-size: 13.5px; gap: 6px; }
+.rpanel.wait .t { font-size: 14.5px; font-weight: 700; color: var(--ink2); }
+
+.rpanel.ok.entry { border-color: var(--brand); }
+.rpanel.ok.entry .tag { background: var(--brand-soft); color: var(--brand-dk); }
+.rpanel.ok.exit { border-color: var(--indigo); }
+.rpanel.ok.exit .tag { background: var(--indigo-soft); color: var(--indigo); }
+/* 포인트는 큰 문구가 아니라 아래 한 줄 (절대 원칙 4) */
+.rpanel.ok .pts { margin-top: 12px; font-size: 13px; font-weight: 700; color: var(--amber); }
+
+.rpanel.deny { border-color: var(--rose); }
+.rpanel.deny .tag { background: var(--rose-soft); color: var(--rose); }
+.rpanel.deny .t { color: var(--rose); }
+
+/* 기술 오류는 인증 거부와 다른 색으로 분리한다(혼동 금지 — 스펙 E절) */
+.rpanel.tech { border-color: var(--line2); background: var(--bg); }
+.rpanel.tech .tag { background: var(--bg2); color: var(--ink2); }
+
+/* ---------- 수동 코드 입력 (확정 D-1 — 보조 수단) ---------- */
+.manual { padding: 14px 18px; }
+.manual > summary {
+  cursor: pointer; font-size: 13px; font-weight: 700; color: var(--brand-dk); list-style: none;
+}
+.manual > summary::-webkit-details-marker { display: none; }
+.manual > summary::before { content: '＋ '; font-weight: 800; }
+.manual[open] > summary::before { content: '－ '; }
+.manual p { font-size: 12px; color: var(--muted); line-height: 1.6; margin: 10px 0 12px; }
+.manual p b { color: var(--ink2); }
+.manual form { display: flex; gap: 8px; }
+.manual input {
+  flex: 1; min-width: 0; height: 42px; padding: 0 13px; border-radius: 10px;
+  border: 1.5px solid var(--line); background: var(--bg); font-size: 14px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink);
+}
+.manual input:focus { outline: none; border-color: var(--brand); background: #fff; }
+.manual button {
+  height: 42px; padding: 0 18px; border-radius: 10px; background: var(--ink); color: #fff;
+  font-weight: 700; font-size: 13.5px; transition: .16s; white-space: nowrap;
+}
+.manual button:hover:not(:disabled) { background: var(--brand); }
+.manual button:disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; }
+
+/* ============ RESPONSIVE (CLAUDE.md 8장: 980/768/600/430) ============ */
+@media (max-width: 980px) {
+  .scan-grid { grid-template-columns: 1fr; }
+  /* 액션 2개 + 배지 2종이 한 줄에서 겹치지 않도록 여백을 조금 줄인다 */
+  .adm-row.prog { gap: 11px; }
+  .adm-act { padding: 8px 10px; }
+}
+@media (max-width: 768px) {
+  .nav .me .adminname { display: none; }
+  /* 모바일 하단 탭바(높이 ~62px + safe-area)를 피해 모달을 위로 올린다 */
+  .overlay:has(.pform-modal), .overlay:has(.confirm-modal) { align-items: flex-start; }
+  .modal.pform-modal, .modal.confirm-modal {
+    margin: 8px 0 calc(78px + env(safe-area-inset-bottom));
+    max-height: calc(100vh - 96px - env(safe-area-inset-bottom));
+  }
+}
+@media (max-width: 600px) {
+  .adm-row { flex-wrap: wrap; }
+  .adm-row .pt { margin-left: 53px; }
+  .camview .reader.on::after { width: 170px; height: 170px; }
+  /* 세로로 접히되 게시 배지는 계속 보인다 */
+  .adm-row.prog .info { flex-basis: calc(100% - 53px); }
+  .adm-row.prog .adm-acts { margin-left: auto; }
+  .pf-2col { grid-template-columns: 1fr; }
+}
+@media (max-width: 430px) {
+  .adminbadge { display: none; }
+  .rpanel .t { font-size: 18px; }
+  .manual form { flex-direction: column; }
+  .manual button { width: 100%; }
+  .adm-row.prog .adm-acts { width: 100%; margin-left: 53px; }
+  .adm-row.prog .adm-act { flex: 1; justify-content: center; }
+  .pf-actions { flex-direction: column-reverse; }
+  .pf-btn.ghost { flex: none; width: 100%; }
+}

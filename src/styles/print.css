@@ -1,0 +1,108 @@
+/* Accumu v2 — 인쇄(= PDF) 전역 규칙
+   docs/specs/admin-students.md G절 / student-archive-mypage.md "PDF" 체크리스트.
+
+   [왜 라이브러리가 아니라 인쇄 CSS인가]
+     jsPDF 는 한글이 기본 폰트에 없어 수 MB 폰트를 base64 로 임베딩해야 하고, html2canvas 는 화면을
+     래스터 이미지로 떠서 붙이므로 **글자가 이미지가 된다.** 인쇄 CSS 는 텍스트가 벡터로 남아
+     PDF 에서 검색·복사되고(입시 제출 문서에서 이게 크다), 페이지 나눔도 브라우저가 처리한다.
+     새 npm 의존성 0개 — package.json diff 가 0이어야 정상이다.
+
+   [전역 1개] 학생 아카이브와 관리자 담당 학생 아카이브가 같은 파일을 쓴다(스펙 이슈 1).
+     화면별 규칙이 필요하면 이 파일 안에서 클래스로 구분한다. 파일을 쪼개면 두 문서의 인쇄 결과가 갈라진다.
+   [규율] 인쇄에서 빼야 하는 화면 전용 요소에는 .no-print 를 붙인다. 인쇄에서만 보여야 하는 블록은
+     화면 CSS 에서 display:none 으로 두고 여기서 되살린다. */
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+
+  /* [필수] 애니메이션을 전부 끈다.
+     .screen 의 fade 나 StackViz 의 grow 는 `both` fill 이라, 인쇄 렌더 시점에 따라
+     opacity:0 상태로 굳어 "내용이 통째로 빈 페이지"가 나올 수 있다. */
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  html { scrollbar-gutter: auto; }
+  body {
+    background: #fff !important;
+    color: #16213E;
+  }
+
+  /* 셸·인터랙션 요소 제거 */
+  .nav,
+  .bottomnav,
+  .overlay,
+  .toast,
+  .no-print {
+    display: none !important;
+  }
+
+  /* 본문 폭 제한/여백 해제 — 종이 여백은 @page 가 담당한다 */
+  .wrap {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* 어두운 히어로(StackViz)는 인쇄하지 않는다.
+     블록만 있고 숫자가 없어 종이에서는 정보가 되지 않고, 잉크만 크게 먹는다.
+     같은 정보는 요약 블록(활동 수·유형 분포·활동 기간)이 텍스트로 담는다. */
+  .arc-hero { display: none !important; }
+
+  /* 인쇄 전용 문서 머리글 (화면에서는 Archive.css 가 display:none) */
+  .arc-printhead {
+    display: block !important;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #16213E;
+  }
+
+  /* 카드 장식 제거 — 종이에서는 그림자·큰 라운드가 노이즈다 */
+  .arc-panel,
+  .adm-list {
+    box-shadow: none !important;
+    border: 1px solid #D4DBE6 !important;
+    border-radius: 8px !important;
+    margin-bottom: 10px !important;
+  }
+
+  /* 활동 1건이 페이지 경계에서 반으로 잘리지 않게 */
+  .arc-row,
+  .adm-row,
+  .arc-tot {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .arc-panel .ph h3 { break-after: avoid; page-break-after: avoid; }
+
+  /* 진로 계열 레이더(확정 M-2)는 **인쇄에 남긴다.**
+     .arc-hero(StackViz)와 반대 판단이다 — StackViz 는 블록만 있고 숫자가 없어 종이에서 정보가 되지
+     않지만, 레이더는 축마다 계열명과 건수가 글자로 찍히는 포트폴리오 문서의 핵심 시각 요소다.
+     SVG 라 PDF 에 벡터로 남고(글자도 텍스트로 남는다), 흰 패널 안이라 배경 반전 문제도 없다.
+     [애니메이션 의존 금지] 위 `animation:none !important` 때문에 등장 애니메이션으로 그리는 요소는
+     인쇄에서 사라진다. TrackRadar 는 처음부터 정적 SVG 다 — 애니메이션을 추가하지 말 것. */
+  .arc-radar { break-inside: avoid; page-break-inside: avoid; }
+  .arc-radarbox svg {
+    max-width: 340px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* 배지·유형 아이콘 배경색은 브라우저가 기본적으로 빼버린다. 명시적으로 유지한다. */
+  .arc-row .ic,
+  .arc-tot,
+  .arc-tot.hl,
+  .arc-dist .d i,
+  .badge {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* 클릭 가능한 행이라는 힌트(호버 배경·화살표)는 종이에서 의미가 없다 */
+  button.arc-row { background: none !important; }
+  .arc-row .chev { display: none !important; }
+}

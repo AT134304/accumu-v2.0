@@ -1,0 +1,69 @@
+/* Accumu v2 — 학생 디지털 아카이브 (화면 고유 스타일)
+   요약/활동 목록/히어로 등 관리자 아카이브와 공유하는 표현은 src/styles/Archive.css 에 있다.
+   여기에는 학생 화면에서만 쓰는 것(PDF 버튼·빈 상태·활동 상세 모달)만 둔다. */
+
+/* ---------- PDF 내보내기 버튼 (프로토타입 .pdfbtn 288줄을 헤더용으로 축소) ----------
+   .no-print — 인쇄물에 버튼이 남으면 안 된다. */
+.arc-pdfbtn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 42px; padding: 0 17px; border-radius: 11px;
+  background: var(--brand); color: #fff; font-weight: 800; font-size: 14px;
+  transition: .18s; box-shadow: 0 6px 18px rgba(37, 99, 235, .26);
+}
+.arc-pdfbtn:hover:not(:disabled) { background: var(--brand-dk); transform: translateY(-1px); box-shadow: 0 10px 24px rgba(37, 99, 235, .34); }
+/* 완료 활동 0건이면 비활성 — 빈 문서를 뽑을 이유가 없다(에러가 아니라 상태다) */
+.arc-pdfbtn:disabled { background: var(--bg2); color: var(--muted); box-shadow: none; cursor: not-allowed; }
+.arc-pdfbtn:disabled .isvg { color: var(--muted); }
+
+/* ---------- 빈 상태 ----------
+   가짜 데이터를 시드하지 않으므로(ADR 0005) 시연 첫 화면이 여기일 수 있다. 공들여 만든다.
+   [원칙 1] 진척도·달성률·"0/5" 표기를 쓰지 않는다. 아래 steps 는 순서 안내이지 진행 게이지가 아니다. */
+.arc-empty { padding: 34px 20px 30px; text-align: center; }
+.arc-empty .ic {
+  width: 56px; height: 56px; border-radius: 16px; background: var(--brand-soft);
+  display: grid; place-items: center; margin: 0 auto 14px;
+}
+.arc-empty h4 { font-size: 16.5px; font-weight: 800; letter-spacing: -.3px; }
+.arc-empty p { font-size: 13.5px; color: var(--muted); line-height: 1.65; margin-top: 7px; }
+.arc-empty p b { color: var(--ink2); font-weight: 700; }
+.arc-emptycta {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 18px;
+  height: 44px; padding: 0 20px; border-radius: 12px;
+  background: var(--brand); color: #fff; font-weight: 700; font-size: 14px; transition: .16s;
+}
+.arc-emptycta:hover { background: var(--brand-dk); }
+/* 4단계 안내 — 점이 아니라 화살표 없는 담백한 나열. 색은 brand 계열(성장 축)이고 amber 를 쓰지 않는다. */
+.arc-empty .steps {
+  display: flex; align-items: center; justify-content: center; gap: 9px; flex-wrap: wrap;
+  margin-top: 20px; font-size: 11.5px; font-weight: 600; color: var(--muted);
+}
+.arc-empty .steps span { background: var(--bg); border: 1px solid var(--line); border-radius: 20px; padding: 5px 11px; }
+.arc-empty .steps i { width: 10px; height: 1px; background: var(--line2); }
+
+/* ---------- 활동 상세 모달 ----------
+   .infogrid / .mbtn 등은 StudentShell.css 의 공용 규칙을 그대로 쓴다. 여기서는 고유 값만. */
+.modal.act-modal { width: 480px; }
+.act-modal .mtag {
+  font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; display: inline-block;
+}
+.act-modal h3 { margin: 11px 0 2px; padding-right: 34px; }
+.act-degraded {
+  margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #EEF1F6;
+  font-size: 12.5px; line-height: 1.6; color: var(--ink2); font-weight: 600;
+}
+.act-modal .infogrid { margin-bottom: 2px; }
+
+/* ============ RESPONSIVE (CLAUDE.md 8장: 980/768/600/430) ============ */
+@media (max-width: 768px) {
+  /* 헤더가 좁아지면 버튼이 제목 아래로 내려온다(.sec-head 가 flex-wrap) */
+  .arc-pdfbtn { height: 40px; padding: 0 15px; font-size: 13.5px; }
+}
+@media (max-width: 600px) {
+  .arc-empty { padding: 28px 16px 26px; }
+  .arc-empty .steps { gap: 7px; }
+}
+@media (max-width: 430px) {
+  .arc-pdfbtn { width: 100%; }
+  .arc-empty h4 { font-size: 15.5px; }
+  .arc-empty p { font-size: 13px; }
+}

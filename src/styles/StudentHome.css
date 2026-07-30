@@ -1,0 +1,61 @@
+/* Accumu v2 — 학생 메인 화면(홈)
+   Accumu_prototype.html의 .hero/.stackviz/.overview/.pcard CSS 값 그대로 재사용. */
+
+/* ---------- 히어로 (성장/포트폴리오 서사 — brand blue) ---------- */
+.hero {
+  background: linear-gradient(135deg, var(--ink) 0%, #1E2F57 55%, #1B3566 100%);
+  border-radius: 24px; padding: clamp(28px, 5vw, 42px); color: #fff; position: relative; overflow: hidden;
+  display: grid; grid-template-columns: 1.15fr .85fr; gap: 30px; align-items: center;
+}
+.hero .glow {
+  position: absolute; width: 420px; height: 420px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(37, 99, 235, .45), transparent 65%); top: -160px; right: -120px;
+}
+.hero .eyebrow { color: #93B4FF; }
+.hero h1 { font-size: clamp(27px, 5vw, 36px); line-height: 1.18; font-weight: 800; letter-spacing: -1.3px; }
+.hero h1 b { color: #86B4FF; }
+.hero p { color: #C3CCDE; font-size: 15.5px; margin-top: 14px; max-width: 430px; }
+.hero .cta { display: flex; gap: 10px; margin-top: 24px; flex-wrap: wrap; }
+.hero .cta button { display: flex; align-items: center; gap: 7px; padding: 12px 19px; border-radius: 11px; font-weight: 700; font-size: 14.5px; transition: .16s; }
+.hero .cta .g { background: var(--brand); color: #fff; }
+.hero .cta .g:hover { background: #fff; color: var(--ink); }
+.hero .cta .o { background: rgba(255, 255, 255, .1); color: #fff; border: 1px solid rgba(255, 255, 255, .22); }
+.hero .cta .o:hover { background: rgba(255, 255, 255, .18); }
+
+/* ---------- 마일스톤 스택 (확정 B-1: completed 참여 실데이터 연결) ----------
+   채워진 블록 색은 교내 = brand blue(.fill) / 교외 = indigo(.fill.i).
+   프로토타입의 .fill.a(amber)는 옮기지 않았다 — amber는 포인트 색이라 "포인트가 쌓이는 그래프"로
+   읽히면 절대 원칙 4(포트폴리오 > 포인트)에 어긋난다 (ADR 0005 결정 5 원칙 1 가드). */
+.stackviz { position: relative; height: 230px; display: flex; align-items: flex-end; justify-content: center; gap: 13px; }
+.stackviz .col { display: flex; flex-direction: column-reverse; gap: 6px; width: 46px; }
+.stackviz .blk {
+  height: 30px; border-radius: 7px; background: rgba(255, 255, 255, .14);
+  border: 1px solid rgba(255, 255, 255, .16); transform-origin: bottom;
+  animation: grow .6s cubic-bezier(.2, .7, .3, 1) both;
+}
+.stackviz .blk.fill { background: var(--brand); border-color: transparent; box-shadow: 0 6px 16px rgba(37, 99, 235, .45); }
+.stackviz .blk.fill.i { background: var(--indigo); box-shadow: 0 6px 16px rgba(99, 102, 241, .45); }
+.stackviz .cap { position: absolute; bottom: -26px; font-size: 11.5px; color: #9FB0C9; width: 46px; text-align: center; }
+@keyframes grow { from { transform: scaleY(0); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
+
+/* ---------- 개요 카드 3종 ---------- */
+.overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 22px 0 40px; }
+.ov { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 18px 20px; box-shadow: var(--shadow); }
+.ov .ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; margin-bottom: 12px; }
+.ov h4 { font-size: 15.5px; font-weight: 800; }
+.ov p { font-size: 13px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+
+/* ---------- 추천 프로그램 행 (홈 전용 그리드) ---------- */
+/* .pcard / .join-btn 자체는 홈과 프로그램 선택 화면이 공유하므로 StudentShell.css 로 옮겼다.
+   여기에는 홈에서만 쓰는 래핑 그리드만 남긴다 (선택 화면은 .strip 가로 스크롤을 쓴다). */
+.cards-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(218px, 1fr)); gap: 16px; }
+
+/* ============ RESPONSIVE (CLAUDE.md 8장: 980/768/600/430) ============ */
+@media (max-width: 768px) {
+  .hero { grid-template-columns: 1fr; gap: 8px; }
+  .stackviz { margin-top: 10px; }
+}
+@media (max-width: 600px) {
+  .stackviz { display: none; }
+  .hero p { font-size: 14.5px; }
+}

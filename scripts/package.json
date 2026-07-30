@@ -1,0 +1,15 @@
+{
+  "name": "accumu-seed-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Accumu v2 데모 시딩 스크립트 전용 패키지 (seed-accounts.mjs, seed-programs.mjs). 프런트엔드(Vite) 앱과는 별개의 최소 의존성 패키지로 분리되어 있음 (service_role 키를 다루는 코드를 프런트 번들 의존성 트리와 섞지 않기 위함). 실행 순서: 마이그레이션 -> seed:accounts -> seed:programs.",
+  "scripts": {
+    "seed": "node seed-accounts.mjs",
+    "seed:accounts": "node seed-accounts.mjs",
+    "seed:programs": "node seed-programs.mjs",
+    "seed:programs:dry-run": "node seed-programs.mjs --dry-run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}

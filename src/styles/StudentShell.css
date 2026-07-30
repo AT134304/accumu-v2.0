@@ -1,0 +1,219 @@
+/* Accumu v2 — 학생 공통 셸 + 화면 공용 프리미티브
+   Accumu_prototype.html의 .nav/.bottomnav/.wrap/.bell/.overlay/.modal CSS 값 그대로 재사용.
+   (프로토타입은 .menu button/.bottomnav button이지만 여기선 라우팅 때문에 <a>(NavLink)라 선택자를 맞춰 조정) */
+
+/* ---------- brand mark ---------- */
+.logo { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; }
+.logo .word { font-weight: 800; font-size: 20px; letter-spacing: -.6px; color: var(--ink); }
+.logo .word b { color: var(--brand); }
+
+/* ---------- app shell ---------- */
+.nav {
+  position: sticky; top: 0; z-index: 50; height: 62px;
+  display: flex; align-items: center; gap: 24px;
+  padding: 0 clamp(16px, 4vw, 30px); background: rgba(255, 255, 255, .82);
+  backdrop-filter: blur(14px); border-bottom: 1px solid var(--line);
+}
+.nav .menu { display: flex; gap: 4px; margin-left: 10px; }
+.nav .menu a {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 14px; border-radius: 9px; font-size: 14.5px; font-weight: 600;
+  color: var(--muted); text-decoration: none; transition: .18s;
+}
+.nav .menu a .isvg { color: var(--muted); transition: .18s; }
+.nav .menu a:hover { color: var(--ink); background: var(--bg2); }
+.nav .menu a:hover .isvg { color: var(--ink2); }
+.nav .menu a.on { color: var(--brand-dk); background: var(--brand-soft); }
+.nav .menu a.on .isvg { color: var(--brand); }
+.nav .spacer { flex: 1; }
+.nav .me {
+  display: flex; align-items: center; gap: 9px; padding: 5px 7px 5px 13px;
+  border: 1px solid var(--line); border-radius: 30px; background: #fff;
+}
+/* 포인트 — 나브 우측 구석에 작게/절제 (절대 원칙 4) */
+.nav .me .pts { display: flex; align-items: center; gap: 5px; font-weight: 800; color: var(--amber); font-size: 13.5px; }
+.nav .me .pts em { color: var(--muted); font-weight: 600; font-style: normal; }
+/* 아바타 — 정적 이니셜. 레벨/성장 요소 아님 */
+.nav .me .av {
+  width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--ink); color: #fff; font-weight: 700; font-size: 13px;
+}
+
+.bell { position: relative; width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; color: var(--ink2); transition: .15s; }
+.bell:hover { background: var(--bg2); }
+
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: clamp(22px, 4vw, 34px) clamp(16px, 4vw, 30px) 80px; }
+
+/* bottom tab (mobile) */
+.bottomnav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; display: none;
+  background: rgba(255, 255, 255, .94); backdrop-filter: blur(14px); border-top: 1px solid var(--line);
+  padding: 7px 6px calc(7px + env(safe-area-inset-bottom));
+  grid-template-columns: repeat(4, 1fr);
+}
+.bottomnav a {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 6px 0; color: var(--muted); font-size: 11px; font-weight: 600; text-decoration: none;
+}
+.bottomnav a .isvg { color: var(--muted); }
+.bottomnav a.on { color: var(--brand-dk); }
+.bottomnav a.on .isvg { color: var(--brand); }
+
+/* 프로토타입은 .screen/.screen.on 토글이지만, React는 라우트별로 하나만 마운트되므로 진입 애니메이션만 남긴다. */
+.screen { animation: fade .4s ease both; }
+@keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ---------- 화면 공용 프리미티브 ---------- */
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--brand-dk); margin-bottom: 10px; }
+h2.sec { font-size: clamp(20px, 3.4vw, 23px); font-weight: 800; letter-spacing: -.6px; }
+.sec-sub { color: var(--muted); font-size: 14.5px; margin-top: 4px; }
+.sec-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+.empty { text-align: center; padding: 38px 20px; color: var(--muted); font-size: 13.5px; line-height: 1.6; }
+
+/* ---------- modal (알림/캘린더 빈 상태 팝업 — 확정 C) ---------- */
+/* [배경 어둡게 깔지 않는다] 프로토타입은 rgba(18,26,46,.5) + blur(3px)로 화면 전체를 덮었지만,
+   페이지가 통째로 바뀐 것처럼 보여 "보던 자리에서 팝업이 열린다"는 느낌을 해쳤다. 투명하게 두고
+   모달 자신의 테두리 + 짙은 그림자로 떠 보이게 한다. 바깥 클릭으로 닫는 동작은 그대로 유지된다
+   (overlay 요소 자체는 남아 있고 클릭을 받는다). */
+.overlay {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: clamp(12px, 4vw, 24px); animation: fade .2s both;
+}
+.modal {
+  position: relative; /* 프로토타입은 .mthumb가 기준이었지만, 썸네일 없는 팝업에서도 .mclose를 앵커하기 위해 */
+  background: #fff; border-radius: 20px; width: 460px; max-width: 100%; max-height: 90vh;
+  overflow: auto; animation: pop .26s cubic-bezier(.2, .8, .3, 1) both;
+  /* 배경 딤이 없으므로 그림자를 더 짙게 줘서 본문 위에 떠 있는 층으로 읽히게 한다. */
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 60px rgba(18, 26, 46, .28), 0 6px 18px rgba(18, 26, 46, .16);
+}
+@keyframes pop { from { opacity: 0; transform: scale(.94) translateY(10px); } to { opacity: 1; transform: none; } }
+.modal .mclose {
+  position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 50%;
+  background: var(--bg); display: grid; place-items: center; color: var(--ink2); z-index: 1;
+}
+.modal .mclose:hover { background: var(--bg2); }
+.modal .mbody { padding: 22px 24px 24px; }
+.modal h3 { font-size: 21px; font-weight: 800; letter-spacing: -.5px; }
+
+.calhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.cal-today { font-size: 12.5px; font-weight: 700; color: var(--brand-dk); }
+
+/* ---------- 참여 신청 팝업 (프로토타입 .mthumb/.mtag/.statusline/.infogrid/.mbtn 221~242줄) ----------
+   .mthumb는 이후 다른 팝업에서도 재사용될 수 있어 .modal 하위에 두고,
+   제목 여백 등 참여 팝업 고유 값만 .join-modal로 좁힌다 (알림/캘린더 팝업의 h3에 영향 주지 않도록). */
+.modal .mthumb { height: 120px; display: grid; place-items: center; position: relative; }
+.join-modal .mtag {
+  font-size: 11px; font-weight: 700; color: var(--brand-dk); background: var(--brand-soft);
+  padding: 4px 10px; border-radius: 20px; display: inline-block;
+}
+.join-modal h3 { margin: 11px 0 6px; }
+.join-modal .desc { font-size: 14px; color: var(--ink2); line-height: 1.6; }
+
+.statusline { display: flex; align-items: center; gap: 9px; margin-bottom: 16px; font-size: 13px; flex-wrap: wrap; }
+/* 상태 배지 — taxonomy.js STATUS[].cls (b-ok/b-ing/b-wait/b-close/b-over). 초록 계열 없음 */
+.badge { font-size: 11.5px; font-weight: 700; padding: 5px 11px; border-radius: 20px; }
+.b-ok { background: var(--brand-soft); color: var(--brand-dk); }
+.b-ing { background: var(--indigo-soft); color: var(--indigo); }
+.b-wait { background: var(--amber-soft); color: var(--amber); }
+.b-full, .b-close { background: #EEF1F6; color: var(--ink2); }
+.b-over { background: var(--rose-soft); color: var(--rose); }
+
+.infogrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0; }
+.infogrid .it { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.infogrid .it.wide { grid-column: 1 / -1; }
+.infogrid .it .k { font-size: 11.5px; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.infogrid .it .k .isvg { color: var(--muted); }
+.infogrid .it .v { font-size: 15px; font-weight: 800; margin-top: 4px; }
+/* 포인트 amber는 이 1칸에서만 (절대 원칙 4) */
+.infogrid .it .v.pt { color: var(--amber); }
+.infogrid .it .v .sub { font-size: 12px; color: var(--muted); font-weight: 600; }
+
+.modal .mbtn {
+  width: 100%; height: 50px; border-radius: 12px; background: var(--brand); color: #fff;
+  font-weight: 800; font-size: 15.5px; transition: .16s; display: flex; align-items: center;
+  justify-content: center; gap: 8px;
+}
+.modal .mbtn:hover:not(:disabled) { background: var(--brand-dk); }
+.modal .mbtn:disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; }
+/* 신청 실패는 조용히 넘어가지 않는다 (스펙 기능 요구사항) */
+.join-err { margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--rose); text-align: center; }
+/* 정원 마감(ADR 0006)은 "실패"가 아니라 상태다. rose(오류)와 다른 중립 톤으로 구분한다.
+   b-close 배지와 같은 회색 계열 — 숫자·게이지·진행바를 붙이지 않는다. */
+.join-full {
+  margin-top: 10px; padding: 9px 12px; border-radius: 10px; background: #EEF1F6;
+  font-size: 13px; font-weight: 700; color: var(--ink2); text-align: center;
+}
+
+/* ---------- placeholder 화면 ---------- */
+.ph-panel {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: var(--shadow); padding: 42px 24px; text-align: center;
+}
+.ph-panel .ph-ic { width: 44px; height: 44px; border-radius: 12px; background: var(--brand-soft); display: grid; place-items: center; margin: 0 auto 13px; }
+.ph-panel h3 { font-size: 16.5px; font-weight: 800; letter-spacing: -.3px; }
+.ph-panel p { font-size: 13.5px; color: var(--muted); margin-top: 6px; }
+.ph-meta { font-size: 13px; color: var(--ink2); font-weight: 600; margin-top: 18px; }
+.ph-logout {
+  margin-top: 12px; height: 42px; padding: 0 22px; border-radius: 11px;
+  background: var(--ink); color: #fff; font-weight: 700; font-size: 14px; transition: .16s;
+}
+.ph-logout:hover:not(:disabled) { background: var(--brand); }
+.ph-logout:disabled { opacity: .65; cursor: not-allowed; }
+
+/* ============ RESPONSIVE (CLAUDE.md 8장: 980/768/600/430) ============ */
+@media (max-width: 768px) {
+  .nav .menu { display: none; }
+  .bottomnav { display: grid; }
+  .wrap { padding-bottom: 86px; }
+}
+@media (max-width: 600px) {
+  .nav .me .pts em { display: none; }
+}
+@media (max-width: 430px) {
+  .nav { gap: 10px; }
+  .logo .word { font-size: 18px; }
+  .infogrid { grid-template-columns: 1fr; } /* 프로토타입 454줄 */
+}
+
+/* ============ 프로그램 카드 (공용) ============
+   ProgramCard 는 홈(.cards-row 그리드)과 프로그램 선택 화면(.strip 가로 스크롤) 양쪽에서 쓴다.
+   그래서 홈 전용 StudentHome.css 가 아니라 학생 셸(전 학생 화면 공용)에 둔다 —
+   홈 CSS 에 두면 라우트를 lazy 분할하는 순간 /student/programs 의 카드가 무스타일로 뜬다. */
+.pcard {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden;
+  box-shadow: var(--shadow); transition: .2s; cursor: pointer; display: flex; flex-direction: column;
+}
+.pcard:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: var(--line2); }
+.pcard:focus-visible { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-soft); }
+.pcard .thumb { height: 108px; position: relative; display: grid; place-items: center; }
+.pcard .thumb .tag {
+  position: absolute; top: 10px; left: 10px; font-size: 10.5px; font-weight: 700;
+  padding: 4px 9px; border-radius: 20px; background: rgba(255, 255, 255, .92); color: var(--ink2);
+}
+/* 계열 매칭 배지 — brand blue (개인화 표시, 보상 아님) */
+.pcard .thumb .matchbadge {
+  position: absolute; top: 10px; right: 10px; display: flex; align-items: center; gap: 4px;
+  font-size: 10.5px; font-weight: 700; padding: 4px 9px 4px 7px; border-radius: 20px;
+  background: var(--brand); color: #fff;
+}
+.pcard .thumb .matchbadge .isvg { color: #fff; }
+.pcard .body { padding: 13px 15px 15px; flex: 1; display: flex; flex-direction: column; }
+.pcard .body h4 { font-size: 14.5px; font-weight: 700; letter-spacing: -.3px; line-height: 1.35; }
+.pcard .meta { font-size: 12px; color: var(--muted); margin-top: 7px; display: flex; gap: 6px; align-items: center; }
+.pcard .meta .isvg { color: var(--line2); }
+.pcard .foot { display: flex; align-items: center; justify-content: space-between; margin-top: 13px; }
+/* 포인트 amber — 카드에서는 이 뱃지에서만 (절대 원칙 4) */
+.pcard .pt { display: flex; align-items: center; gap: 4px; font-weight: 800; color: var(--amber); font-size: 14px; }
+.pcard .pt em { font-size: 11px; color: var(--muted); font-weight: 600; font-style: normal; }
+
+.join-btn { padding: 8px 14px; border-radius: 9px; background: var(--brand); color: #fff; font-weight: 700; font-size: 12.5px; transition: .15s; }
+.join-btn:hover:not(:disabled):not([aria-disabled='true']) { background: var(--brand-dk); }
+/* aria-disabled 도 함께 받는다 — ProgramCard 는 클릭을 부모(팝업 열기)로 흘려보내려고 disabled 대신
+   aria-disabled 를 쓴다. 시각적 비활성은 동일하되 cursor 는 pointer 를 유지한다(누르면 상세가 열리므로). */
+.join-btn:disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; }
+.join-btn[aria-disabled='true'] { background: var(--bg2); color: var(--muted); }
+/* '전체 보기 →' — 프로토타입 인라인 스타일(578줄)을 클래스로 */
+.join-btn.seeall { background: var(--bg2); color: var(--ink2); }
+.join-btn.seeall:hover { background: var(--line); }
