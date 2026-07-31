@@ -64,6 +64,37 @@ npm run dev -- --host      # LAN 노출
 - **"내리기"는 삭제가 아닙니다.** `is_published=false` 토글이며 앱에 삭제 경로가 없습니다(delete 정책 0개). 이미 신청한 학생의 QR 발급→입장→퇴장→포인트 지급은 게시중단 후에도 그대로 동작합니다(ADR 0005 결정 7-4).
 - 이 화면이 만든 프로그램의 정리는 SQL 콘솔(`service_role`) 전용입니다.
 
+## 배포 (Vercel)
+
+**SPA 라우팅 설정이 없으면 로그인이 아예 안 된다.** `vercel.json`의 rewrite가 그것을 담당한다.
+
+- 이 앱은 클라이언트 라우팅(react-router)을 쓰므로 `/signup`, `/student/archive`, **`/auth/naver`** 같은 주소로 **직접 진입**하는 경우가 있다. rewrite가 없으면 Vercel이 그 경로의 파일을 찾다가 404를 낸다.
+- 특히 **네이버 로그인은 `/auth/naver`로 되돌아오는 것이 흐름의 일부**라, 404가 나면 로그인 자체가 성립하지 않는다.
+- `public/_redirects`는 **Netlify 형식**이라 Vercel에서는 아무 효과가 없다. 지우지는 않았지만(Netlify 배포 대비) Vercel에서는 `vercel.json`이 유일하게 동작하는 설정이다.
+
+**Vercel 환경변수 3개** (Project → Settings → Environment Variables). 빌드 시점에 번들로 들어가므로 **값을 바꾸면 재배포해야 반영된다.**
+
+```
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+VITE_NAVER_CLIENT_ID
+```
+
+**네이버 Callback URL은 origin 마다 등록해야 한다** (네이버 개발자센터 → 애플리케이션 → API 설정).
+구글·카카오와 달리 네이버는 Supabase 콜백이 아니라 **앱 주소로 직접** 돌아오기 때문이다.
+
+```
+http://localhost:5173/auth/naver          ← 로컬 개발
+https://<배포주소>/auth/naver              ← Vercel
+```
+
+`service_role`이 필요한 `naver-auth` Edge Function은 Vercel이 아니라 **Supabase에 배포**한다(ADR 0009).
+
+```bash
+npx supabase secrets set NAVER_CLIENT_ID=... NAVER_CLIENT_SECRET=...
+npx supabase functions deploy naver-auth --no-verify-jwt
+```
+
 ## 참고
 
 - `CLAUDE.md`가 5개 에이전트 전체가 공유하는 "헌법"입니다. 원칙·데이터 모델·디자인 시스템이 바뀌면 반드시 이 파일부터 수정하세요.
