@@ -32,7 +32,7 @@
 | **D** | 개인 → 학교 전환 | **허용.** 학생 마이페이지에서 코드를 입력하면 연동된다. **되돌리는 경로(소속 해제)는 만들지 않는다** |
 
 | **E** | 개인 계정 아이디 | **학번을 받지 않는다.** 이메일 + 비밀번호 또는 소셜 계정으로 가입·로그인하고, `profiles.code`는 서버가 `P-XXXXXX`로 발급한다 |
-| **F** | 소셜 로그인 | **Google · Kakao · Facebook 3종.** 소셜 계정은 **언제나 학생 · 개인 계정**이며 관리자가 될 수 없다 |
+| **F** | 소셜 로그인 | ~~Google · Kakao · Facebook 3종~~ → **2026-07-31 케빈 확정으로 전부 제거하고 네이버만 구현한다** (ADR 0009). 네이버 계정도 **언제나 학생 · 개인 계정**이며 관리자가 될 수 없다 |
 
 ### E. 개인 계정에서 학번을 뺀 이유
 
@@ -41,16 +41,21 @@
 - 그렇다고 `code`를 NULL 허용으로 바꾸지 않는다. 그러면 "로그인 아이디이자 표시용 식별자"라는 컬럼의 성격이 계정 종류마다 갈라지고 unique 도 함께 흔들린다. **값은 유지하되 생성 주체만 서버로 옮긴다**(`generate_personal_code()`).
 - 개인 계정의 로그인 아이디는 **이메일**이다. 화면에서도 학번 자리에 이메일을 보여준다 — `P-XXXXXX`는 외우거나 불러줄 값이 아니라 내부 식별자다.
 
-### F. 소셜 로그인의 경계
+### F. 소셜 로그인의 경계 — **네이버만 (2026-07-31 개정)**
+
+> 최초 결정은 "Google · Kakao · Facebook 3종, 네이버는 만들지 않는다"였다. **케빈이 그 셋을 전부 걷어내고 네이버만 남기기로 결정했다.** 원래 근거(네이버는 Supabase 미지원 → Edge Function + `service_role` 필요)는 **사라진 것이 아니라 비용으로 수용된 것**이며, 그 비용을 묶는 가드는 ADR 0009 결정 3에 있다.
 
 | 항목 | 결정 |
 |---|---|
-| 제공자 | **Google · Kakao · Facebook.** 목록은 `authService.SOCIAL_PROVIDERS` 한 곳이 소유하고, 추가는 그 배열 + Supabase 대시보드 활성화 두 곳이면 끝난다 |
-| **네이버** | **만들지 않는다.** Supabase 제공자 목록에 없고 OIDC(id_token)도 발급하지 않아, 붙이려면 Edge Function 으로 OAuth 교환과 세션 발급을 직접 구현해야 한다 = **`service_role` 표면이 새로 생긴다.** 되지 않는 버튼을 화면에 두지도 않는다 |
-| **role** | 소셜 계정은 **언제나 `student` / `personal`** 이다. 소셜 프로필에는 초대코드를 실을 자리가 없고, 트리거의 소셜 분기가 role 을 고정한다 → **소셜로 관리자가 되는 경로가 구조적으로 없다** |
-| 배치 | 소셜 버튼은 **학생 탭 + 개인 계정**에만 둔다. 학교 계정은 학번·이름 대조가 로그인의 일부라 대체할 수 없고, 관리자 탭에 두면 되지 않는 경로를 약속하는 셈이다 |
-| 이름 | 제공자마다 키가 다르다(`full_name`/`name`/`user_name`). 전부 비면 `이름 미설정`으로 둔다 — 가입을 막을 이유가 아니다 |
-| 학교 연동 | 소셜로 가입한 뒤에도 마이페이지에서 초대코드를 넣으면 학교 계정이 된다(확정 D 경로 그대로) |
+| 제공자 | **네이버 하나.** 구글·카카오·페이스북 버튼과 `signInWithOAuth` 경로는 제거했다 |
+| 구현 방식 | Supabase 의 소셜 경로를 쓰지 않는다. **Edge Function `naver-auth`** 가 `code → token → 프로필 → 계정 → 매직링크 토큰`을 잇고, 프런트가 `verifyOtp` 로 세션을 만든다 |
+| **role** | 네이버 계정은 **언제나 `student` / `personal`** 이다. Edge Function 이 `createUser` 에 넘기는 metadata 가 `{ name }` 뿐이라 트리거의 "(c) 개인 이메일 가입" 분기를 탄다 → **네이버로 관리자가 되는 경로가 구조적으로 없다** |
+| 배치 | 버튼은 **학생 탭 + 개인 계정**에만 둔다. 학교 계정은 학번·이름 대조가 로그인의 일부라 대체할 수 없고, 관리자 탭에 두면 되지 않는 경로를 약속하는 셈이다 |
+| 이름 | `name` → `nickname` 순으로 쓰고 둘 다 없으면 `이름 미설정` |
+| 이메일 | 검수 전에는 안 올 수 있다. 없으면 `naver_{id}@accumu.local` 를 쓴다(같은 사람 = 같은 값이라 계정이 하나로 유지된다) |
+| 설정 전 상태 | `VITE_NAVER_CLIENT_ID` 가 없으면 **버튼이 비활성**이고 사유가 화면에 뜬다. 나머지 기능은 그대로 동작한다 |
+| 학교 연동 | 네이버로 가입한 뒤에도 마이페이지에서 초대코드를 넣으면 학교 계정이 된다(확정 D 경로 그대로) |
+| **폰 시연 제약** | 네이버는 Callback URL 로 **앱 주소**를 등록해야 하는데 사설 IP(`192.168.x.x`)는 거부될 수 있다 → **네이버는 PC 전용**, 폰에서는 이메일 가입/로그인을 쓴다 |
 
 ### C 를 "표시만"으로 정한 이유 (원칙 6 충돌 회피)
 
@@ -127,8 +132,12 @@
 
 ### Supabase 대시보드 설정 (코드로 못 하는 것)
 - **Authentication → Email → "Confirm email" 을 꺼야 한다.** 가상 이메일(`{code}@accumu.local`)은 실제로 메일을 받을 수 없어, 켜져 있으면 가입은 되는데 로그인이 막힌다. (켜진 상태로 시도하면 무료 플랜 메일 한도에 걸려 `over_email_send_rate_limit`(429)로 실패한다 — 실제로 밟은 함정이다.)
-- **소셜 제공자 3종 활성화 + 키 입력** (Authentication → Providers). 각 제공자 콘솔에서 앱을 만들고 **Redirect URI 는 Supabase 콜백 하나만** 등록하면 된다: `https://<project-ref>.supabase.co/auth/v1/callback`
-- **Redirect URLs 에 앱 주소를 등록해야 한다** (Authentication → URL Configuration). 시연 조합상 **PC(`http://localhost:5173`)와 폰(`http://192.168.x.x:5173`) 둘 다** 넣어야 소셜 로그인 후 앱으로 돌아온다.
+- **네이버 (ADR 0009)** — Supabase Providers 설정이 **아니다.**
+  1. [developers.naver.com/apps](https://developers.naver.com/apps) 에서 애플리케이션 등록 → 사용 API `네이버 로그인`, 제공 정보 `이메일 · 이름`
+  2. **Callback URL = 앱 주소** `http://localhost:5173/auth/naver` (Supabase 콜백이 아니다)
+  3. 클라이언트 ID → `.env.local` 의 `VITE_NAVER_CLIENT_ID`
+  4. 클라이언트 Secret → **Edge Function 환경변수로만**: `supabase secrets set NAVER_CLIENT_ID=... NAVER_CLIENT_SECRET=...`
+  5. `supabase functions deploy naver-auth --no-verify-jwt`
 
 ---
 

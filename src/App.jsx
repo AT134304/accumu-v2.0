@@ -7,6 +7,7 @@ import StudentLayout from './routes/StudentLayout';
 import AdminLayout from './routes/AdminLayout';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
+import NaverCallbackPage from './pages/NaverCallbackPage';
 import StudentHomePage from './pages/StudentHomePage';
 import StudentProgramsPage from './pages/StudentProgramsPage';
 import StudentArchivePage from './pages/StudentArchivePage';
@@ -30,6 +31,9 @@ export default function App() {
           {/* 공개 라우트 — 가입은 로그인 이전 단계다. 화면 자체가 role 을 정하지 않으므로
               ProtectedRoute 로 감싸지 않는다(승인은 DB 트리거가 한다 — ADR 0008 결정 2). */}
           <Route path="/signup" element={<SignupPage />} />
+          {/* 네이버 로그인 콜백 (ADR 0009) — 네이버 개발자센터에 등록하는 Callback URL 이 이 주소다.
+              구글·카카오와 달리 Supabase 콜백을 거치지 않고 앱으로 직접 돌아온다. */}
+          <Route path="/auth/naver" element={<NaverCallbackPage />} />
 
           {/* 학생 화면 — ProtectedRoute(role="student") 안쪽에서만 공통 셸이 렌더된다.
               /student/* 전체가 한 번의 role 검사를 공유하므로 권한 경계는 그대로다. */}

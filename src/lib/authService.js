@@ -276,39 +276,96 @@ export async function loginPersonal({ email, password }) {
 }
 
 /* ==========================================================================
-   소셜 로그인 (Google / Kakao / Facebook)
+   네이버 로그인 (docs/adr/0009-naver-login-via-edge-function.md)
 
-   [★ 소셜로는 관리자가 될 수 없다] 소셜 프로필에는 초대코드를 실을 자리가 없고, 트리거의 소셜 분기는
-     role='student' / account_type='personal' 로 고정한다. 이 파일에서 provider 를 늘려도 그 경계는
-     변하지 않는다 — 권한은 프런트가 아니라 DB 가 정한다.
-   [네이버는 목록에 없다] Supabase 가 제공자로 지원하지 않고 OIDC 도 아니라, 붙이려면 Edge Function 으로
-     OAuth 교환과 세션 발급을 직접 구현해야 한다(= service_role 표면이 새로 생긴다). 만들지 않았다.
-   [가입/로그인 구분이 없다] OAuth 는 첫 방문이면 계정이 생기고 아니면 로그인된다. 그래서 두 화면이
-     같은 버튼을 쓴다.
+   [Supabase 의 소셜 경로를 쓰지 않는다] 네이버는 Supabase 제공자 목록에 없고 OIDC id_token 도
+     발급하지 않아 signInWithOAuth / signInWithIdToken 어느 쪽으로도 붙지 않는다. 그래서
+     code -> token -> 프로필 -> 계정 -> 세션을 Edge Function(naver-auth)이 직접 잇는다.
+
+   [★ 네이버로는 관리자가 될 수 없다] Edge Function 이 계정을 만들 때 metadata 에 name 만 넣는다.
+     그러면 handle_new_user() 트리거의 "(c) 개인 이메일 가입" 분기를 타 학생 · 개인 계정으로 고정된다.
+     이 파일이 role 이나 초대코드를 보낼 자리는 존재하지 않는다.
+
+   [가입/로그인 구분이 없다] 첫 방문이면 계정이 생기고 아니면 로그인된다. 두 화면이 같은 버튼을 쓴다.
    ========================================================================== */
 
-/**
- * 화면에 그릴 소셜 제공자 목록.
- * 제공자를 늘리려면 여기 한 줄 + Supabase 대시보드에서 해당 provider 활성화면 끝이다
- * (예: X 로 바꾸려면 key 를 'twitter' 로).
- */
-export const SOCIAL_PROVIDERS = [
-  { key: 'google', label: 'Google' },
-  { key: 'kakao', label: '카카오' },
-  { key: 'facebook', label: 'Facebook' },
-];
+const NAVER_STATE_KEY = 'accumu:naver_state';
+
+/** 네이버 로그인이 설정돼 있는가(클라이언트 ID 주입 여부). 버튼을 그릴지 판단하는 데 쓴다. */
+export function isNaverConfigured() {
+  return Boolean(import.meta.env.VITE_NAVER_CLIENT_ID);
+}
 
 /**
- * 소셜 로그인 시작 — 제공자 화면으로 이동한 뒤 앱으로 되돌아온다.
+ * 네이버 인증 화면으로 이동한다.
  *
- * [redirectTo 는 현재 origin 이다] 시연 조합상 PC(localhost)와 폰(192.168.x.x)이 서로 다른 origin 인데,
- *   양쪽 다 Supabase 대시보드의 Redirect URLs 에 등록돼 있어야 돌아올 수 있다.
- *   제공자 콘솔(구글/카카오/페북)에 등록하는 값은 Supabase 콜백 하나뿐이라 origin 마다 등록할 필요는 없다.
+ * [state 는 CSRF 방어다] 여기서 만들어 sessionStorage 에 넣고, 돌아왔을 때 대조한다. 대조에 실패하면
+ *   code 를 교환하지 않는다 — 남이 심어둔 code 로 남의 계정에 로그인되는 경로를 막는다.
+ * [redirect_uri 는 앱 주소다] 구글·카카오와 달리 네이버는 Supabase 콜백이 아니라 우리 앱으로 직접
+ *   돌아온다. 그래서 네이버 개발자센터에 등록하는 Callback URL 이 곧 이 값이다.
  */
-export async function signInWithProvider(provider) {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider,
-    options: { redirectTo: window.location.origin },
+export function startNaverLogin() {
+  const clientId = import.meta.env.VITE_NAVER_CLIENT_ID;
+  if (!clientId) throw new Error('NAVER_NOT_CONFIGURED');
+
+  const state = crypto.randomUUID();
+  sessionStorage.setItem(NAVER_STATE_KEY, state);
+
+  const redirectUri = `${window.location.origin}/auth/naver`;
+  window.location.href =
+    'https://nid.naver.com/oauth2.0/authorize?response_type=code' +
+    `&client_id=${encodeURIComponent(clientId)}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&state=${encodeURIComponent(state)}`;
+}
+
+/** 네이버 로그인 실패 사유 → 화면 문구. 설정 문제와 사용자 문제를 섞지 않는다. */
+const NAVER_REASON_TEXT = {
+  state_mismatch: '로그인 요청이 만료됐어요. 처음부터 다시 시도해 주세요.',
+  denied: '네이버 로그인을 취소했어요.',
+  not_configured: '네이버 로그인이 아직 설정되지 않았어요. (naver-auth 함수의 키를 확인해주세요)',
+  token_exchange_failed: '네이버 인증에 실패했어요. 잠시 후 다시 시도해 주세요.',
+  profile_failed: '네이버 프로필을 가져오지 못했어요. 제공 동의 항목을 확인해주세요.',
+  create_failed: '계정을 만들지 못했어요. 잠시 후 다시 시도해 주세요.',
+  session_failed: '로그인 세션을 만들지 못했어요. 잠시 후 다시 시도해 주세요.',
+  function_missing: '네이버 로그인 함수(naver-auth)가 배포되지 않았어요.',
+};
+
+export function naverReasonText(reason) {
+  return NAVER_REASON_TEXT[reason] ?? '네이버 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.';
+}
+
+/**
+ * 네이버가 돌려준 code 를 세션으로 바꾼다. /auth/naver 콜백 화면이 호출한다.
+ *
+ * [code 는 1회용이다] 두 번 교환하면 실패한다 — 호출부는 StrictMode 이중 실행을 ref 로 막아야 한다.
+ * [세션은 verifyOtp 로 만든다] Edge Function 이 발급한 매직링크 token_hash 를 교환한다.
+ *   Admin API 로는 access_token 을 직접 만들 수 없어서 택한 경로다(ADR 0009 결정 2).
+ */
+export async function completeNaverLogin({ code, state }) {
+  const saved = sessionStorage.getItem(NAVER_STATE_KEY);
+  sessionStorage.removeItem(NAVER_STATE_KEY);
+  if (!saved || saved !== state) return { ok: false, reason: 'state_mismatch' };
+
+  const { data, error } = await supabase.functions.invoke('naver-auth', { body: { code, state } });
+
+  if (error) {
+    console.error('[authService] naver-auth 호출 실패:', error);
+    // 함수가 아직 배포되지 않은 경우와 함수 내부 실패를 구분해준다.
+    const status = error.context?.status;
+    if (status === 404) return { ok: false, reason: 'function_missing' };
+    return { ok: false, reason: 'unknown' };
+  }
+  if (!data?.token_hash) return { ok: false, reason: data?.error ?? 'unknown' };
+
+  const { error: otpError } = await supabase.auth.verifyOtp({
+    token_hash: data.token_hash,
+    type: 'magiclink',
   });
-  if (error) throw error;
+  if (otpError) {
+    console.error('[authService] 세션 교환 실패:', otpError);
+    return { ok: false, reason: 'session_failed' };
+  }
+
+  return { ok: true };
 }

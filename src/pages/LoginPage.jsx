@@ -1,15 +1,15 @@
 // Accumu v2 — 로그인 화면 (docs/specs/auth-login.md, Accumu_prototype.html 디자인 참고)
 //
-// [2026-07-31 개정 — 개인 계정/소셜 추가 (docs/specs/auth-signup.md)]
+// [2026-07-31 개정 — 개인 계정 / 네이버 로그인 (docs/specs/auth-signup.md, ADR 0009)]
 //   학생 탭 안에서 **학교 계정 / 개인 계정**이 갈린다. 로그인 수단 자체가 다르기 때문이다:
 //     - 학교 계정: 학번 + 이름 + 비밀번호 (기존 3-factor. loginStudent 는 한 줄도 바뀌지 않았다)
-//     - 개인 계정: 이메일 + 비밀번호 (학번이 없다) 또는 소셜 로그인
-//   관리자 탭은 그대로다 — **관리자는 소셜로 로그인할 수 없다.** 소셜 계정은 언제나 학생·개인으로
-//   만들어지므로(트리거의 소셜 분기) 관리자 탭에 소셜 버튼을 두면 되지 않는 경로를 약속하는 셈이다.
+//     - 개인 계정: 이메일 + 비밀번호 (학번이 없다) 또는 네이버 로그인
+//   관리자 탭은 그대로다 — **관리자는 네이버로 로그인할 수 없다.** 네이버로 만들어지는 계정은 언제나
+//   학생·개인이므로(Edge Function + 트리거가 고정) 관리자 탭에 두면 되지 않는 경로를 약속하는 셈이다.
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import SocialButtons from '../components/SocialButtons';
+import NaverLoginButton from '../components/NaverLoginButton';
 import { loginPersonal } from '../lib/authService';
 import '../styles/LoginPage.css';
 
@@ -257,9 +257,9 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* 소셜은 개인 계정 수단이다 — 관리자 탭과 학교 계정 탭에는 두지 않는다.
-            (학교 계정은 학번·이름 대조가 로그인의 일부라 소셜로 대체할 수 없다.) */}
-        {tab === 'student' && mode === 'personal' && <SocialButtons />}
+        {/* 네이버는 개인 계정 수단이다 — 관리자 탭과 학교 계정 탭에는 두지 않는다.
+            (학교 계정은 학번·이름 대조가 로그인의 일부라 소셜 계정으로 대체할 수 없다.) */}
+        {tab === 'student' && mode === 'personal' && <NaverLoginButton />}
 
         <div className="hint">
           계정이 없으신가요? <Link to="/signup">회원가입</Link>

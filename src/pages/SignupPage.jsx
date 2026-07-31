@@ -8,12 +8,13 @@
 // [로그인 화면과 같은 껍데기를 쓴다] #login / .lcard / .tabs / .field 는 LoginPage 가 이미 소유한
 //   클래스다. 복제하면 두 화면이 시간이 지나며 어긋난다 — 가입 전용 값만 LoginPage.css 에 덧붙였다.
 //
-// [표시하지 않는 것] 이메일 입력(가상 이메일이라 받을 것이 없다), 약관·법정대리인 동의(CLAUDE.md 11장
-//   스코프 제외), 소셜 로그인, 이메일 인증. 가입 보너스 포인트도 없다(원칙 1).
+// [표시하지 않는 것] 약관·법정대리인 동의(CLAUDE.md 11장 스코프 제외), 이메일 인증 메일,
+//   구글·카카오·페이스북(케빈 확정: 네이버만 붙인다 — ADR 0009). 가입 보너스 포인트도 없다(원칙 1).
+//   학교 계정·관리자 탭에서는 이메일도 받지 않는다 — 가상 이메일({code}@accumu.local)로 변환되기 때문이다.
 import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import SocialButtons from '../components/SocialButtons';
+import NaverLoginButton from '../components/NaverLoginButton';
 import { signUpAdmin, signUpPersonal, signUpStudent, signupReasonText } from '../lib/authService';
 import { TRACK } from '../lib/taxonomy';
 // 계열 선택 칩(.chip/.chiprow/.chipdot)은 StudentShell.css 가 소유한 앱 공통 프리미티브다
@@ -360,10 +361,10 @@ export default function SignupPage() {
           </button>
         </form>
 
-        {/* 소셜은 개인 계정 수단이다 — 학교 계정·관리자 탭에는 두지 않는다.
-            소셜로 만들어지는 계정은 트리거가 언제나 학생·개인으로 고정하기 때문에,
+        {/* 네이버는 개인 계정 수단이다 — 학교 계정·관리자 탭에는 두지 않는다.
+            네이버로 만들어지는 계정은 Edge Function 과 트리거가 언제나 학생·개인으로 고정하기 때문에,
             다른 탭에 두면 되지 않는 경로를 약속하는 셈이 된다. */}
-        {isPersonal && <SocialButtons label="또는 소셜 계정으로 가입하기" />}
+        {isPersonal && <NaverLoginButton label="네이버로 가입하기" />}
 
         <div className="hint">
           이미 계정이 있나요? <Link to="/login">로그인</Link>
