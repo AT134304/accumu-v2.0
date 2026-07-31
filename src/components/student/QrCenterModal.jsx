@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import Icon from '../Icon';
 import Modal from '../Modal';
+import ReviewForm from './ReviewForm';
 import { useAuth } from '../../context/AuthContext';
 import { catOf } from '../../lib/taxonomy';
 import { fmtDate } from '../../lib/date';
@@ -206,6 +207,9 @@ function QrView({ participation, type, issued: initialIssued, onBack, onClose })
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const doneRef = useRef(false);
+  // 퇴장 완료 화면의 만족도 평가 (CLAUDE.md 6장 3번). 'open' = 자동 노출 상태.
+  // [QR 상태와 섞지 않는다] 이 값은 done/issued/폴링에 아무 영향을 주지 않는다 — 평가는 QR 흐름의 곁가지다.
+  const [reviewState, setReviewState] = useState('open'); // 'open' | 'saved' | 'skipped'
 
   const payload = useMemo(() => buildQrPayload(issued), [issued]);
   const expiresMs = Date.parse(issued.expires_at);
@@ -286,10 +290,26 @@ function QrView({ participation, type, issued: initialIssued, onBack, onClose })
               amber·작게. 숫자 카운트업/컨페티/사운드 금지 (원칙 1·4). */}
           {!isEntry && v.points != null && <div className="done-pts">+{v.points}P 적립</div>}
 
-          {/* [훅 지점 — 미구현이지 삭제가 아니다]
-              CLAUDE.md 6장 3번은 "퇴장 인증 완료 시 만족도 평가(별점+한줄평) 자동 노출"을 요구한다.
-              확정 B-1이 reviews 테이블을 다음 스펙(아카이브)으로 미뤘으므로 이번에는 붙이지 않는다.
-              reviews 가 생기면 바로 이 자리(퇴장 완료 화면)에 평가 모달을 띄운다. */}
+          {/* [CLAUDE.md 6장 3번 — 퇴장 인증 완료 시 만족도 평가 자동 노출]
+              별도 모달을 겹치지 않는다. 이미 모달 안이므로 같은 mbody 에서 이어서 보여준다(스펙 결정 D-1).
+              [입장 완료에는 노출하지 않는다] 아직 활동이 끝나지 않았다 — isEntry 가드가 그것이다.
+              [건너뛰기 필수] 평가를 강제하면 현장에서 모달을 못 닫는 상황이 생기고, 그건 QR 2회 인증
+              (원칙 5)의 신뢰를 깎는다. 건너뛴 활동은 아카이브에서 "평가 미작성"으로 남는다. */}
+          {!isEntry && reviewState === 'open' && (
+            <div className="qr-review">
+              <ReviewForm
+                participationId={participation.id}
+                onSaved={() => setReviewState('saved')}
+                onSkip={() => setReviewState('skipped')}
+              />
+            </div>
+          )}
+          {!isEntry && reviewState === 'saved' && (
+            <div className="qr-reviewdone">평가가 저장되었어요 · 아카이브에 함께 기록됩니다</div>
+          )}
+          {!isEntry && reviewState === 'skipped' && (
+            <div className="qr-reviewdone muted">평가는 아카이브에서 언제든 남길 수 있어요</div>
+          )}
 
           <button
             type="button"

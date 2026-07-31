@@ -1,0 +1,182 @@
+/* Accumu v2 — 마이페이지 (docs/specs/student-archive-mypage.md B절)
+   Accumu_prototype.html의 .my-grid/.profile/.pointcard(292~330줄) CSS 값을 그대로 재사용한다.
+
+   [색 규칙 — CLAUDE.md 8장 + 절대 원칙 4]
+     프로필(성장·계정) = brand blue / QR 진입 = indigo / 포인트·지역화폐 = amber(절제).
+     amber 가 쓰이는 자리는 잔액 큰 숫자, 보조줄 강조 2개, 코인 배지, 적립 행 금액뿐이다.
+     초록 계열 없음. 진행바·게이지·달성률 표현 없음(원칙 1).
+
+   [.chip / .chiprow / .chipdot 는 StudentShell.css 소유] 계열 선택 칩은 프로그램 선택 화면의 필터 칩과
+     같은 프리미티브다. 두 화면이 각자 정의하면 갈라지므로 공용 셸에 두고 여기서는 쓰기만 한다. */
+
+/* ============ 레이아웃 ============ */
+/* DOM 순서가 곧 원칙 4다 — 프로필(성장)이 먼저, 포인트가 나중.
+   그래서 980px 이하 1열에서 프로필 카드가 자동으로 위에 온다(순서 뒤집는 order 속성을 쓰지 않는다). */
+.my-grid { display: grid; grid-template-columns: .95fr 1.05fr; gap: 20px; align-items: start; }
+
+/* ============ 프로필 카드 ============ */
+.profile {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: var(--shadow); overflow: hidden;
+}
+.profile .pbanner { height: 84px; background: linear-gradient(120deg, var(--ink), #27406A); }
+.profile .pmain { padding: 0 22px 22px; margin-top: -34px; }
+/* 정적 이니셜 아바타 — 레벨/성장 표시가 아니다(원칙 1) */
+.profile .pav {
+  width: 68px; height: 68px; border-radius: 18px; background: var(--brand); color: #fff;
+  display: grid; place-items: center; font-size: 26px; font-weight: 800;
+  border: 3px solid #fff; box-shadow: var(--shadow);
+}
+.profile h3 { font-size: 20px; font-weight: 800; margin-top: 13px; }
+.profile .role { font-size: 13px; color: var(--muted); }
+
+/* 정보 행 — 학번 한 줄뿐이다. profiles 에 학교/학년/가입일 컬럼이 없다(ADR 0002). */
+.prows { margin-top: 16px; }
+.prow { display: flex; justify-content: space-between; padding: 11px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+.prow .k { color: var(--muted); font-weight: 600; }
+.prow .v { font-weight: 700; }
+
+/* 관심 진로 계열 */
+.trackpick { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.trackpick .tp-label {
+  display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800;
+  letter-spacing: .5px; color: var(--ink2); text-transform: uppercase; margin-bottom: 5px;
+}
+.trackpick .tp-note { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.trackpick .chip:disabled { opacity: .55; cursor: progress; }
+/* 저장 실패는 조용히 넘어가지 않는다 — 삼키면 홈 추천이 이유 없이 안 바뀐 것처럼 보인다. */
+.trackpick .tp-err { margin-top: 9px; font-size: 12.5px; font-weight: 600; color: var(--rose); }
+
+/* QR 진입 버튼(.qrcheck)은 Qr.css 소유. 카드 안에서는 폭을 꽉 채운다
+   (placeholder 화면에서 가운데 정렬용으로 걸어둔 max-width 를 여기서만 푼다). */
+.profile .qrcheck { max-width: none; }
+
+/* 아카이브 동선 — 포인트 카드보다 먼저 읽히는 자리의 brand blue 텍스트 링크(원칙 4) */
+.profile .archlink {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-top: 12px; height: 40px; border-radius: 11px;
+  font-size: 13.5px; font-weight: 700; color: var(--brand-dk); text-decoration: none; transition: .16s;
+}
+.profile .archlink:hover { background: var(--brand-soft); }
+
+/* ============ 포인트 카드 ============ */
+.pointcard {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: var(--shadow); padding: 22px;
+}
+.pointcard .ptop { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+/* 카운트업 애니메이션 없음 — 값이 차오르는 연출은 게임적 요소다(원칙 1) */
+.pointcard .big { font-size: clamp(34px, 7vw, 42px); font-weight: 800; letter-spacing: -2px; line-height: 1; }
+.pointcard .big small { font-size: 18px; color: var(--muted); font-weight: 700; margin-left: 4px; }
+.pointcard .pl { font-size: 13px; color: var(--muted); font-weight: 600; margin-top: 4px; }
+.pointcard .psub { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 7px; }
+.pointcard .psub b { color: var(--amber); font-weight: 800; }
+.pointcard .coin { width: 46px; height: 46px; border-radius: 13px; background: var(--amber-soft); display: grid; place-items: center; flex: none; }
+
+.convertbtn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 18px; width: 100%; height: 48px; border-radius: 12px;
+  background: var(--brand); color: #fff; font-weight: 800; font-size: 15px; transition: .16s;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, .26);
+}
+.convertbtn:hover:not(:disabled) { background: var(--brand-dk); transform: translateY(-1px); box-shadow: 0 11px 24px rgba(37, 99, 235, .34); }
+.convertbtn:disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; box-shadow: none; transform: none; }
+/* 비활성 사유. "N P 더 모으면" 같은 진척 표현을 쓰지 않는다(원칙 1). */
+.convhint { margin-top: 9px; font-size: 12px; color: var(--muted); font-weight: 600; text-align: center; line-height: 1.5; }
+
+/* ============ 포인트 내역(원장) ============
+   프로토타입 .fieldpts(분야별 획득 포인트 막대) 자리를 대체한다 — 막대는 결정 H 가 기각했다. */
+.ledger { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
+.ledger .lhead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.ledger .fl { font-size: 12.5px; font-weight: 800; letter-spacing: .5px; color: var(--ink2); text-transform: uppercase; }
+.ledger .lnote { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.ledger .empty { padding: 30px 14px; }
+
+.llist { list-style: none; }
+.lrow { display: flex; align-items: center; gap: 11px; padding: 12px 2px; border-top: 1px solid var(--line); }
+.lrow:first-child { border-top: none; }
+.ltag { font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 20px; flex: none; }
+/* 적립 = amber(포인트 도메인) / 전환 = 중립 회색. 초록 계열 없음 */
+.ltag.earn { background: var(--amber-soft); color: var(--amber); }
+.ltag.conv { background: var(--bg2); color: var(--ink2); }
+.lmain { flex: 1; min-width: 0; }
+.lmain .lt { font-size: 13.5px; font-weight: 700; letter-spacing: -.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lmain .ld { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+.lamt { font-size: 14px; font-weight: 800; flex: none; }
+.lamt.earn { color: var(--amber); }
+.lamt.conv { color: var(--ink2); }
+
+/* ============ 로그아웃 (확정 J — 화면 최하단, 카드 밖) ============ */
+.my-foot { display: flex; justify-content: center; margin-top: 26px; }
+.my-logout {
+  display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 22px;
+  border-radius: 11px; background: var(--ink); color: #fff; font-weight: 700; font-size: 14px; transition: .16s;
+}
+.my-logout:hover:not(:disabled) { background: var(--brand); }
+.my-logout:disabled { opacity: .65; cursor: not-allowed; }
+
+/* ============ 전환 모달 ============
+   .mtag/.desc 의 기본 규칙은 .join-modal 이 소유하므로(StudentShell.css) 여기서 별도로 건다. */
+.conv-modal .mtag {
+  font-size: 11px; font-weight: 700; color: var(--brand-dk); background: var(--brand-soft);
+  padding: 4px 10px; border-radius: 20px; display: inline-block;
+}
+.conv-modal h3 { margin: 11px 0 6px; }
+.conv-modal .desc { font-size: 14px; color: var(--ink2); line-height: 1.6; margin-bottom: 16px; }
+.convbal {
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
+  padding: 13px 16px; font-size: 13.5px; color: var(--muted); font-weight: 600;
+}
+.convbal b { font-size: 17px; color: var(--ink); font-weight: 800; }
+.amtgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 14px 0 6px; }
+.amt { padding: 13px; border: 1.5px solid var(--line2); border-radius: 11px; font-weight: 700; font-size: 14px; color: var(--ink2); background: #fff; transition: .14s; }
+.amt:hover:not(:disabled) { border-color: var(--brand); }
+.amt.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-dk); }
+.amt.full { grid-column: 1 / -1; }
+.amt:disabled { opacity: .6; cursor: not-allowed; }
+.convresult { display: flex; justify-content: space-between; align-items: center; padding: 12px 4px 16px; font-size: 14px; color: var(--muted); font-weight: 600; }
+/* 받을 금액 — 포인트 도메인이라 amber (절대 원칙 4의 "절제"는 개수의 문제이지 이 자리를 금지하지 않는다) */
+.convresult strong { font-size: 24px; color: var(--amber); font-weight: 800; letter-spacing: -.5px; }
+/* [삭제·축약 금지 — 확정 F·G] 시뮬레이션 고지 + 되돌릴 수 없음 고지 */
+.convnote { font-size: 11.5px; color: var(--muted); text-align: center; margin-top: 12px; line-height: 1.6; }
+
+/* ============ RESPONSIVE (CLAUDE.md 8장: 980/768/600/430) ============ */
+@media (max-width: 980px) {
+  /* 프로토타입 437줄과 같은 지점에서 1열. DOM 순서대로 프로필이 위, 포인트가 아래. */
+  .my-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .pointcard { padding: 18px; }
+  .profile .pmain { padding: 0 18px 18px; }
+}
+@media (max-width: 430px) {
+  /* 칩이 좁아 두 줄로 접히면 금액을 잘못 고르기 쉬워 1열로 편다 */
+  .amtgrid { grid-template-columns: 1fr; }
+  .lrow { gap: 9px; }
+  .ltag { padding: 3px 8px; }
+}
+
+/* ---------- 학교 계정 연동 (docs/specs/auth-signup.md C / ADR 0008) ---------- */
+.linkbox { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+/* 이미 연동된 계정 — 입력창도 해제 버튼도 없다. 상태를 알리는 한 줄이다. */
+.linkbox .linked {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; font-weight: 700; color: var(--brand-dk);
+  background: var(--brand-soft); border-radius: 10px; padding: 9px 12px;
+}
+.linkbox .linkrow { display: flex; gap: 8px; }
+.linkbox input {
+  flex: 1; min-width: 0; height: 40px; border: 1.5px solid var(--line2); border-radius: 10px;
+  padding: 0 12px; font-size: 13.5px; font-weight: 600; color: var(--ink); background: #fff;
+  transition: .14s; text-transform: uppercase;
+}
+.linkbox input::placeholder { color: var(--muted); font-weight: 500; text-transform: none; }
+.linkbox input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-soft); }
+.linkbox input:disabled { background: var(--bg); }
+.linkbox button {
+  flex: none; height: 40px; padding: 0 16px; border-radius: 10px;
+  background: var(--brand); color: #fff; font-weight: 700; font-size: 13.5px; transition: .14s;
+}
+.linkbox button:hover:not(:disabled) { background: var(--brand-dk); }
+.linkbox button:disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; }

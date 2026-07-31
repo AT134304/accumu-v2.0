@@ -1,0 +1,58 @@
+/* Accumu v2 — 만족도 평가 (별점 폼 + 리뷰 카드)
+   Accumu_prototype.html의 .survey/.stars/.ratelabel/.reviewinput/.skipbtn(402~412줄)과
+   .revcard/.revhead/.revtext/.revedit(419~427줄) 값을 그대로 옮긴다.
+
+   [이 파일을 두 화면이 공유한다] QR 퇴장 완료 화면(QrCenterModal)과 아카이브 활동 상세 모달.
+   ReviewForm.jsx 가 직접 import 하므로 어느 화면에서 열리든 스타일이 따라온다.
+
+   [색] 별 = amber(CLAUDE.md 2장 1번이 허용한 요소). 나머지는 ink/muted 토큰. 초록 계열 없음.
+   [원칙 1] 별 개수 외에 점수 숫자·평균·백분율·"N명이 평가"를 그리는 규칙이 없다. */
+
+.survey { display: flex; flex-direction: column; align-items: center; text-align: center; }
+/* 평가 전용 태그 — .mtag 기본형(.join-modal/.act-modal 소유)과 색만 다르다 */
+.survey .mtag.rate {
+  display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;
+  background: var(--amber-soft); color: var(--amber);
+}
+.survey .survey-title { font-size: 19px; font-weight: 800; letter-spacing: -.4px; margin: 11px 0 3px; }
+.survey .survey-sub { font-size: 13.5px; color: var(--muted); font-weight: 600; margin-bottom: 12px; }
+
+.stars { display: flex; gap: 5px; margin: 4px 0 2px; }
+.stars .star { padding: 5px; transition: transform .12s; }
+.stars .star:hover:not(:disabled) { transform: scale(1.16); }
+.stars .star:disabled { cursor: not-allowed; }
+.stars .star.on .isvg { filter: drop-shadow(0 2px 5px rgba(224, 146, 47, .4)); }
+.ratelabel { font-size: 13px; font-weight: 700; color: var(--amber); min-height: 18px; margin-bottom: 12px; }
+
+.reviewinput {
+  display: block; width: 100%; border: 1.5px solid var(--line2); border-radius: 12px;
+  padding: 11px 13px; font-size: 14px; resize: none; font-family: inherit; line-height: 1.5;
+  transition: .15s; color: var(--ink); background: #fff; text-align: left; min-height: 60px;
+  -webkit-text-fill-color: var(--ink);
+}
+.reviewinput::placeholder { color: var(--muted); -webkit-text-fill-color: var(--muted); }
+.reviewinput:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-soft); }
+.reviewinput:disabled { background: var(--bg); }
+/* 남은 글자 수 — 상한(60자)이 DB CHECK 와 같은 값이라 "왜 잘렸는지"를 화면이 미리 말한다.
+   진척도 표시가 아니다(원칙 1). */
+.revcount { align-self: flex-end; margin-top: 5px; font-size: 11px; color: var(--muted); font-weight: 600; }
+
+.survey .survey-submit { margin-top: 12px; }
+.skipbtn { margin-top: 10px; font-size: 13px; color: var(--muted); font-weight: 600; padding: 6px; }
+.skipbtn:hover:not(:disabled) { color: var(--ink2); }
+.skipbtn:disabled { opacity: .6; cursor: not-allowed; }
+
+/* 별 미니 — 목록/카드의 상태 표시(클릭 대상 아님) */
+.smini { display: inline-flex; gap: 1px; align-items: center; }
+
+/* ---------- 리뷰 카드 (활동 상세 모달) ---------- */
+.revcard { background: var(--bg); border: 1px solid var(--line); border-radius: 13px; padding: 15px 16px; margin-top: 16px; }
+.revcard.empty { text-align: center; }
+.revhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; font-weight: 800; color: var(--ink2); margin-bottom: 9px; }
+.revtext { font-size: 14.5px; line-height: 1.6; color: var(--ink); font-weight: 500; }
+.revtext.muted { color: var(--muted); font-size: 13.5px; font-weight: 400; }
+.revedit { margin-top: 12px; font-size: 12.5px; font-weight: 700; color: var(--brand-dk); padding: 2px 0; }
+.revedit:hover { text-decoration: underline; }
+.revcard .mbtn { height: 44px; margin-top: 11px; }
+/* 카드 안에서 폼을 열면(작성/수정) 흰 배경 위에 놓아 입력 영역을 분리한다 */
+.revcard .survey { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 14px 16px; }

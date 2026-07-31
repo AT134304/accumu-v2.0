@@ -17,13 +17,21 @@ import Icon from '../Icon';
 import '../../styles/StudentShell.css';
 import '../../styles/AdminShell.css';
 
-// 관리자 기능 3종(CLAUDE.md 2장 6번) + 홈.
-// 프로그램 관리 / 담당 학생은 2단계 구현이라 지금은 placeholder 화면으로 연결된다(빈 링크가 아니다).
+// 관리자 기능 3종(CLAUDE.md 2장 6번) + 홈. **항목 수는 4개로 고정** — 늘리지 말 것(원칙 6).
+//
+// [담당 학생 -> 마이페이지 (docs/specs/admin-students.md 결정 M)]
+//   화면의 주제가 "학생"에서 "관리자 본인(계정 + 담당 학생 아카이브)"으로 바뀌어 라벨·경로·아이콘을 맞췄다.
+//   기능이 추가된 게 아니라 배치가 바뀐 것이다 — 관리자가 할 수 있는 동작은 3종 그대로다.
+//   ic-folder 는 마이페이지 안의 "담당 학생 아카이브" 섹션 헤더로 내려갔고 ic-user 는 학생 셸의
+//   마이페이지와 대칭이다(신규 아이콘 0개).
+//
+// [end 를 붙이지 않는다] 상세(/admin/mypage/students/:id)에서도 "마이페이지" 메뉴가 활성으로 유지된다.
+//   형제 경로로 쪼갰다면 상세에서 활성 메뉴가 사라져 "내가 어디 있는지" 신호를 잃는다.
 const MENU = [
   { to: '/admin', icon: 'ic-home', label: '홈', end: true },
   { to: '/admin/scan', icon: 'ic-qr', label: 'QR 스캔' },
   { to: '/admin/programs', icon: 'ic-compass', label: '프로그램 관리' },
-  { to: '/admin/students', icon: 'ic-folder', label: '담당 학생' },
+  { to: '/admin/mypage', icon: 'ic-user', label: '마이페이지' },
 ];
 
 const navClass = ({ isActive }) => (isActive ? 'on' : undefined);

@@ -346,3 +346,123 @@
   .pf-actions { flex-direction: column-reverse; }
   .pf-btn.ghost { flex: none; width: 100%; }
 }
+
+/* ============================================================================
+   관리자 마이페이지 + 담당 학생 아카이브 (docs/specs/admin-students.md A·B절)
+
+   [원칙 1 가드가 CSS 에도 있다] 학생 행에 숫자를 붙이는 규칙이 이 파일 어디에도 없다.
+     .adm-row .pt(amber 포인트)는 프로그램 목록 전용이며 학생 행(.adm-row.student)에는 쓰지 않는다.
+     진척도 막대·게이지·순위 배지 스타일을 만들지 않는다 — 스타일이 없으면 화면도 만들 수 없다.
+   [계정 카드와 학생 행의 시각 언어를 의도적으로 다르게 둔다] 계정은 작은 메타 한 줄(.opsline),
+     학생은 이름·계열 중심 행. 같은 형식을 쓰면 "내 실적 / 담당 학생 실적" 현황판으로 읽힌다.
+   ========================================================================== */
+
+/* ---------- 계정 카드 ---------- */
+.adm-account {
+  display: flex; align-items: flex-start; gap: 16px;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: var(--shadow); padding: 20px 22px;
+}
+.adm-account .av {
+  width: 54px; height: 54px; border-radius: 15px; display: grid; place-items: center; flex: none;
+  background: var(--ink); color: #fff; font-weight: 800; font-size: 21px;
+}
+.adm-account .who { flex: 1; min-width: 0; }
+.adm-account .nameline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adm-account .nameline h3 { font-size: 19px; font-weight: 800; letter-spacing: -.4px; }
+.adm-account .code { font-size: 13px; color: var(--muted); font-weight: 600; margin-top: 3px; }
+/* 결정 O — 지표가 아니라 "가는 길". 큰 숫자·타일·그래프를 만들지 않는다. */
+.adm-account .opsline {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 12px;
+  padding: 7px 11px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line);
+  font-size: 12.5px; font-weight: 700; color: var(--ink2); text-decoration: none; transition: .14s;
+}
+.adm-account .opsline:hover { border-color: var(--brand); color: var(--brand-dk); background: var(--brand-soft); }
+.adm-account .opsline .isvg { color: var(--muted); }
+.adm-account .opsline:hover .isvg { color: var(--brand); }
+.adm-account .opsline .chev {
+  width: 0; height: 0; margin-left: 1px;
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 5px solid var(--line2);
+}
+.adm-account .ph-logout { margin-top: 0; flex: none; }
+
+/* ---------- 담당 학생 섹션 ---------- */
+/* 제목 옆 아이콘(ic-folder) — h2.sec 은 기본이 block 이라 정렬을 여기서 맞춘다 */
+h2.sec.sm { display: flex; align-items: center; gap: 8px; }
+/* 빈 상태가 "고장"이 아니라 "아직"임을 화면이 스스로 설명한다(이슈 3) */
+.adm-note { font-size: 12.5px; color: var(--muted); font-weight: 600; margin: -6px 2px 12px; }
+
+.adm-row.student {
+  width: 100%; text-align: left; background: none; color: inherit; cursor: pointer;
+  border-radius: 11px; transition: background .12s;
+}
+.adm-row.student:hover { background: var(--bg); }
+.adm-row.student:focus-visible { outline: none; background: var(--bg); box-shadow: 0 0 0 3px var(--brand-soft); }
+/* 행 전체가 <button> 이라 내부는 전부 span 이다 — 줄바꿈은 여기서 만든다 */
+.adm-row.student .info { display: block; }
+.adm-row.student .info .t { display: block; font-size: 14.5px; font-weight: 700; letter-spacing: -.2px; }
+.adm-row.student .info .m { display: block; font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+.adm-row .av.sm {
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none;
+  background: var(--brand-soft); color: var(--brand-dk); font-weight: 800; font-size: 15px;
+}
+/* [배지는 "없는 쪽"에만 붙는다 — 결정 B] 중립 회색이고 숫자가 없다. 있는 쪽에 훈장을 달지 않는다. */
+.nobadge {
+  flex: none; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;
+  background: #EEF1F6; color: var(--ink2); white-space: nowrap;
+}
+.adm-row .chev {
+  flex: none; width: 0; height: 0; margin-left: 2px;
+  border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 6px solid var(--line2);
+}
+
+/* ---------- 상세 (학생 1명) ---------- */
+.adm-detailbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.adm-back {
+  display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px 0 11px;
+  border-radius: 10px; border: 1px solid var(--line); background: #fff;
+  font-size: 13.5px; font-weight: 700; color: var(--ink2); transition: .14s;
+}
+.adm-back:hover { border-color: var(--line2); background: var(--bg); }
+.adm-scanall:disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; }
+
+.adm-studenthead {
+  display: flex; align-items: center; gap: 15px; margin-bottom: 16px;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: var(--shadow); padding: 18px 20px;
+}
+.adm-studenthead .av {
+  width: 50px; height: 50px; border-radius: 14px; display: grid; place-items: center; flex: none;
+  background: var(--brand); color: #fff; font-weight: 800; font-size: 20px;
+}
+.adm-studenthead .who h3 { font-size: 19px; font-weight: 800; letter-spacing: -.4px; }
+/* 포인트·지역화폐가 들어갈 자리가 없다 — 조회조차 하지 않는다(결정 D / 이슈 4) */
+.adm-studenthead .who .m { font-size: 13px; color: var(--muted); font-weight: 600; margin-top: 3px; }
+
+.adm-backlink { display: inline-block; margin-top: 12px; font-size: 13.5px; font-weight: 700; color: var(--brand-dk); }
+.adm-backlink:hover { text-decoration: underline; }
+
+@media (max-width: 600px) {
+  .adm-account { flex-wrap: wrap; padding: 18px; }
+  .adm-account .ph-logout { width: 100%; margin-top: 4px; }
+  .adm-row.student { flex-wrap: nowrap; }
+  .nobadge { font-size: 10.5px; padding: 3px 8px; }
+}
+
+/* ---------- 내 학교 초대코드 (docs/specs/auth-signup.md D — 표시 전용) ----------
+   [발급 UI 를 만들지 않는다] 생성·재발급·만료 버튼 스타일이 이 파일에 없다는 것이 곧 가드다.
+   운영 요약 줄(.opsline)과 시각적으로 구분한다 — 저건 "가는 길"이고 이건 "읽어서 불러줄 값"이다. */
+.adm-account .inviteline {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-top: 10px;
+}
+.adm-account .inviteline .k { font-size: 12px; color: var(--muted); font-weight: 700; }
+.adm-account .inviteline .code {
+  font-size: 15px; font-weight: 800; letter-spacing: .6px; color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 9px; padding: 5px 11px;
+}
+.adm-account .copybtn {
+  height: 30px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--line);
+  background: #fff; font-size: 12px; font-weight: 700; color: var(--ink2); transition: .14s;
+}
+.adm-account .copybtn:hover { border-color: var(--brand); color: var(--brand-dk); background: var(--brand-soft); }
+.adm-account .invitenote { font-size: 11.5px; color: var(--muted); font-weight: 600; margin-top: 6px; }

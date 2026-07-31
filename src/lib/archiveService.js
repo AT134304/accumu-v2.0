@@ -81,23 +81,102 @@ export async function fetchMyCompletedActivities() {
   return sortActivities(await attachPrograms(data ?? []));
 }
 
-/* ---- 관리자 확장 지점 -----------------------------------------------------
-   담당 학생 아카이브(admin-students.md B절)는 여기에 함수를 추가한다. 예:
+/* ==========================================================================
+   관리자 — 담당 학생 (docs/specs/admin-students.md 조회 설계)
+   ========================================================================== */
 
-     export async function fetchCompletedActivitiesOf(studentId) {
-       const { data, error } = await supabase
-         .from('participations')
-         .select(PARTICIPATION_FIELDS)
-         .eq('student_id', studentId)      // participations_select_mentored_as_admin 이 담당 5명으로 이미 좁힌다
-         .eq('status', 'completed')
-         .limit(SAFE_LIMIT);
-       if (error) throw error;
-       return sortActivities(await attachPrograms(data ?? []));
-     }
+/**
+ * 담당 학생 조회 시 가져오는 컬럼.
+ *
+ * [★ points_balance / points_total / currency_balance 를 넣지 말 것 — 확정 K-1 / 이슈 4]
+ *   RLS 는 담당 학생 행의 **모든 컬럼**을 열어준다. 열려 있다는 것과 보여준다는 것은 다르다.
+ *   컬럼을 싣는 순간 화면 어딘가에 "이왕 온 김에" 표시하고 싶어지고, 그건 관리자 화면이
+ *   "누가 얼마 벌었나"를 읽는 순간이다(원칙 4). 이 목록은 보안 경계가 아니라 **선언**이다.
+ * [role / created_at 도 제외] 쓸 곳이 없다. admin-programs 가 popularity 를 뺀 것과 같은 규율.
+ */
+const MENTORED_STUDENT_FIELDS = 'id, code, name, career_interest';
 
-   위 attachPrograms / sortActivities / summarizeActivities / describeActivity 는 학생 전용 가정을 담고
-   있지 않으므로 그대로 재사용한다. 화면 컴포넌트(src/components/archive/*)도 마찬가지다.
-   -------------------------------------------------------------------------- */
+/**
+ * 담당 학생 5명 + "완료 활동이 있는가" 여부.
+ *
+ * [3개 쿼리를 클라이언트에서 결합한다] embed·뷰 금지 — 뷰는 정의자 권한으로 돌아 담당이 아닌 학생까지
+ *   새는 경로가 된다(ADR 0003 6번 / 0004 5번 / 0005 결정 5).
+ * [admin_id 필터를 걸지 않는다] mentor_students_select_own_as_admin 이 소유자다. 클라이언트 필터를
+ *   덧붙이면 "경계는 정책이 판정한다"는 구조가 흐려진다.
+ * [profiles 에는 관리자 본인 행이 섞여 온다] profiles_select_own 때문이다. mentor_students 집합으로
+ *   거르면 자동으로 빠진다 — **role 로 거르지 말 것**(경계의 소유자를 흐린다).
+ * [★ 건수를 세지 않고 Set 만 만든다 — 결정 B] 완료 건수를 반환하면 화면이 그 숫자를 표시하게 되고,
+ *   5명이 나란히 놓인 목록에 숫자가 붙는 순간 그건 비교표다. 숫자를 만들지 않으면 새어나갈 수도 없다.
+ *
+ * @returns {Promise<{students: Array<object>, hasActivity: Set<string>}>}
+ */
+export async function fetchMentoredStudents() {
+  const { data: maps, error } = await supabase.from('mentor_students').select('student_id').limit(SAFE_LIMIT);
+  if (error) throw error;
+
+  const ids = [...new Set((maps ?? []).map((m) => m.student_id).filter(Boolean))];
+  if (ids.length === 0) return { students: [], hasActivity: new Set() };
+
+  const { data: profiles, error: profileError } = await supabase
+    .from('profiles')
+    .select(MENTORED_STUDENT_FIELDS)
+    .in('id', ids)
+    .limit(SAFE_LIMIT);
+  if (profileError) throw profileError;
+
+  // 완료 활동 유무는 부속 정보다 — 실패해도 목록은 뜬다("활동 기록 없음" 배지만 안 붙는다).
+  let hasActivity = new Set();
+  const { data: parts, error: partError } = await supabase
+    .from('participations')
+    .select('student_id')
+    .limit(SAFE_LIMIT);
+  if (partError) {
+    console.warn('[archiveService] 담당 학생 활동 유무 조회 실패 — 배지 없이 표시합니다:', partError);
+  } else {
+    // 관리자에게는 정책이 "담당 5명의 completed" 만 내려준다 — 클라이언트 status 필터가 필요 없다.
+    hasActivity = new Set((parts ?? []).map((p) => p.student_id));
+  }
+
+  const known = new Set(ids);
+  const students = (profiles ?? [])
+    .filter((p) => known.has(p.id))
+    // 학번 오름차순 고정 — 성취와 무관한 축이라 정렬 자체가 순위가 되지 않는다(결정 B). 정렬 UI 없음.
+    .sort((a, b) => String(a.code ?? '').localeCompare(String(b.code ?? '')));
+
+  return { students, hasActivity };
+}
+
+/**
+ * 담당 학생 1명의 프로필 (상세 화면 헤더용).
+ *
+ * [0행 = 담당이 아니거나 없는 학생] 에러가 아니라 null 을 돌려준다. 화면은 안내 + 돌아가기 버튼을 띄운다
+ *   — 404 로 뭉개지 말 것(스펙 에러 처리 표). 담당 경계 판정은 여기가 아니라 RLS 가 한다.
+ */
+export async function fetchMentoredStudent(studentId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(MENTORED_STUDENT_FIELDS)
+    .eq('id', studentId)
+    .limit(1);
+  if (error) throw error;
+  return data?.[0] ?? null;
+}
+
+/**
+ * 담당 학생 1명의 완료 활동 (상세 목록).
+ * participations_select_mentored_as_admin 이 이미 "담당 5명 + completed" 로 좁혀 두었고,
+ * 여기서는 화면에 띄울 학생 1명으로만 더 좁힌다.
+ */
+export async function fetchCompletedActivitiesOf(studentId) {
+  const { data, error } = await supabase
+    .from('participations')
+    .select(PARTICIPATION_FIELDS)
+    .eq('student_id', studentId)
+    .eq('status', 'completed')
+    .limit(SAFE_LIMIT);
+  if (error) throw error;
+  return sortActivities(await attachPrograms(data ?? []));
+}
 
 /* ==========================================================================
    정렬 / 집계 / 표시 — 순수 함수 (누구의 기록인지 알지 못한다)

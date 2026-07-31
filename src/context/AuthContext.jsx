@@ -1,6 +1,6 @@
 // Accumu v2 — 인증 상태 전역 관리 (ADR 0001 "3. 인증 상태 관리")
 // 전역 상태는 session, profile, loading 3개뿐이라 React Context로 충분 (Redux/Zustand 도입 안 함).
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { loginStudent, loginAdmin, logout as logoutService } from '../lib/authService';
 
@@ -16,6 +16,13 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // 현재 profile 의 id. onAuthStateChange 콜백은 state 를 클로저로 잡으므로 최신 값을 ref 로 읽는다
+  // (같은 사용자의 토큰 갱신 이벤트마다 profiles 를 다시 조회하지 않기 위한 가드).
+  const profileIdRef = useRef(null);
+  useEffect(() => {
+    profileIdRef.current = profile?.id ?? null;
+  }, [profile]);
 
   // 마운트 시 세션 복구 + onAuthStateChange 구독 (이름/role 불일치로 인한 강제 signOut 등 반영)
   useEffect(() => {
@@ -40,9 +47,24 @@ export function AuthProvider({ children }) {
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
-      if (!nextSession?.user) {
+
+      const userId = nextSession?.user?.id;
+      if (!userId) {
         setProfile(null);
+        return;
       }
+
+      // [소셜 로그인 때문에 필요한 분기]
+      //   이메일/학번 로그인은 signIn* 함수가 profile 을 함께 세팅한다. 그런데 소셜 로그인은
+      //   제공자 화면에서 리다이렉트로 돌아오며 여기서만 세션이 생긴다 — 로그인 함수를 타지 않는다.
+      //   그때 profile 을 읽지 않으면 ProtectedRoute 가 "프로필 없음"으로 보고 /login 으로 되돌려
+      //   무한히 로그인 화면만 뜬다.
+      //   [async 콜백을 쓰지 않는다] onAuthStateChange 콜백 안에서 await 하면 supabase-js 내부 락과
+      //   교착이 생길 수 있어 then 으로 뺀다(공식 문서 권고).
+      if (profileIdRef.current === userId) return;
+      fetchProfile(userId).then((p) => {
+        if (isMounted && p) setProfile(p);
+      });
     });
 
     return () => {
@@ -87,9 +109,31 @@ export function AuthProvider({ children }) {
     return p;
   }, []);
 
+  // 서버가 방금 돌려준 값으로 전역 profile 을 즉시 덮는다 (docs/specs/student-archive-mypage.md 이슈 3).
+  //
+  // [refreshProfile 과의 차이 — 재조회를 아끼려는 최적화가 아니다]
+  //   전환 RPC(convert_points_to_currency)와 계열 RPC(set_career_interest)는 갱신된 값을 응답에 실어 준다.
+  //   그 값이 곧 방금 커밋된 서버 상태이므로 한 번 더 select 할 이유가 없다. 반대로 응답을 버리고
+  //   재조회하면 그 사이에 다른 탭이 만든 변화가 섞여 "내가 방금 한 전환의 결과"가 아닌 값이 뜰 수 있다.
+  // [프런트가 계산한 값을 넣지 않는다] 인자는 언제나 서버 응답에서 꺼낸 필드여야 한다.
+  //   balance - amount 같은 계산을 넣는 순간 절대 원칙 3("표시만 한다")이 화면 코드로 넘어온다.
+  const applyProfilePatch = useCallback((patch) => {
+    if (!patch) return;
+    setProfile((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+
   const value = useMemo(
-    () => ({ session, profile, loading, signInStudent, signInAdmin, signOut, refreshProfile }),
-    [session, profile, loading, signInStudent, signInAdmin, signOut, refreshProfile]
+    () => ({
+      session,
+      profile,
+      loading,
+      signInStudent,
+      signInAdmin,
+      signOut,
+      refreshProfile,
+      applyProfilePatch,
+    }),
+    [session, profile, loading, signInStudent, signInAdmin, signOut, refreshProfile, applyProfilePatch]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

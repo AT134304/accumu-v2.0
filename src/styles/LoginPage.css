@@ -105,3 +105,31 @@
 .btn-primary:disabled { opacity: .65; cursor: not-allowed; transform: none; }
 
 .lcard .hint { text-align: center; font-size: 12px; color: var(--muted); margin-top: 16px; }
+
+/* ============ 회원가입 (docs/specs/auth-signup.md A절) ============
+   로그인 화면의 껍데기(#login/.lcard/.tabs/.field/.btn-primary)를 그대로 쓰고,
+   가입 화면에만 필요한 값만 여기에 덧붙인다 — 화면을 복제하지 않는다. */
+
+/* 계정 종류 선택(개인/학교). 탭(.tabs)과 다른 층위라 시각적으로도 구분되게 테두리형으로 둔다. */
+.segrow { display: flex; gap: 8px; }
+.seg {
+  flex: 1; height: 40px; border-radius: 10px; border: 1.5px solid var(--line2);
+  background: #fff; font-size: 13.5px; font-weight: 700; color: var(--ink2); transition: .14s;
+}
+.seg:hover { border-color: var(--brand); }
+.seg.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-dk); }
+
+/* 입력 아래 보조 설명 — 계정 종류의 차이를 화면이 스스로 설명한다 */
+.field .help { font-size: 11.5px; color: var(--muted); font-weight: 600; margin-top: 7px; line-height: 1.5; }
+
+/* 실패(.form-error, rose)와 구분되는 안내. "가입은 됐는데 세션이 없다"는 실패가 아니다. */
+.form-notice {
+  background: var(--brand-soft); color: var(--brand-dk); border-radius: 10px;
+  padding: 10px 12px; font-size: 13px; font-weight: 600; margin-bottom: 13px;
+}
+
+/* 가입 화면은 입력이 많아 카드가 길어진다 — 작은 화면에서 잘리지 않게 스크롤을 허용한다 */
+.lcard { max-height: calc(100vh - 40px); overflow-y: auto; }
+.lcard .chiprow { margin-top: 2px; }
+.lcard .hint a { color: var(--brand-dk); font-weight: 700; text-decoration: none; }
+.lcard .hint a:hover { text-decoration: underline; }

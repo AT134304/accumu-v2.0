@@ -387,6 +387,39 @@ const ICONS = {
     ),
   },
 
+  // 관리자 담당 학생 아카이브 — PDF 확인 버튼(docs/specs/admin-students.md 결정 G).
+  // ic-doc(학생 "PDF로 저장")과 구분한다: 학생은 문서를 저장하고, 관리자는 인쇄 대화상자로 확인한다.
+  'ic-print': {
+    content: (
+      <>
+        <path opacity=".34" d="M7 3.2h10v4.6H7V3.2z" />
+        <path d="M4.2 8.6h15.6a1.6 1.6 0 0 1 1.6 1.6v5.2a1.6 1.6 0 0 1-1.6 1.6H18v-3.4H6V17H4.2a1.6 1.6 0 0 1-1.6-1.6v-5.2a1.6 1.6 0 0 1 1.6-1.6z" />
+        <path opacity=".34" d="M7.4 14.8h9.2v6H7.4v-6z" />
+      </>
+    ),
+  },
+  // 상세 -> 목록 뒤로 가기. 이모지·문자 화살표(←) 대신 SVG (CLAUDE.md 8장).
+  'ic-arrow-left': {
+    content: (
+      <path
+        d="M19 12H5.6m0 0 5.6-5.6M5.6 12l5.6 5.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+
+  // 만족도 평가 별점 (프로토타입 506줄 path 그대로).
+  // [duotone 이 아니라 단색인 이유] 별은 "채워짐/비어 있음"이 곧 값이다. 반투명 레이어를 얹으면
+  //   3.5개처럼 읽히는 중간 상태가 생긴다. 켜짐(amber)/꺼짐(회색)은 호출부가 color prop 으로 준다.
+  // [이모지 금지] CLAUDE.md 8장 — 프로토타입 토스트의 '⭐'도 옮기지 않는다.
+  'ic-star': {
+    content: <path d="M12 2.6l2.7 5.55 6.1.9-4.4 4.3 1.04 6.05L12 17.8l-5.44 2.6L7.6 13.35 3.2 9.05l6.1-.9L12 2.6z" />,
+  },
+
   // 프로토타입 1358줄 — 토스트 아이콘.
   // [이모지 금지] 프로토타입 toast()는 체크마크 이모지 문자를 넘겼지만 CLAUDE.md 8장 위반이라 duotone SVG로 대체한다.
   'ic-check': {

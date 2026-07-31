@@ -36,15 +36,10 @@
   letter-spacing: .6px; color: var(--muted); text-transform: uppercase;
 }
 .filtergroup .fg-label .isvg { color: var(--brand); }
-.chiprow { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip {
-  display: flex; align-items: center; gap: 6px; padding: 7px 13px; border: 1.5px solid var(--line2);
-  border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--ink2); background: #fff;
-  transition: .14s; white-space: nowrap;
-}
-.chip:hover { border-color: var(--brand); }
-.chip.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-dk); }
-.chipdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+/* [.chiprow / .chip / .chipdot 는 StudentShell.css 로 옮겼다]
+   마이페이지의 관심 계열 선택(docs/specs/student-archive-mypage.md B-1 3번)이 같은 칩을 쓴다.
+   두 화면이 각자 정의하면 갈라지고, 이 파일에 두면 라우트를 lazy 분할하는 순간 마이페이지 칩이
+   무스타일로 뜬다(ProgramCard 를 셸에 둔 것과 같은 이유). 필터바 고유 값만 여기 남는다. */
 
 /* ---------- 카테고리 그룹 / 행 ---------- */
 .catgroup { margin-top: 30px; }

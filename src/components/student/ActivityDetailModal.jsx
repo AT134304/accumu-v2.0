@@ -7,15 +7,26 @@
 //
 // [방어적 렌더] 게시중단된 프로그램은 학생이 select 할 수 없다. 이 모달은 그 경우에도 열리고,
 //   "참여 기록 자체는 유지된다"는 사실을 문구로 알린다 (ADR 0005 결정 7-4).
+import { useState } from 'react';
 import Modal from '../Modal';
 import Icon from '../Icon';
+import ReviewForm, { StarsMini } from './ReviewForm';
 import { describeActivity } from '../../lib/archiveService';
 import { fmtDateTime } from '../../lib/date';
 import { TRACK } from '../../lib/taxonomy';
+import '../../styles/Review.css';
 
-export default function ActivityDetailModal({ activity, onClose }) {
+/**
+ * @param {object}   activity  완료 참여(프로그램 결합본)
+ * @param {object}   [review]  이 활동의 리뷰 { rating, comment } — 없으면 미작성
+ * @param {Function} [onReviewSaved] (review) => void. 저장 결과를 목록에 반영하는 것은 호출부 몫
+ */
+export default function ActivityDetailModal({ activity, review = null, onReviewSaved, onClose }) {
   const d = describeActivity(activity);
   const track = d.careerTrack ? TRACK[d.careerTrack]?.name : null;
+  // 폼을 열기 전에는 카드(읽기)만 보여준다 — 상세를 열 때마다 입력창이 튀어나오면 "읽는 화면"이 아니게 된다.
+  // 퇴장 직후의 자동 노출은 QrCenterModal 이 담당한다(CLAUDE.md 6장 3번).
+  const [editing, setEditing] = useState(false);
 
   return (
     <Modal onClose={onClose} labelledBy="act-title" className="act-modal">
@@ -79,10 +90,47 @@ export default function ActivityDetailModal({ activity, onClose }) {
           </div>
         </div>
 
-        {/* [자리 — 나의 만족도 · 한 줄 평]
-            reviews 테이블(+ select/insert/update 정책)이 생기면 여기에 ReviewForm 이 들어간다.
-            docs/specs/student-archive-mypage.md 결정 D-4: 작성·수정 가능, 삭제 없음, 참여 1건 = 리뷰 1행.
-            리뷰의 경계는 participations 이지 programs 가 아니므로 게시중단 건에도 평가를 남길 수 있다. */}
+        {/* 나의 만족도 · 한 줄 평 (결정 D-4: 작성·수정 가능, 삭제 없음, 참여 1건 = 리뷰 1행).
+            [게시중단 건에도 평가할 수 있다] 리뷰의 경계는 participations 이지 programs 가 아니다
+            (reviews_insert_own 이 검사하는 것은 본인의 completed 참여뿐 — ADR 0007 결정 2). */}
+        <div className={review || editing ? 'revcard' : 'revcard empty'}>
+          {editing ? (
+            <ReviewForm
+              participationId={activity?.id}
+              review={review}
+              heading={false}
+              skipLabel="취소"
+              onSkip={() => setEditing(false)}
+              onSaved={(saved) => {
+                setEditing(false);
+                onReviewSaved?.(saved);
+              }}
+            />
+          ) : review ? (
+            <>
+              <div className="revhead">
+                <span>나의 만족도</span>
+                <StarsMini rating={review.rating} size={14} />
+              </div>
+              {review.comment ? (
+                <p className="revtext">&ldquo;{review.comment}&rdquo;</p>
+              ) : (
+                <p className="revtext muted">한 줄 평은 작성하지 않았어요.</p>
+              )}
+              <button type="button" className="revedit" onClick={() => setEditing(true)}>
+                평가 수정하기
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="revtext muted">아직 이 활동에 대한 평가를 작성하지 않았어요.</p>
+              <button type="button" className="mbtn" onClick={() => setEditing(true)}>
+                <Icon name="ic-star" size={18} />
+                별점 · 한 줄 평 남기기
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </Modal>
   );

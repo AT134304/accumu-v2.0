@@ -112,6 +112,17 @@ button.arc-row:focus-visible { outline: none; background: var(--bg); box-shadow:
 .arc-row .info .m.confirm { color: var(--brand-dk); font-weight: 600; }
 /* 게시중단 등으로 프로그램 정보를 못 읽은 행 — 사라지지 않되 톤을 낮춘다 */
 .arc-row.unknown .info .t { color: var(--ink2); font-weight: 600; }
+/* 평가 줄 (프로토타입 .revline/.rt 418~420줄) — 별 미니 + 상태 문구. 인쇄에서는 빠진다(.no-print) */
+.arc-row .revline { margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+.arc-row .revline .rt { font-size: 11px; color: var(--amber); font-weight: 700; }
+.arc-row .revline .rt.none { color: var(--muted); font-weight: 600; }
+/* 지급 포인트 (확정 L-1) — 작은 amber 보조. 행의 주인공은 왼쪽 제목이다(원칙 4) */
+.arc-row .arc-pt { flex: none; font-size: 13px; font-weight: 800; color: var(--amber); }
+/* 진로 계열 칩 (관리자 상세 전용 — admin-students B-5). 중립 톤이고 값의 크기를 나타내지 않는다 */
+.arc-row .arc-track {
+  display: inline-block; margin-top: 5px; font-size: 11px; font-weight: 700;
+  padding: 3px 9px; border-radius: 20px; background: var(--bg2); color: var(--ink2);
+}
 /* 행이 열린다는 표시 — 이모지 금지(CLAUDE.md 8장)라 CSS 삼각형으로 만든다 (AdminShell.css .chev 와 같은 방식) */
 .arc-row .chev {
   flex: none; width: 0; height: 0; margin-left: 2px;

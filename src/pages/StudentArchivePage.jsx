@@ -5,14 +5,16 @@
 //   화면 첫 블록은 성장(brand blue / indigo)이고, 요약 3칸은 **활동 수**이지 포인트가 아니다.
 //   포인트 총액 칸을 요약에 넣지 않는다(질문 L 결과와 무관하게 고정). PDF 에도 포인트가 남지 않는다.
 //
-// [이번 범위에서 뺀 것 — 근거 있는 보류]
-//   1. 활동 행의 포인트(확정 L-1): 값의 소스는 point_transactions.amount(지급 시점 스냅샷)인데
-//      그 테이블은 현재 **select 정책이 0개**라 학생 본인도 읽을 수 없다. programs.points 로 대신하면
-//      관리자가 프로그램 포인트를 수정한 순간 이미 지급된 금액과 어긋난다(ADR 0005 결정 3-6 "틀린 숫자").
-//      → point_transactions_select_own 이 생긴 뒤 ActivityList.jsx 의 "[자리 — 포인트]"에 붙인다.
-//   2. 별점/한줄평(결정 D): reviews 테이블 자체가 아직 없다.
-//      → ActivityList.jsx "[자리 — 평가 줄]" / ActivityDetailModal.jsx "[자리 — 나의 만족도]".
-//   둘 다 새 정책·마이그레이션이 필요한 항목이라 이 화면은 **기존 권한만으로** 성립한다.
+// [보류였다가 채워진 것 — ADR 0007 마이그레이션(20260730140000) 이후]
+//   1. 활동 행의 포인트(확정 L-1): point_transactions_select_own 이 열려 지급 시점 스냅샷
+//      (point_transactions.amount)을 읽을 수 있게 됐다. programs.points 로 대신하지 않는다 — 관리자가
+//      프로그램 포인트를 수정한 순간 이미 지급된 금액과 어긋난다(ADR 0005 결정 3-6 "틀린 숫자").
+//      화면에만 표시하고 PDF 에는 남기지 않는다(.no-print).
+//   2. 별점/한줄평(결정 D): reviews 테이블 + 정책 3종이 생겨 ActivityList 의 평가 줄과
+//      ActivityDetailModal 의 "나의 만족도" 카드가 채워졌다. 폼은 ReviewForm 하나를 QR 완료 화면과 공유한다.
+//
+// [세 조회는 서로 독립적으로 실패한다 — 스펙 이슈 4] 참여+프로그램 / 리뷰 / 원장.
+//   리뷰를 못 읽었다고 활동 목록이 사라지면 안 된다.
 //
 // [원칙 1 가드] 막대 게이지·퍼센트·달성률·등급·숫자 카운트업·랭킹·다른 학생 비교가 없다.
 //   진로 계열 레이더(TrackRadar)는 **확정 M-2로 추가**됐고 건수만 그린다 — 그 가드는 그 안에도 걸려 있다.
@@ -27,6 +29,8 @@ import ActivityList from '../components/archive/ActivityList';
 import ArchivePrintHeader from '../components/archive/ArchivePrintHeader';
 import ActivityDetailModal from '../components/student/ActivityDetailModal';
 import { fetchMyCompletedActivities } from '../lib/archiveService';
+import { fetchMyReviews } from '../lib/reviewService';
+import { fetchMyEarnedAmounts } from '../lib/pointService';
 import { todayISO } from '../lib/date';
 import '../styles/StudentArchive.css';
 
@@ -39,10 +43,16 @@ export default function StudentArchivePage() {
   const [activities, setActivities] = useState([]);
   const [state, setState] = useState('loading'); // 'loading' | 'ready' | 'error'
   const [selected, setSelected] = useState(null);
+  // 리뷰·포인트는 목록의 부속 정보다. 빈 Map 으로 시작해 못 읽으면 그 자리만 비운다.
+  const [reviews, setReviews] = useState(() => new Map());
+  const [amounts, setAmounts] = useState(() => new Map());
 
   useEffect(() => {
     let cancelled = false;
 
+    /* [세 조회를 Promise.all 로 묶지 않는다 — 스펙 이슈 4]
+       리뷰를 못 읽었다고 활동 목록이 사라지면 안 되고, 원장을 못 읽었다고 화면이 죽어도 안 된다.
+       목록만 화면 상태(loading/ready/error)를 가지고, 나머지 둘은 실패해도 경고만 남긴다. */
     (async () => {
       setState('loading');
       try {
@@ -61,9 +71,36 @@ export default function StudentArchivePage() {
       }
     })();
 
+    (async () => {
+      try {
+        // reviews_select_own — 본인 참여의 리뷰만 내려온다(관리자도 다른 학생도 0행).
+        const map = await fetchMyReviews();
+        if (!cancelled) setReviews(map);
+      } catch (err) {
+        // 평가 줄만 안 뜬다. 활동 목록·요약·레이더는 그대로 살아 있다.
+        console.warn('[StudentArchive] 평가 조회 실패 — 평가 줄 없이 표시합니다:', err);
+      }
+    })();
+
+    (async () => {
+      try {
+        // 확정 L-1 — 값의 소스는 point_transactions.amount(지급 시점 스냅샷)다.
+        const map = await fetchMyEarnedAmounts();
+        if (!cancelled) setAmounts(map);
+      } catch (err) {
+        console.warn('[StudentArchive] 지급 포인트 조회 실패 — 포인트 없이 표시합니다:', err);
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // 상세 모달에서 평가를 저장하면 목록의 평가 줄이 바로 따라간다(재조회 왕복 없음 — 서버가 돌려준 행을 쓴다).
+  const handleReviewSaved = useCallback((review) => {
+    if (!review?.participation_id) return;
+    setReviews((prev) => new Map(prev).set(review.participation_id, review));
   }, []);
 
   const total = activities.length;
@@ -158,11 +195,23 @@ export default function StudentArchivePage() {
           (total === 0 ? (
             <ArchiveEmpty onExplore={() => navigate('/student/programs')} />
           ) : (
-            <ActivityList activities={activities} onSelect={setSelected} />
+            <ActivityList
+              activities={activities}
+              onSelect={setSelected}
+              reviewByParticipationId={reviews}
+              amountByParticipationId={amounts}
+            />
           ))}
       </div>
 
-      {selected && <ActivityDetailModal activity={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <ActivityDetailModal
+          activity={selected}
+          review={reviews.get(selected.id) ?? null}
+          onReviewSaved={handleReviewSaved}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </section>
   );
 }

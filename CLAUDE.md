@@ -42,12 +42,22 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 
 `profiles.role`(student/admin)로 화면을 분기하고, 프로그램 등록·게시중단·QR 스캔 처리는 Supabase RLS로 `role = admin`만 허용합니다.
 
+**회원가입 (ADR 0008 / `docs/specs/auth-signup.md`)** — 로그인 화면에서 `/signup`으로 들어갑니다.
+
+- **학생**은 **학교 계정**(학번·이름·비밀번호 + 관리자의 초대코드 → 그 관리자의 담당 학생으로 연동)과 **개인 계정**(소속 없음) 중에 고릅니다. 개인 계정도 프로그램 신청·QR 인증·포인트가 전부 동일하게 동작하며, 차이는 "관리자가 그 학생의 아카이브를 볼 수 있는가" 하나뿐입니다. 개인 → 학교 전환은 마이페이지에서 가능하고 **되돌리는 경로는 없습니다.**
+- **개인 계정은 학번을 받지 않습니다.** 학번은 학교가 부여하는 값이라 소속이 없으면 존재하지 않습니다. 아이디는 **이메일 또는 소셜 계정**이고, `profiles.code`는 서버가 `P-XXXXXX`로 자동 발급합니다.
+- **소셜 로그인은 Google · Kakao · Facebook 3종**입니다(`authService.SOCIAL_PROVIDERS`가 목록의 소유자). **네이버는 Supabase가 지원하지 않아 만들지 않습니다** — 붙이려면 Edge Function + `service_role`이 필요해 새 보안 표면이 생깁니다. **소셜 계정은 언제나 학생·개인 계정이며 관리자가 될 수 없습니다.**
+- **관리자**는 **사전 발급된 관리자 초대코드**가 있어야 가입됩니다.
+- **`role`은 클라이언트가 정하지 않습니다.** 가입 요청의 role은 신청일 뿐이고, 승인은 DB 트리거 `handle_new_user()`가 `invite_codes`를 조회해서 합니다. 초대코드가 없으면 가입 자체가 롤백됩니다(학생으로 대신 만들어주지 않음).
+- 초대코드는 **관리자별 고정 1개**이며 관리자 마이페이지에 **표시만** 합니다. 생성·만료·회수 UI를 만들지 않습니다 — 만드는 순간 관리자 기능이 4번째가 되고(원칙 6), 관리자가 자기 담당 학생을 스스로 늘리는 도구가 됩니다.
+
 ## 5. 데이터 모델
 
 | 테이블 | 주요 필드 | 설명 |
 |---|---|---|
-| `profiles` | id, role, code, name, points_balance, points_total, currency_balance, career_interest | 학생/관리자 공통 계정 |
-| `mentor_students` | admin_id, student_id | 관리자-담당학생 고정 매핑 (데모 기준 5명) |
+| `profiles` | id, role, code, name, points_balance, points_total, currency_balance, career_interest, account_type | 학생/관리자 공통 계정. `account_type`(school/personal)은 학생 전용 (ADR 0008) |
+| `mentor_students` | admin_id, student_id | 관리자-담당학생 매핑. **권한 경계 자체**라 앱에 편집 UI가 없다. 생기는 경로는 시딩 + 학생의 초대코드 입력 2가지뿐 |
+| `invite_codes` | code, kind(school/admin), admin_id, is_active | 가입 초대코드 (ADR 0008). 관리자별 고정 school 코드 + 관리자 승격용 코드. **앱에서 생성 불가**(정책 0개, 시딩/SQL 전용) |
 | `programs` | id, category, title, description, date, time, capacity, points, is_published, created_by | is_published로 게시/게시중단 |
 | `participations` | id, student_id, program_id, status, entry_at, exit_at, entry_token, exit_token | 신청·입장·퇴장 상태 + QR 토큰 |
 | `point_transactions` | id, student_id, type(적립/전환), amount, related_participation_id | 포인트 내역 |

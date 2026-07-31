@@ -70,6 +70,18 @@ h2.sec { font-size: clamp(20px, 3.4vw, 23px); font-weight: 800; letter-spacing: 
 .sec-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
 .empty { text-align: center; padding: 38px 20px; color: var(--muted); font-size: 13.5px; line-height: 1.6; }
 
+/* 선택 칩 (공용) — 프로그램 선택 화면의 필터바와 마이페이지의 관심 계열 선택이 같은 프리미티브를 쓴다.
+   화면별 CSS 에 두면 라우트를 lazy 분할하는 순간 다른 화면 칩이 무스타일로 뜬다(.pcard 와 같은 이유). */
+.chiprow { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: flex; align-items: center; gap: 6px; padding: 7px 13px; border: 1.5px solid var(--line2);
+  border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--ink2); background: #fff;
+  transition: .14s; white-space: nowrap;
+}
+.chip:hover { border-color: var(--brand); }
+.chip.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-dk); }
+.chipdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
 /* ---------- modal (알림/캘린더 빈 상태 팝업 — 확정 C) ---------- */
 /* [배경 어둡게 깔지 않는다] 프로토타입은 rgba(18,26,46,.5) + blur(3px)로 화면 전체를 덮었지만,
    페이지가 통째로 바뀐 것처럼 보여 "보던 자리에서 팝업이 열린다"는 느낌을 해쳤다. 투명하게 두고

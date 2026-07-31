@@ -95,6 +95,17 @@
 .scan-done .desc { max-width: 300px; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
 .scan-done .done-pts { margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--amber); }
 
+/* 퇴장 완료 화면의 만족도 평가 (CLAUDE.md 6장 3번 — 같은 모달 안에서 이어진다).
+   완료 문구/포인트와 시각적으로 분리되도록 구분선을 하나 둔다. 폼 자체 스타일은 Review.css 소유. */
+.scan-done .qr-review {
+  width: 100%; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line);
+}
+.scan-done .qr-reviewdone {
+  margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line);
+  width: 100%; font-size: 13px; font-weight: 700; color: var(--brand-dk);
+}
+.scan-done .qr-reviewdone.muted { color: var(--muted); font-weight: 600; }
+
 /* ============ RESPONSIVE (CLAUDE.md 8장: 980/768/600/430) ============ */
 @media (max-width: 430px) {
   .qrbox .qr { width: 168px; height: 168px; padding: 10px; }

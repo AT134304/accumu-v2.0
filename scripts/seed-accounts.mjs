@@ -130,13 +130,19 @@ function buildVirtualEmail(code) {
 // ---------------------------------------------------------------------------
 const DEMO_PASSWORD = 'accumu2026';
 
+// account_type (ADR 0008 결정 5, 2026-07-31 추가)
+//   - 학생은 반드시 값이 있어야 하고 관리자는 반드시 NULL 이다(profiles_account_type_rule CHECK).
+//     빠뜨리면 이 스크립트가 23514 로 중단된다.
+//   - 시드 학생 5명은 아래에서 ADM-0001 에 전원 매핑되므로 'school' 이 사실과 일치한다.
+//   - 앱 회원가입으로 만들어지는 계정은 이 스크립트가 아니라 handle_new_user() 트리거가 채운다
+//     (그 경로는 metadata 의 초대코드 유무로 school/personal 을 판정한다).
 const DEMO_ACCOUNTS = [
-  { role: 'student', code: '10718', name: '신지훈', career_interest: 'it' },
-  { role: 'student', code: '10719', name: '김도윤', career_interest: 'sci' },
-  { role: 'student', code: '10720', name: '이서연', career_interest: 'hum' },
-  { role: 'student', code: '10721', name: '박민준', career_interest: 'biz' },
-  { role: 'student', code: '10722', name: '최하은', career_interest: null },
-  { role: 'admin', code: 'ADM-0001', name: '정하윤', career_interest: null },
+  { role: 'student', code: '10718', name: '신지훈', career_interest: 'it', account_type: 'school' },
+  { role: 'student', code: '10719', name: '김도윤', career_interest: 'sci', account_type: 'school' },
+  { role: 'student', code: '10720', name: '이서연', career_interest: 'hum', account_type: 'school' },
+  { role: 'student', code: '10721', name: '박민준', career_interest: 'biz', account_type: 'school' },
+  { role: 'student', code: '10722', name: '최하은', career_interest: null, account_type: 'school' },
+  { role: 'admin', code: 'ADM-0001', name: '정하윤', career_interest: null, account_type: null },
 ];
 
 async function main() {
@@ -185,6 +191,7 @@ async function main() {
       code: account.code,
       name: account.name,
       career_interest: account.career_interest, // null 허용 (10722, 관리자). ADR 0003.
+      account_type: account.account_type, // 학생 필수 / 관리자 null. ADR 0008.
     });
 
     if (profileError) {

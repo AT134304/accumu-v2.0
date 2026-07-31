@@ -6,14 +6,15 @@ import RootRedirect from './routes/RootRedirect';
 import StudentLayout from './routes/StudentLayout';
 import AdminLayout from './routes/AdminLayout';
 import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
 import StudentHomePage from './pages/StudentHomePage';
 import StudentProgramsPage from './pages/StudentProgramsPage';
 import StudentArchivePage from './pages/StudentArchivePage';
 import StudentMyPage from './pages/StudentMyPage';
 import AdminHomePage from './pages/AdminHomePage';
 import AdminProgramsPage from './pages/AdminProgramsPage';
-// 담당 학생 아카이브는 아직 별도 스펙 단계라 placeholder 를 유지한다(프로그램 관리 라우트만 교체됐다).
-import AdminPlaceholderPage from './pages/AdminPlaceholderPage';
+import AdminMyPage from './pages/AdminMyPage';
+import AdminStudentArchivePage from './pages/AdminStudentArchivePage';
 
 // 카메라 스캔 라이브러리(html5-qrcode)가 무거워 학생 번들에 섞이지 않도록 이 라우트만 분할한다.
 // 학생은 QR을 "표시"만 하므로(qrcode.react) 스캐너 코드를 받을 이유가 없다.
@@ -26,6 +27,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<RootRedirect />} />
           <Route path="/login" element={<LoginPage />} />
+          {/* 공개 라우트 — 가입은 로그인 이전 단계다. 화면 자체가 role 을 정하지 않으므로
+              ProtectedRoute 로 감싸지 않는다(승인은 DB 트리거가 한다 — ADR 0008 결정 2). */}
+          <Route path="/signup" element={<SignupPage />} />
 
           {/* 학생 화면 — ProtectedRoute(role="student") 안쪽에서만 공통 셸이 렌더된다.
               /student/* 전체가 한 번의 role 검사를 공유하므로 권한 경계는 그대로다. */}
@@ -65,17 +69,13 @@ export default function App() {
               }
             />
             <Route path="programs" element={<AdminProgramsPage />} />
-            <Route
-              path="students"
-              element={
-                <AdminPlaceholderPage
-                  eyebrow="Students"
-                  title="담당 학생"
-                  sub="담당 학생의 활동 아카이브를 확인합니다"
-                  note="담당 학생 아카이브 조회와 PDF 확인은 다음 단계에서 구현됩니다."
-                />
-              }
-            />
+            {/* 관리자 마이페이지 = 계정 정보 + 담당 학생 아카이브(admin-students 결정 M).
+                상세를 하위 경로에 두는 이유: 셸 메뉴의 활성 판정이 하위 경로까지 포함하므로 학생 아카이브를
+                보는 동안에도 "마이페이지"가 켜져 있다. 형제 경로로 쪼개면 상세에서 활성 메뉴가 사라진다.
+                [/admin/students 리다이렉트를 만들지 않는다] 데모에 북마크·외부 링크 개념이 없어
+                죽은 경로를 유지하는 비용이 이득보다 크다. */}
+            <Route path="mypage" element={<AdminMyPage />} />
+            <Route path="mypage/students/:studentId" element={<AdminStudentArchivePage />} />
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
