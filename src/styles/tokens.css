@@ -40,6 +40,18 @@
   html { scrollbar-gutter: stable; }
 }
 html, body, #root { height: 100%; }
+
+/* [가로 스크롤 금지 — 2026-08-06, 케빈 요청]
+   모바일에서 무언가 1px 이라도 화면보다 넓으면 브라우저가 레이아웃 뷰포트를 그만큼 넓힌다.
+   그러면 세로로 보려던 화면이 좌우로 밀리고, 무엇보다 position:fixed 로 화면 전체를 덮는
+   레이어(#login)가 "넓어진 뷰포트" 기준으로 중앙 정렬돼 **카드가 한쪽으로 치우쳐 보인다.**
+   세로 스크롤만 남기면 두 증상이 함께 사라진다.
+
+   [hidden 이 아니라 clip 인 이유] overflow:hidden 은 스크롤 컨테이너를 만든다. 그러면
+   .nav 의 position:sticky(StudentShell.css 12줄)가 동작을 멈춘다 — 상단 바가 안 붙는다.
+   clip 은 잘라내기만 하고 스크롤 컨테이너를 만들지 않아 sticky 가 그대로 산다.
+   (미지원 브라우저에서는 이 선언이 무시될 뿐, 지금보다 나빠지지 않는다.) */
+html, body { overflow-x: clip; }
 body {
   font-family: var(--font);
   background: var(--bg);

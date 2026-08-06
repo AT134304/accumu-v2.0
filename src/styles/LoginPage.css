@@ -15,8 +15,12 @@
      안전영역과 20px 중 큰 값을 여백으로 잡아 "보이는 영역의 중앙"에 맞춘다. */
   padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
            max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
-  /* hidden 이면 어떤 이유로든 카드가 영역을 넘겼을 때 스크롤로 닿을 수 없다(그때가 곧 "잘림"이다).
-     .lcard 의 max-height:100% 가 1차 방어이고, 이건 그게 뚫렸을 때의 안전망이다. */
+  /* [축을 반드시 따로 적는다 — 2026-08-06]
+     overflow-y 만 적으면 overflow-x 는 visible 로 남는데, 한 축이 visible 이고 다른 축이
+     아니면 CSS 규칙상 visible 이 **auto 로 계산된다**. 즉 세로 스크롤을 허용하려다
+     가로 스크롤까지 열리고, 그 순간 카드가 좌우로 밀린다(실제로 밟은 문제).
+     세로는 안전망으로 열되(카드가 영역을 넘겼을 때 닿을 수 있게), 가로는 명시적으로 막는다. */
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -144,7 +148,10 @@
      잘리고 **스크롤로 닿을 수도 없다**(그리드 중앙 정렬이라 넘친 부분이 양쪽으로 잘린다).
      가입 화면처럼 입력이 많은 쪽에서 회원가입 버튼이 안 보이는 형태로 나타난다.
      100% 는 #login 의 콘텐츠 박스(=실제 보이는 높이 - padding)에 정확히 맞으므로 vh 가 필요 없다. */
-.lcard { max-height: 100%; overflow-y: auto; }
+.lcard { max-height: 100%; overflow-x: hidden; overflow-y: auto; }
+/* 카드 안에서 줄바꿈이 안 되는 긴 토큰(VITE_GOOGLE_CLIENT_ID 같은 코드 조각, 긴 이메일)이
+   카드를 밀어 넓히지 못하게 한다. 가로 스크롤의 씨앗은 대개 이런 한 단어다. */
+.lcard .snote code, .lcard .hint { overflow-wrap: anywhere; }
 .lcard .chiprow { margin-top: 2px; }
 .lcard .hint a { color: var(--brand-dk); font-weight: 700; text-decoration: none; }
 .lcard .hint a:hover { text-decoration: underline; }
