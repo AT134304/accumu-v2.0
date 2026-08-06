@@ -57,7 +57,8 @@ img, svg { display: block; }
 }
 
 .route-loading {
-  min-height: 100vh;
+  /* dvh — 100vh 는 모바일에서 실제 보이는 높이보다 커서 로딩 화면에 불필요한 스크롤이 생긴다 */
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   color: var(--muted);

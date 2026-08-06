@@ -27,11 +27,14 @@ import '../../styles/AdminShell.css';
 //
 // [end 를 붙이지 않는다] 상세(/admin/mypage/students/:id)에서도 "마이페이지" 메뉴가 활성으로 유지된다.
 //   형제 경로로 쪼갰다면 상세에서 활성 메뉴가 사라져 "내가 어디 있는지" 신호를 잃는다.
+// short 는 모바일 하단 탭바 전용 라벨이다. 상단 메뉴는 폭이 넉넉해 긴 이름이 낫지만,
+// 하단은 4열을 나눠 쓰므로 "프로그램 관리"가 좁은 화면(≤360px)에서 두 줄로 접혀 그 탭만 높아진다.
+// 학생 셸이 TABS 를 따로 둔 것과 같은 해법이다(StudentShell.jsx 20줄).
 const MENU = [
   { to: '/admin', icon: 'ic-home', label: '홈', end: true },
-  { to: '/admin/scan', icon: 'ic-qr', label: 'QR 스캔' },
-  { to: '/admin/programs', icon: 'ic-compass', label: '프로그램 관리' },
-  { to: '/admin/mypage', icon: 'ic-user', label: '마이페이지' },
+  { to: '/admin/scan', icon: 'ic-qr', label: 'QR 스캔', short: 'QR' },
+  { to: '/admin/programs', icon: 'ic-compass', label: '프로그램 관리', short: '프로그램' },
+  { to: '/admin/mypage', icon: 'ic-user', label: '마이페이지', short: '마이' },
 ];
 
 const navClass = ({ isActive }) => (isActive ? 'on' : undefined);
@@ -91,7 +94,7 @@ export default function AdminShell({ children }) {
         {MENU.map((m) => (
           <NavLink key={m.to} to={m.to} end={m.end} className={navClass}>
             <Icon name={m.icon} size={22} />
-            <span>{m.label}</span>
+            <span>{m.short ?? m.label}</span>
           </NavLink>
         ))}
       </nav>

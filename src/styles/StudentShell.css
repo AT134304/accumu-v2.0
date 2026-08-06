@@ -54,6 +54,12 @@
 .bottomnav a {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: 6px 0; color: var(--muted); font-size: 11px; font-weight: 600; text-decoration: none;
+  min-width: 0; /* 그리드 항목 기본값(auto)이면 긴 라벨이 칸을 밀어 4열이 어긋난다 */
+}
+/* 라벨이 두 줄로 접히면 그 탭만 높아져 아이콘 줄이 어긋난다. 한 줄로 고정하고 넘치면 자른다.
+   (라벨 자체를 짧게 두는 것이 1차 방어다 — StudentShell 의 TABS, AdminShell 의 short 참고) */
+.bottomnav a span {
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .bottomnav a .isvg { color: var(--muted); }
 .bottomnav a.on { color: var(--brand-dk); }

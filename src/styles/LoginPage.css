@@ -128,8 +128,14 @@
   padding: 10px 12px; font-size: 13px; font-weight: 600; margin-bottom: 13px;
 }
 
-/* 가입 화면은 입력이 많아 카드가 길어진다 — 작은 화면에서 잘리지 않게 스크롤을 허용한다 */
-.lcard { max-height: calc(100vh - 40px); overflow-y: auto; }
+/* 가입 화면은 입력이 많아 카드가 길어진다 — 작은 화면에서 잘리지 않게 스크롤을 허용한다.
+   [★ 100vh 를 쓰면 모바일에서 카드가 잘린다 — 2026-08-06 수정]
+     모바일 브라우저의 100vh 는 "주소창이 숨겨진 상태"의 높이라 실제 보이는 영역보다 크다.
+     #login 은 position:fixed + overflow:hidden 이므로 카드가 컨테이너보다 커지면 위아래가
+     잘리고 **스크롤로 닿을 수도 없다**(그리드 중앙 정렬이라 넘친 부분이 양쪽으로 잘린다).
+     가입 화면처럼 입력이 많은 쪽에서 회원가입 버튼이 안 보이는 형태로 나타난다.
+     100% 는 #login 의 콘텐츠 박스(=실제 보이는 높이 - padding)에 정확히 맞으므로 vh 가 필요 없다. */
+.lcard { max-height: 100%; overflow-y: auto; }
 .lcard .chiprow { margin-top: 2px; }
 .lcard .hint a { color: var(--brand-dk); font-weight: 700; text-decoration: none; }
 .lcard .hint a:hover { text-decoration: underline; }

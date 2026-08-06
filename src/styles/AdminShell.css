@@ -324,7 +324,9 @@
   .overlay:has(.pform-modal), .overlay:has(.confirm-modal) { align-items: flex-start; }
   .modal.pform-modal, .modal.confirm-modal {
     margin: 8px 0 calc(78px + env(safe-area-inset-bottom));
-    max-height: calc(100vh - 96px - env(safe-area-inset-bottom));
+    /* dvh(동적 뷰포트) — 100vh 는 주소창이 숨겨진 상태의 높이라 모바일에서 모달 아래가 잘린다.
+       프로그램 등록 폼처럼 긴 모달에서 저장 버튼이 안 보이는 형태로 나타난다. */
+    max-height: calc(100dvh - 96px - env(safe-area-inset-bottom));
   }
 }
 @media (max-width: 600px) {
