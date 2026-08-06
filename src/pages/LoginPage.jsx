@@ -280,7 +280,10 @@ export default function LoginPage() {
         <div className="hint">
           계정이 없으신가요? <Link to="/signup">회원가입</Link>
         </div>
-        <div className="hint">Accumu — 참여·인증 기반 커리어 포트폴리오</div>
+        {/* 장식 문구다. 좁은 화면에서는 숨긴다(아래 CSS) — 로고·태그가 이미 같은 말을 한다.
+            [:last-child 로 숨기지 않는 이유] 가입 화면에는 .hint 가 "이미 계정이 있나요? 로그인"
+            하나뿐이라, 위치로 고르면 그 필수 링크가 사라진다. 그래서 전용 클래스로 지목한다. */}
+        <div className="hint tagline">Accumu — 참여·인증 기반 커리어 포트폴리오</div>
       </div>
     </div>
   );

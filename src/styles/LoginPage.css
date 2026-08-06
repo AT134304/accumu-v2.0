@@ -1,27 +1,29 @@
 /* Accumu v2 — 로그인 화면 (Accumu_prototype.html #login/.lcard 스타일 재사용) */
+/* [★ position:fixed 를 버리고 일반 흐름으로 되돌린다 — 2026-08-06]
+   원래는 화면을 덮는 고정 레이어 안에서 카드를 중앙 정렬하고, 카드가 길면 카드 안에서
+   스크롤시켰다. 모바일에서 이 구조가 만든 문제가 두 가지다:
+
+     1. **기준 어긋남** — 고정 레이어의 기준은 레이아웃 뷰포트다. 주소창·툴바·안전영역 때문에
+        그 크기가 실제로 보이는 영역과 다르고, 무언가 1px 이라도 넘치면 레이아웃 뷰포트가
+        더 넓어진다. 그 안에서 중앙 정렬한 카드는 **보이는 화면 기준으로는 치우쳐 보인다.**
+     2. **닿지 않는 하단** — 카드가 화면보다 길면 카드 *내부* 스크롤이 생긴다. 모바일에서는
+        내부 스크롤바가 보이지 않아 페이지를 아무리 밀어도 카드 아래쪽이 나오지 않는다.
+        가입 화면의 "이미 계정이 있나요? 로그인" 이 사라진 것처럼 보인 원인이 이것이다.
+
+   일반 흐름 + min-height:100dvh + flex 중앙 정렬로 바꾸면 둘 다 사라진다. 내용이 짧으면
+   화면 중앙에 오고, 길면 **페이지가 그냥 스크롤된다**(잘리지 않고, 내부 스크롤도 없다). */
 #login {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background:
     radial-gradient(900px 600px at 78% 12%, rgba(99, 102, 241, .12), transparent 60%),
     radial-gradient(820px 540px at 12% 92%, rgba(37, 99, 235, .14), transparent 60%),
     var(--bg);
-  /* [모바일에서 카드가 한쪽으로 치우쳐 보이던 원인 — 2026-08-06 수정]
-     index.html 이 viewport-fit=cover 를 쓰므로 이 고정 레이어는 노치·홈인디케이터·브라우저
-     하단 툴바 **아래까지** 덮는다. 그 전체를 기준으로 중앙 정렬하면, 실제로 보이는 영역에서는
-     카드가 안전영역이 큰 쪽으로 밀려 보인다(세로 툴바 쪽 / 가로 모드에서는 노치 쪽).
-     안전영역과 20px 중 큰 값을 여백으로 잡아 "보이는 영역의 중앙"에 맞춘다. */
+  /* viewport-fit=cover 를 쓰므로 노치·홈인디케이터를 피한다 */
   padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
            max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
-  /* [축을 반드시 따로 적는다 — 2026-08-06]
-     overflow-y 만 적으면 overflow-x 는 visible 로 남는데, 한 축이 visible 이고 다른 축이
-     아니면 CSS 규칙상 visible 이 **auto 로 계산된다**. 즉 세로 스크롤을 허용하려다
-     가로 스크롤까지 열리고, 그 순간 카드가 좌우로 밀린다(실제로 밟은 문제).
-     세로는 안전망으로 열되(카드가 영역을 넘겼을 때 닿을 수 있게), 가로는 명시적으로 막는다. */
-  overflow-x: hidden;
-  overflow-y: auto;
 }
 
 .lcard {
@@ -141,16 +143,12 @@
   padding: 10px 12px; font-size: 13px; font-weight: 600; margin-bottom: 13px;
 }
 
-/* 가입 화면은 입력이 많아 카드가 길어진다 — 작은 화면에서 잘리지 않게 스크롤을 허용한다.
-   [★ 100vh 를 쓰면 모바일에서 카드가 잘린다 — 2026-08-06 수정]
-     모바일 브라우저의 100vh 는 "주소창이 숨겨진 상태"의 높이라 실제 보이는 영역보다 크다.
-     #login 은 position:fixed + overflow:hidden 이므로 카드가 컨테이너보다 커지면 위아래가
-     잘리고 **스크롤로 닿을 수도 없다**(그리드 중앙 정렬이라 넘친 부분이 양쪽으로 잘린다).
-     가입 화면처럼 입력이 많은 쪽에서 회원가입 버튼이 안 보이는 형태로 나타난다.
-     100% 는 #login 의 콘텐츠 박스(=실제 보이는 높이 - padding)에 정확히 맞으므로 vh 가 필요 없다. */
-.lcard { max-height: 100%; overflow-x: hidden; overflow-y: auto; }
-/* 카드 안에서 줄바꿈이 안 되는 긴 토큰(VITE_GOOGLE_CLIENT_ID 같은 코드 조각, 긴 이메일)이
-   카드를 밀어 넓히지 못하게 한다. 가로 스크롤의 씨앗은 대개 이런 한 단어다. */
+/* [max-height / 내부 스크롤을 두지 않는다 — 위 #login 주석 참고]
+   카드가 길면 페이지가 스크롤된다. 카드 안에서 스크롤시키면 모바일에서 스크롤바가 보이지 않아
+   "아래가 없는 화면"이 된다. 카드는 자기 높이대로 두는 것이 맞다. */
+.lcard { flex: none; }
+/* 줄바꿈이 안 되는 긴 토큰(VITE_GOOGLE_CLIENT_ID 같은 코드 조각, 긴 이메일)이 카드를 밀어
+   넓히지 못하게 한다. 가로 넘침의 씨앗은 대개 이런 한 단어다. */
 .lcard .snote code, .lcard .hint { overflow-wrap: anywhere; }
 .lcard .chiprow { margin-top: 2px; }
 .lcard .hint a { color: var(--brand-dk); font-weight: 700; text-decoration: none; }
@@ -191,9 +189,10 @@
   .lcard .social-hint { margin-top: 13px; }
   .socialbox { margin-top: 13px; gap: 7px; }
 
-  /* 마지막 줄("Accumu — 참여·인증 기반 커리어 포트폴리오")은 장식이다. 좁은 화면에서
-     이 한 줄 때문에 카드가 화면을 넘기면 그게 더 나쁘다. 로고·태그가 이미 같은 말을 한다. */
-  .lcard .hint:last-child { display: none; }
+  /* 장식 문구("Accumu — 참여·인증 기반 커리어 포트폴리오")만 숨긴다. 로고·태그가 같은 말을 한다.
+     [★ :last-child 로 고르면 안 된다] 가입 화면에는 .hint 가 "이미 계정이 있나요? 로그인"
+     하나뿐이라 위치로 지목하면 그 필수 링크가 사라진다 — 실제로 밟은 문제다. */
+  .lcard .tagline { display: none; }
 }
 
 @media (max-width: 430px) {
