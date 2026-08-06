@@ -14,9 +14,9 @@
 // [이 파일이 NaverLoginButton 을 대체했다 — 2026-08-06, ADR 0010]
 //   제공자가 둘이 되면서 "또는" 구분선을 누가 그리는가가 문제가 됐다. 버튼마다 그리면 구분선이
 //   두 번 나오고, 한쪽만 그리면 그쪽이 꺼졌을 때 사라진다. 블록이 구분선을 소유하는 것이 답이다.
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
-  isGoogleEnabled,
+  isGoogleConfigured,
   isNaverConfigured,
   startGoogleLogin,
   startNaverLogin,
@@ -59,21 +59,10 @@ function GoogleMark() {
 export default function SocialLogin({ mode = 'login' }) {
   const verb = mode === 'signup' ? '가입하기' : '로그인';
 
-  // 네이버: 클라이언트 ID 주입 여부라 동기로 알 수 있다.
+  // 두 제공자 모두 클라이언트 ID 주입 여부로 판단한다 — 같은 경로를 쓰므로 판정도 같다(ADR 0011).
   const naverReady = isNaverConfigured();
-  // 구글: 켜짐 여부를 아는 것은 Supabase 서버다. null = 아직 확인 중.
-  const [googleReady, setGoogleReady] = useState(null);
+  const googleReady = isGoogleConfigured();
   const [busy, setBusy] = useState('');
-
-  useEffect(() => {
-    let alive = true;
-    isGoogleEnabled().then((ok) => {
-      if (alive) setGoogleReady(ok);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   function handleNaver() {
     if (busy || !naverReady) return;
@@ -87,16 +76,15 @@ export default function SocialLogin({ mode = 'login' }) {
     }
   }
 
-  async function handleGoogle() {
+  function handleGoogle() {
     if (busy || !googleReady) return;
     setBusy('google');
     try {
-      await startGoogleLogin();
+      // 성공하면 페이지가 구글로 통째로 이동한다 — busy 를 풀 필요가 없다.
+      startGoogleLogin();
     } catch (err) {
-      // 여기까지 오면 이동이 시작되지 않은 것이다(제공자 꺼짐·네트워크 등). 버튼을 되살린다.
       console.error('[SocialLogin] 구글 로그인 시작 실패:', err);
       setBusy('');
-      setGoogleReady(false);
     }
   }
 
@@ -131,10 +119,9 @@ export default function SocialLogin({ mode = 'login' }) {
           네이버 로그인은 아직 설정되지 않았어요. <code>VITE_NAVER_CLIENT_ID</code>를 채우면 활성화됩니다.
         </div>
       )}
-      {googleReady === false && (
+      {!googleReady && (
         <div className="snote">
-          구글 로그인은 아직 설정되지 않았어요. Supabase 대시보드의 Authentication → Providers 에서
-          Google 을 켜면 활성화됩니다.
+          구글 로그인은 아직 설정되지 않았어요. <code>VITE_GOOGLE_CLIENT_ID</code>를 채우면 활성화됩니다.
         </div>
       )}
     </div>

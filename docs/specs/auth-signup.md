@@ -50,7 +50,7 @@
 | 항목 | 결정 |
 |---|---|
 | 제공자 | **네이버 + 구글 2종.** 카카오·페이스북은 계속 없다 |
-| 구글 구현 방식 | Supabase 기본 `signInWithOAuth({provider:'google'})`. Edge Function·콜백 라우트·`VITE_` 환경변수 **전부 불필요**. 활성 여부는 `/auth/v1/settings` 의 `external.google` 로 판정한다(ADR 0010 결정 4) |
+| 구글 구현 방식 | ~~Supabase 기본 `signInWithOAuth`~~ → **2026-08-06 케빈 결정: 네이버와 같은 방식**(ADR 0011). Edge Function `google-auth` + 콜백 화면 `/auth/google` + `VITE_GOOGLE_CLIENT_ID`. 활성 여부도 네이버와 같이 클라이언트 ID 유무로 판정한다 |
 | 구현 방식 | Supabase 의 소셜 경로를 쓰지 않는다. **Edge Function `naver-auth`** 가 `code → token → 프로필 → 계정 → 매직링크 토큰`을 잇고, 프런트가 `verifyOtp` 로 세션을 만든다 |
 | **role** | 네이버 계정은 **언제나 `student` / `personal`** 이다. Edge Function 이 `createUser` 에 넘기는 metadata 가 `{ name }` 뿐이라 트리거의 "(c) 개인 이메일 가입" 분기를 탄다 → **네이버로 관리자가 되는 경로가 구조적으로 없다** |
 | 배치 | 버튼은 **학생 탭 + 개인 계정**에만 둔다. 학교 계정은 학번·이름 대조가 로그인의 일부라 대체할 수 없고, 관리자 탭에 두면 되지 않는 경로를 약속하는 셈이다 |
@@ -135,12 +135,12 @@
 
 ### Supabase 대시보드 설정 (코드로 못 하는 것)
 - **Authentication → Email → "Confirm email" 을 꺼야 한다.** 가상 이메일(`{code}@accumu.local`)은 실제로 메일을 받을 수 없어, 켜져 있으면 가입은 되는데 로그인이 막힌다. (켜진 상태로 시도하면 무료 플랜 메일 한도에 걸려 `over_email_send_rate_limit`(429)로 실패한다 — 실제로 밟은 함정이다.)
-- **구글 (ADR 0010)** — 이쪽은 Supabase Providers 설정이 **맞다.**
+- **구글 (ADR 0011)** — 네이버와 같다. Supabase Providers 설정이 **아니다.**
   1. Google Cloud Console → 사용자 인증 정보 → OAuth 클라이언트 ID(웹) 생성
-  2. **승인된 리디렉션 URI = Supabase 콜백** `https://<project-ref>.supabase.co/auth/v1/callback` (앱 주소가 아니다 — 네이버와 반대)
-  3. Supabase → Authentication → Providers → Google 켜고 Client ID / Secret 입력
-  4. Supabase → Authentication → URL Configuration → Site URL + Additional Redirect URLs 에 `http://localhost:5173/**` 와 배포 주소 등록. **빠지면 구글 인증은 되는데 앱으로 못 돌아온다.**
-  5. 프런트 환경변수 추가 없음
+  2. **승인된 리디렉션 URI = 앱 주소** `http://localhost:5173/auth/google` (Supabase 콜백이 아니다)
+  3. 클라이언트 ID → `.env.local` 의 `VITE_GOOGLE_CLIENT_ID`
+  4. 클라이언트 Secret → **Edge Function 환경변수로만**: `supabase secrets set GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...`
+  5. `supabase functions deploy google-auth --no-verify-jwt`
 - **네이버 (ADR 0009)** — Supabase Providers 설정이 **아니다.**
   1. [developers.naver.com/apps](https://developers.naver.com/apps) 에서 애플리케이션 등록 → 사용 API `네이버 로그인`, 제공 정보 `이메일 · 이름`
   2. **Callback URL = 앱 주소** `http://localhost:5173/auth/naver` (Supabase 콜백이 아니다)

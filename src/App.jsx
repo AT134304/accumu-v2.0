@@ -8,6 +8,7 @@ import AdminLayout from './routes/AdminLayout';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import NaverCallbackPage from './pages/NaverCallbackPage';
+import GoogleCallbackPage from './pages/GoogleCallbackPage';
 import StudentHomePage from './pages/StudentHomePage';
 import StudentProgramsPage from './pages/StudentProgramsPage';
 import StudentArchivePage from './pages/StudentArchivePage';
@@ -34,6 +35,9 @@ export default function App() {
           {/* 네이버 로그인 콜백 (ADR 0009) — 네이버 개발자센터에 등록하는 Callback URL 이 이 주소다.
               구글·카카오와 달리 Supabase 콜백을 거치지 않고 앱으로 직접 돌아온다. */}
           <Route path="/auth/naver" element={<NaverCallbackPage />} />
+          {/* 구글 로그인 콜백 (ADR 0011) — 네이버와 같은 형태다. Supabase 콜백이 아니라 앱으로
+              직접 돌아오므로, Google Cloud Console 의 승인된 리디렉션 URI 가 곧 이 주소다. */}
+          <Route path="/auth/google" element={<GoogleCallbackPage />} />
 
           {/* 학생 화면 — ProtectedRoute(role="student") 안쪽에서만 공통 셸이 렌더된다.
               /student/* 전체가 한 번의 role 검사를 공유하므로 권한 경계는 그대로다. */}

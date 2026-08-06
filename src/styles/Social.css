@@ -43,6 +43,20 @@
   border-radius: 5px; padding: 1px 5px;
 }
 
+/* ---------- 콜백 처리 화면 (/auth/naver · /auth/google 공용) ----------
+   제공자에서 돌아와 code 를 세션으로 바꾸는 동안 잠깐 보인다. 두 제공자가 같은 경로를 쓰므로
+   화면도 하나다(ADR 0011). 100dvh 를 쓰는 이유는 아래 반응형 주석 참고. */
+.social-callback { display: grid; place-items: center; min-height: 100dvh; padding: 24px; }
+.social-callback .box { text-align: center; max-width: 340px; }
+.social-callback h2 { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
+.social-callback p { margin-top: 8px; font-size: 13.5px; color: var(--muted); line-height: 1.6; }
+.social-callback .back {
+  display: inline-block; margin-top: 18px; height: 42px; line-height: 42px; padding: 0 20px;
+  border-radius: 11px; background: var(--ink); color: #fff; font-weight: 700; font-size: 14px;
+  text-decoration: none;
+}
+.social-callback .back:hover { background: var(--brand); }
+
 @media (max-width: 430px) {
   .sbtn { height: 42px; font-size: 13.5px; }
 }

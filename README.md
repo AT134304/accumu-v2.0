@@ -95,32 +95,39 @@ npx supabase secrets set NAVER_CLIENT_ID=... NAVER_CLIENT_SECRET=...
 npx supabase functions deploy naver-auth --no-verify-jwt
 ```
 
-## 구글 로그인 설정 (ADR 0010)
+## 구글 로그인 설정 (ADR 0011)
 
-**네이버와 정반대다.** 네이버는 앱 주소로 돌아오지만 **구글은 Supabase 콜백으로 돌아온다.** 이걸 반대로 넣는 게 가장 흔한 실수다.
+**네이버와 완전히 같은 방식이다.** Supabase Providers 설정이 아니다 — 구글도 Supabase가 지원하지만 의도적으로 쓰지 않는다(제공자마다 고장났을 때 볼 곳이 갈리면 시연 중에 원인을 못 찾는다).
 
 | | 네이버 | 구글 |
 |---|---|---|
 | 리디렉션 URI 등록 위치 | 네이버 개발자센터 | Google Cloud Console |
-| 등록하는 값 | **앱 주소** `https://<앱>/auth/naver` | **Supabase 콜백** `https://<project-ref>.supabase.co/auth/v1/callback` |
-| 프런트 환경변수 | `VITE_NAVER_CLIENT_ID` 필요 | **없음** |
-| 서버 코드 | Edge Function `naver-auth` | **없음** |
+| 등록하는 값 | **앱 주소** `https://<앱>/auth/naver` | **앱 주소** `https://<앱>/auth/google` |
+| 프런트 환경변수 | `VITE_NAVER_CLIENT_ID` | `VITE_GOOGLE_CLIENT_ID` |
+| Secret 위치 | `supabase secrets` | `supabase secrets` |
+| 서버 코드 | Edge Function `naver-auth` | Edge Function `google-auth` |
 
 설정 순서:
 
 1. **Google Cloud Console** ([console.cloud.google.com](https://console.cloud.google.com)) → 프로젝트 생성 → API 및 서비스 → OAuth 동의 화면 (External, 앱 이름·지원 이메일만 채우면 됨)
 2. 사용자 인증 정보 → 사용자 인증 정보 만들기 → **OAuth 클라이언트 ID** → 웹 애플리케이션
-   - 승인된 리디렉션 URI: `https://<project-ref>.supabase.co/auth/v1/callback`
-3. **Supabase** → Authentication → Providers → **Google** 토글 ON → 2단계에서 받은 Client ID / Client Secret 붙여넣기 → Save
-4. **Supabase** → Authentication → **URL Configuration**
-   - Site URL: 배포 주소
-   - Additional Redirect URLs: `http://localhost:5173/**`, `https://<배포주소>/**`
-   - **이 단계를 빼먹으면 구글 인증은 성공하는데 앱으로 돌아오지 못한다.** 증상이 "로그인했는데 로그인 화면으로 되돌아옴"이라 원인을 찾기 어렵다.
-5. 프런트 재배포 불필요 — 구글은 빌드에 박히는 값이 없다.
+   - 승인된 리디렉션 URI (**앱 주소다. Supabase 콜백이 아니다**):
+     ```
+     http://localhost:5173/auth/google
+     https://<배포주소>/auth/google
+     ```
+3. **클라이언트 ID** → `.env.local` 의 `VITE_GOOGLE_CLIENT_ID` (+ Vercel 환경변수). 빌드에 박히므로 **값을 바꾸면 재배포해야 한다.**
+4. **클라이언트 Secret** → Edge Function 환경변수로만:
+   ```bash
+   npx supabase secrets set GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
+   npx supabase functions deploy google-auth --no-verify-jwt
+   ```
 
-**설정이 안 됐을 때의 화면**: 버튼이 비활성 + "Supabase 대시보드의 Authentication → Providers 에서 Google 을 켜면 활성화됩니다" 안내. 앱이 `/auth/v1/settings`의 `external.google`을 읽어 판단하므로, 대시보드에서 켜면 **새로고침만으로 살아난다**(ADR 0010 결정 4).
+**설정이 안 됐을 때의 화면**: 버튼이 비활성 + "`VITE_GOOGLE_CLIENT_ID`를 채우면 활성화됩니다" 안내. 네이버와 같은 판정이다.
 
 **테스트 중 "액세스 차단됨" 이 뜨면**: OAuth 동의 화면이 테스트 모드라 그렇다. 테스트 사용자에 본인 구글 계정을 추가하거나 앱을 게시하면 된다.
+
+**Supabase 대시보드에서 Google Provider를 켜 뒀다면 꺼도 된다** — 그 경로는 더 이상 쓰지 않는다.
 
 ## 참고
 

@@ -371,66 +371,105 @@ export async function completeNaverLogin({ code, state }) {
 }
 
 /* ==========================================================================
-   구글 로그인 (ADR 0010 — 2026-08-06 케빈 결정으로 되살림)
+   구글 로그인 — Edge Function 직접 교환 (ADR 0011)
 
-   [네이버와 무엇이 다른가] 구글은 Supabase 가 기본 지원한다. 그래서 이 파일에 있는 것이 전부다 —
-     Edge Function 도, service_role 도, 콜백 라우트도 새로 만들지 않는다. 세션은 Supabase 가
-     리다이렉트로 직접 만들어주고, AuthContext 의 onAuthStateChange 소셜 분기가 프로필을 읽는다.
+   [ADR 0010 의 번복] 처음에는 Supabase 기본 제공자(signInWithOAuth)로 붙였다. 케빈 결정으로
+     **네이버와 같은 방식**으로 바꿨다. 이유는 기능이 아니라 운영이다 — 제공자마다 고장났을 때
+     볼 곳이 다르면(한쪽은 함수 로그, 한쪽은 대시보드 토글) 시연 중에 원인을 못 찾는다.
+     아래 코드가 네이버 블록과 거의 같은 모양인 것은 의도된 것이다.
 
-   [★ 구글로도 관리자가 될 수 없다 — 네이버와 같은 이유] 계정을 만드는 것은 Supabase Auth 이고
-     그때 raw_app_meta_data.provider 가 'google' 이 된다. handle_new_user() 의 (b) 소셜 분기가
-     role 을 'student', account_type 을 'personal' 로 고정한다(마이그레이션 20260731140000).
-     이 파일이 role/초대코드를 실을 자리는 존재하지 않는다. 마이그레이션이 필요 없는 것도 그래서다.
+   [★ 구글로도 관리자가 될 수 없다] Edge Function 이 계정을 만들 때 metadata 에 name 만 넣는다.
+     그러면 handle_new_user() 트리거의 "(c) 개인 이메일 가입" 분기를 타 학생 · 개인 계정으로 고정된다.
+     이 파일이 role 이나 초대코드를 보낼 자리는 존재하지 않는다.
+
+   [가입/로그인 구분이 없다] 첫 방문이면 계정이 생기고 아니면 로그인된다. 두 화면이 같은 버튼을 쓴다.
    ========================================================================== */
 
-/**
- * 이 프로젝트에서 켜져 있는 소셜 제공자 목록. (예: `{ google: true, naver: false, ... }`)
- *
- * [왜 VITE_ 플래그를 새로 만들지 않는가] 구글의 활성 여부를 아는 것은 서버(Supabase 대시보드)다.
- *   프런트에 플래그를 하나 더 두면 대시보드를 껐는데 버튼은 살아 있는 상태가 생긴다 — 화면이
- *   거짓말을 하게 된다. GoTrue 의 공개 설정 엔드포인트를 읽어 서버의 사실을 그대로 쓴다.
- * [한 번만 읽는다] 응답을 모듈 수준 Promise 로 캐시한다. 로그인/가입 화면을 오갈 때마다
- *   요청이 나가지 않는다. 실패하면 "켜진 제공자 없음"으로 본다(fail-closed — 없는 버튼을 살리지 않는다).
- */
-let socialSettingsPromise = null;
-export function fetchEnabledSocialProviders() {
-  if (!socialSettingsPromise) {
-    socialSettingsPromise = fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/settings`, {
-      headers: { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => data?.external ?? {})
-      .catch((err) => {
-        console.error('[authService] 소셜 제공자 설정 조회 실패:', err);
-        return {};
-      });
-  }
-  return socialSettingsPromise;
-}
+const GOOGLE_STATE_KEY = 'accumu:google_state';
 
-/** 구글이 Supabase 대시보드에서 켜져 있는가. 버튼을 활성화할지 판단하는 데 쓴다. */
-export async function isGoogleEnabled() {
-  const providers = await fetchEnabledSocialProviders();
-  return Boolean(providers.google);
+/** 구글 로그인이 설정돼 있는가(클라이언트 ID 주입 여부). 버튼을 그릴지 판단하는 데 쓴다. */
+export function isGoogleConfigured() {
+  return Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
 }
 
 /**
- * 구글 인증 화면으로 이동한다. 성공하면 페이지가 통째로 구글로 넘어간다.
+ * 구글 인증 화면으로 이동한다.
  *
- * [redirectTo 가 앱 루트인 이유] 네이버는 우리가 code 를 직접 교환해야 해서 전용 화면(/auth/naver)이
- *   필요했다. 구글은 Supabase 가 교환까지 끝내고 세션을 URL 에 실어 돌려주므로, supabase-js 가
- *   그것을 자동으로 집어 세션을 만든다(detectSessionInUrl). 그래서 새 라우트가 필요 없고
- *   `/` 의 RootRedirect 가 role 에 맞는 홈으로 보낸다.
- * [state/CSRF 를 우리가 다루지 않는다] 네이버와 달리 Supabase 가 처리한다. 그 차이가 구글 쪽
- *   코드가 이렇게 짧은 이유이며, 네이버 쪽 코드를 이 모양으로 줄일 수 없는 이유이기도 하다.
+ * [state 는 CSRF 방어다] 네이버와 같은 규율 — 여기서 만들어 sessionStorage 에 넣고 돌아왔을 때
+ *   대조한다. 대조 실패면 code 를 교환하지 않는다. Supabase 경로를 버린 대가로 우리가 진다.
+ * [redirect_uri 는 앱 주소다] Supabase 콜백이 아니라 우리 앱으로 직접 돌아온다. 그래서 Google Cloud
+ *   Console 에 등록하는 승인된 리디렉션 URI 가 곧 이 값이다(네이버와 같은 형태가 됐다).
+ * [scope] openid·email·profile 셋뿐이다. 그 이상은 요구하지 않는다 — 계정 식별에 필요한 최소값이다.
  */
-export async function startGoogleLogin() {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: `${window.location.origin}/` },
+export function startGoogleLogin() {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  if (!clientId) throw new Error('GOOGLE_NOT_CONFIGURED');
+
+  const state = crypto.randomUUID();
+  sessionStorage.setItem(GOOGLE_STATE_KEY, state);
+
+  const redirectUri = `${window.location.origin}/auth/google`;
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    state,
+    scope: 'openid email profile',
+    // 계정 선택 화면을 항상 띄운다 — 1인 시연에서 계정을 바꿔가며 보여줘야 하는데,
+    // 이게 없으면 이전에 고른 계정으로 조용히 로그인돼 "안 바뀐다"로 읽힌다.
+    prompt: 'select_account',
   });
+
+  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
+
+/** 구글 로그인 실패 사유 → 화면 문구. 설정 문제와 사용자 문제를 섞지 않는다. */
+const GOOGLE_REASON_TEXT = {
+  state_mismatch: '로그인 요청이 만료됐어요. 처음부터 다시 시도해 주세요.',
+  denied: '구글 로그인을 취소했어요.',
+  not_configured: '구글 로그인이 아직 설정되지 않았어요. (google-auth 함수의 키를 확인해주세요)',
+  token_exchange_failed: '구글 인증에 실패했어요. 잠시 후 다시 시도해 주세요.',
+  profile_failed: '구글 프로필을 가져오지 못했어요. 동의 항목을 확인해주세요.',
+  create_failed: '계정을 만들지 못했어요. 잠시 후 다시 시도해 주세요.',
+  session_failed: '로그인 세션을 만들지 못했어요. 잠시 후 다시 시도해 주세요.',
+  function_missing: '구글 로그인 함수(google-auth)가 배포되지 않았어요.',
+};
+
+export function googleReasonText(reason) {
+  return GOOGLE_REASON_TEXT[reason] ?? '구글 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.';
+}
+
+/**
+ * 구글이 돌려준 code 를 세션으로 바꾼다. /auth/google 콜백 화면이 호출한다.
+ *
+ * [code 는 1회용이다] 두 번 교환하면 실패한다 — 호출부는 StrictMode 이중 실행을 ref 로 막아야 한다.
+ * [세션은 verifyOtp 로 만든다] Edge Function 이 발급한 매직링크 token_hash 를 교환한다.
+ *   Admin API 로는 access_token 을 직접 만들 수 없어서 택한 경로다(네이버와 같다).
+ */
+export async function completeGoogleLogin({ code, state }) {
+  const saved = sessionStorage.getItem(GOOGLE_STATE_KEY);
+  sessionStorage.removeItem(GOOGLE_STATE_KEY);
+  if (!saved || saved !== state) return { ok: false, reason: 'state_mismatch' };
+
+  const { data, error } = await supabase.functions.invoke('google-auth', { body: { code, state } });
+
   if (error) {
-    console.error('[authService] 구글 로그인 시작 실패:', error);
-    throw error;
+    console.error('[authService] google-auth 호출 실패:', error);
+    // 함수가 아직 배포되지 않은 경우와 함수 내부 실패를 구분해준다.
+    const status = error.context?.status;
+    if (status === 404) return { ok: false, reason: 'function_missing' };
+    return { ok: false, reason: 'unknown' };
   }
+  if (!data?.token_hash) return { ok: false, reason: data?.error ?? 'unknown' };
+
+  const { error: otpError } = await supabase.auth.verifyOtp({
+    token_hash: data.token_hash,
+    type: 'magiclink',
+  });
+  if (otpError) {
+    console.error('[authService] 세션 교환 실패:', otpError);
+    return { ok: false, reason: 'session_failed' };
+  }
+
+  return { ok: true };
 }
