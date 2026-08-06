@@ -343,8 +343,13 @@
   .rpanel .t { font-size: 18px; }
   .manual form { flex-direction: column; }
   .manual button { width: 100%; }
-  .adm-row.prog .adm-acts { width: 100%; margin-left: 53px; }
-  .adm-row.prog .adm-act { flex: 1; justify-content: center; }
+  /* [width:100% + margin-left:53px 는 행보다 53px 넓다 — 2026-08-06 수정]
+     들여쓰기(아이콘 40px + gap 13px)를 맞추려고 margin 을 줬는데 너비에서 빼지 않아,
+     .adm-acts 가 flex-shrink:0 인 탓에 줄어들지도 못하고 오른쪽으로 통째로 튀어나갔다.
+     600px 블록의 .info 는 calc 로 처리돼 있는데 여기만 빠져 있었다. */
+  .adm-row.prog .adm-acts { width: calc(100% - 53px); margin-left: 53px; }
+  /* 버튼 글자가 길어도(수정 / 내리기) 칸을 밀어내지 않게 한다 */
+  .adm-row.prog .adm-act { flex: 1; min-width: 0; justify-content: center; white-space: nowrap; }
   .pf-actions { flex-direction: column-reverse; }
   .pf-btn.ghost { flex: none; width: 100%; }
 }

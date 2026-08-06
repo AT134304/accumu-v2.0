@@ -32,7 +32,13 @@
 /* scrollbar-gutter: 스크롤바 자리를 항상 비워둔다. 모달이 열릴 때 body overflow 를 hidden 으로
    잠그면 데스크톱 스크롤바가 사라지면서 뒷 페이지가 좌우로 몇 px 튀는데, 모달 딤을 없앤 뒤로는
    그 움직임이 그대로 보인다. 자리를 미리 확보해 두면 잠금/해제에도 레이아웃이 고정된다. */
-html { scrollbar-gutter: stable; }
+/* [모바일에서는 걸지 않는다 — 2026-08-06]
+   모바일은 오버레이 스크롤바라 얻을 것이 없는데, 브라우저가 실제로 자리를 잡아버리면
+   position:fixed 로 화면 전체를 덮는 레이어(#login)와 기준 폭이 어긋난다. 그 레이어 안에서
+   중앙 정렬한 카드가 거터 폭의 절반만큼 한쪽으로 밀려 보인다. 마우스 환경에서만 적용한다. */
+@media (pointer: fine) {
+  html { scrollbar-gutter: stable; }
+}
 html, body, #root { height: 100%; }
 body {
   font-family: var(--font);

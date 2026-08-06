@@ -8,8 +8,16 @@
     radial-gradient(900px 600px at 78% 12%, rgba(99, 102, 241, .12), transparent 60%),
     radial-gradient(820px 540px at 12% 92%, rgba(37, 99, 235, .14), transparent 60%),
     var(--bg);
-  padding: 20px;
-  overflow: hidden;
+  /* [모바일에서 카드가 한쪽으로 치우쳐 보이던 원인 — 2026-08-06 수정]
+     index.html 이 viewport-fit=cover 를 쓰므로 이 고정 레이어는 노치·홈인디케이터·브라우저
+     하단 툴바 **아래까지** 덮는다. 그 전체를 기준으로 중앙 정렬하면, 실제로 보이는 영역에서는
+     카드가 안전영역이 큰 쪽으로 밀려 보인다(세로 툴바 쪽 / 가로 모드에서는 노치 쪽).
+     안전영역과 20px 중 큰 값을 여백으로 잡아 "보이는 영역의 중앙"에 맞춘다. */
+  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+           max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  /* hidden 이면 어떤 이유로든 카드가 영역을 넘겼을 때 스크롤로 닿을 수 없다(그때가 곧 "잘림"이다).
+     .lcard 의 max-height:100% 가 1차 방어이고, 이건 그게 뚫렸을 때의 안전망이다. */
+  overflow-y: auto;
 }
 
 .lcard {
