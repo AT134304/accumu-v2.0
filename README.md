@@ -95,6 +95,33 @@ npx supabase secrets set NAVER_CLIENT_ID=... NAVER_CLIENT_SECRET=...
 npx supabase functions deploy naver-auth --no-verify-jwt
 ```
 
+## 구글 로그인 설정 (ADR 0010)
+
+**네이버와 정반대다.** 네이버는 앱 주소로 돌아오지만 **구글은 Supabase 콜백으로 돌아온다.** 이걸 반대로 넣는 게 가장 흔한 실수다.
+
+| | 네이버 | 구글 |
+|---|---|---|
+| 리디렉션 URI 등록 위치 | 네이버 개발자센터 | Google Cloud Console |
+| 등록하는 값 | **앱 주소** `https://<앱>/auth/naver` | **Supabase 콜백** `https://<project-ref>.supabase.co/auth/v1/callback` |
+| 프런트 환경변수 | `VITE_NAVER_CLIENT_ID` 필요 | **없음** |
+| 서버 코드 | Edge Function `naver-auth` | **없음** |
+
+설정 순서:
+
+1. **Google Cloud Console** ([console.cloud.google.com](https://console.cloud.google.com)) → 프로젝트 생성 → API 및 서비스 → OAuth 동의 화면 (External, 앱 이름·지원 이메일만 채우면 됨)
+2. 사용자 인증 정보 → 사용자 인증 정보 만들기 → **OAuth 클라이언트 ID** → 웹 애플리케이션
+   - 승인된 리디렉션 URI: `https://<project-ref>.supabase.co/auth/v1/callback`
+3. **Supabase** → Authentication → Providers → **Google** 토글 ON → 2단계에서 받은 Client ID / Client Secret 붙여넣기 → Save
+4. **Supabase** → Authentication → **URL Configuration**
+   - Site URL: 배포 주소
+   - Additional Redirect URLs: `http://localhost:5173/**`, `https://<배포주소>/**`
+   - **이 단계를 빼먹으면 구글 인증은 성공하는데 앱으로 돌아오지 못한다.** 증상이 "로그인했는데 로그인 화면으로 되돌아옴"이라 원인을 찾기 어렵다.
+5. 프런트 재배포 불필요 — 구글은 빌드에 박히는 값이 없다.
+
+**설정이 안 됐을 때의 화면**: 버튼이 비활성 + "Supabase 대시보드의 Authentication → Providers 에서 Google 을 켜면 활성화됩니다" 안내. 앱이 `/auth/v1/settings`의 `external.google`을 읽어 판단하므로, 대시보드에서 켜면 **새로고침만으로 살아난다**(ADR 0010 결정 4).
+
+**테스트 중 "액세스 차단됨" 이 뜨면**: OAuth 동의 화면이 테스트 모드라 그렇다. 테스트 사용자에 본인 구글 계정을 추가하거나 앱을 게시하면 된다.
+
 ## 참고
 
 - `CLAUDE.md`가 5개 에이전트 전체가 공유하는 "헌법"입니다. 원칙·데이터 모델·디자인 시스템이 바뀌면 반드시 이 파일부터 수정하세요.

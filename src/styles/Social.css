@@ -1,0 +1,48 @@
+/* Accumu v2 — 소셜 로그인 블록 (네이버 · 구글 공용)
+
+   [★ 초록 금지 규칙과 충돌하지 않는다 — 반드시 읽을 것]
+     CLAUDE.md 8장은 앱 팔레트에서 초록 계열을 금지한다. 여기 쓰는 네이버 #03C75A 와
+     구글 마크의 4색(#EA4335/#4285F4/#FBBC05/#34A853)은 앱의 색이 아니라 **인용된 브랜드 자산**이다.
+     그래서 이 색들은
+     - 각 제공자 버튼 하나에만 쓰고,
+     - 토큰(--*)으로 승격하지 않으며,
+     - 상태 표시·성공/실패·강조 등 어떤 UI 의미로도 재사용하지 않는다.
+     이 세 줄을 어기는 순간 "초록 금지"가 실제로 깨진다.
+
+   [구분선을 블록이 소유한다] 제공자가 둘이라 버튼마다 "또는"을 그리면 두 번 나온다.
+     .sdiv 는 .socialbox 안에 한 번만 있다. */
+
+.socialbox { margin-top: 18px; display: flex; flex-direction: column; gap: 9px; }
+
+.sdiv { display: flex; align-items: center; gap: 10px; margin-bottom: 3px; }
+.sdiv::before,
+.sdiv::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.sdiv span { font-size: 11.5px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+
+/* 제공자 버튼 공통 골격. 색만 제공자별로 갈린다 — 크기·정렬이 어긋나면 두 버튼이 다른 부품처럼 보인다. */
+.sbtn {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  width: 100%; height: 44px; border-radius: 11px;
+  font-size: 14px; font-weight: 700; transition: .14s;
+}
+.sbtn:hover:not(:disabled) { transform: translateY(-1px); }
+.sbtn:disabled { background: var(--bg2); border-color: var(--line); color: var(--muted); cursor: not-allowed; transform: none; }
+/* 비활성일 때는 브랜드 마크도 함께 톤을 낮춘다(살아 있는 버튼처럼 보이지 않게) */
+.sbtn:disabled svg path { fill: var(--muted); }
+
+.sbtn-naver { background: #03C75A; border: 1px solid #03C75A; color: #fff; }
+.sbtn-naver:hover:not(:disabled) { background: #02B350; border-color: #02B350; }
+
+/* 구글은 흰 배경 + 테두리가 브랜드 규정이다. 네이버처럼 면으로 채우지 않는다. */
+.sbtn-google { background: #fff; border: 1px solid var(--line2); color: #3C4043; }
+.sbtn-google:hover:not(:disabled) { background: #F8F9FB; border-color: var(--line2); }
+
+.snote { margin-top: 2px; font-size: 11.5px; color: var(--muted); font-weight: 600; line-height: 1.55; }
+.snote code {
+  font-size: 11px; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 5px; padding: 1px 5px;
+}
+
+@media (max-width: 430px) {
+  .sbtn { height: 42px; font-size: 13.5px; }
+}

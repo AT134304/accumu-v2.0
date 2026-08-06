@@ -1,38 +1,10 @@
-/* Accumu v2 — 네이버 로그인 버튼 (로그인/가입 화면 공용)
+/* Accumu v2 — 네이버 콜백 처리 화면 전용 (/auth/naver)
 
-   [★ 초록 금지 규칙과 충돌하지 않는다 — 반드시 읽을 것]
-     CLAUDE.md 8장은 앱 팔레트에서 초록 계열을 금지한다. 여기 쓰는 #03C75A 는 앱의 색이 아니라
-     **인용된 브랜드 자산**이다(카카오 옐로, 페이스북 블루와 같은 성격). 그래서 이 색은
-     - 이 버튼 하나에만 쓰고,
-     - 토큰(--*)으로 승격하지 않으며,
-     - 상태 표시·성공/실패·강조 등 어떤 UI 의미로도 재사용하지 않는다.
-     이 세 줄을 어기는 순간 "초록 금지"가 실제로 깨진다. */
+   [버튼 스타일은 여기 없다 — 2026-08-06, ADR 0010]
+     제공자가 둘(네이버·구글)이 되면서 버튼·구분선은 styles/Social.css 로 옮겼다.
+     이 파일에는 **네이버에만 있는 것**, 즉 code 를 세션으로 바꾸는 동안 잠깐 뜨는 화면만 남는다.
+     구글은 Supabase 가 교환까지 끝내고 돌아오므로 이런 화면이 필요 없다(ADR 0010 결정 2). */
 
-.naverbox { margin-top: 18px; }
-
-.ndiv { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.ndiv::before,
-.ndiv::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-.ndiv span { font-size: 11.5px; color: var(--muted); font-weight: 600; white-space: nowrap; }
-
-.nbtn {
-  display: flex; align-items: center; justify-content: center; gap: 9px;
-  width: 100%; height: 44px; border-radius: 11px;
-  font-size: 14px; font-weight: 700; transition: .14s;
-  background: #03C75A; border: 1px solid #03C75A; color: #fff;
-}
-.nbtn:hover:not(:disabled) { background: #02B350; border-color: #02B350; transform: translateY(-1px); }
-.nbtn:disabled { background: var(--bg2); border-color: var(--line); color: var(--muted); cursor: not-allowed; transform: none; }
-/* 비활성일 때는 브랜드 마크도 함께 톤을 낮춘다(살아 있는 버튼처럼 보이지 않게) */
-.nbtn:disabled svg path { fill: var(--muted); }
-
-.nnote { margin-top: 8px; font-size: 11.5px; color: var(--muted); font-weight: 600; line-height: 1.55; }
-.nnote code {
-  font-size: 11px; background: var(--bg); border: 1px solid var(--line);
-  border-radius: 5px; padding: 1px 5px;
-}
-
-/* 콜백 처리 화면 — 네이버에서 돌아와 세션을 만드는 잠깐 동안 보인다 */
 .naver-callback { display: grid; place-items: center; min-height: 100vh; padding: 24px; }
 .naver-callback .box { text-align: center; max-width: 340px; }
 .naver-callback h2 { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
@@ -43,7 +15,3 @@
   text-decoration: none;
 }
 .naver-callback .back:hover { background: var(--brand); }
-
-@media (max-width: 430px) {
-  .nbtn { height: 42px; font-size: 13.5px; }
-}

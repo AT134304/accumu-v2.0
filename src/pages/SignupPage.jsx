@@ -14,7 +14,7 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import NaverLoginButton from '../components/NaverLoginButton';
+import SocialLogin from '../components/SocialLogin';
 import { signUpAdmin, signUpPersonal, signUpStudent, signupReasonText } from '../lib/authService';
 import { TRACK } from '../lib/taxonomy';
 // 계열 선택 칩(.chip/.chiprow/.chipdot)은 StudentShell.css 가 소유한 앱 공통 프리미티브다
@@ -361,10 +361,10 @@ export default function SignupPage() {
           </button>
         </form>
 
-        {/* 네이버는 개인 계정 수단이다 — 학교 계정·관리자 탭에는 두지 않는다.
-            네이버로 만들어지는 계정은 Edge Function 과 트리거가 언제나 학생·개인으로 고정하기 때문에,
+        {/* 소셜(네이버·구글)은 개인 계정 수단이다 — 학교 계정·관리자 탭에는 두지 않는다.
+            소셜로 만들어지는 계정은 트리거가 언제나 학생·개인으로 고정하기 때문에,
             다른 탭에 두면 되지 않는 경로를 약속하는 셈이 된다. */}
-        {isPersonal && <NaverLoginButton label="네이버로 가입하기" />}
+        {isPersonal && <SocialLogin mode="signup" />}
 
         <div className="hint">
           이미 계정이 있나요? <Link to="/login">로그인</Link>

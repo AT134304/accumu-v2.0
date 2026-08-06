@@ -133,3 +133,12 @@
 .lcard .chiprow { margin-top: 2px; }
 .lcard .hint a { color: var(--brand-dk); font-weight: 700; text-decoration: none; }
 .lcard .hint a:hover { text-decoration: underline; }
+
+/* 학교 계정 화면에서 개인 계정(=네이버) 쪽으로 건너가는 한 줄 (LoginPage 주석 참고).
+   버튼이지만 문장 안에 있으므로 링크처럼 보여야 한다 — 두 번째 CTA 로 읽히면 안 된다. */
+.lcard .social-hint { margin-top: 18px; }
+.lcard .linklike {
+  background: none; border: 0; padding: 0; font: inherit;
+  color: var(--brand-dk); font-weight: 700; cursor: pointer;
+}
+.lcard .linklike:hover { text-decoration: underline; }

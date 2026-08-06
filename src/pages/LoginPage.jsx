@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import NaverLoginButton from '../components/NaverLoginButton';
+import SocialLogin from '../components/SocialLogin';
 import { loginPersonal } from '../lib/authService';
 import '../styles/LoginPage.css';
 
@@ -257,9 +257,24 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* 네이버는 개인 계정 수단이다 — 관리자 탭과 학교 계정 탭에는 두지 않는다.
+        {/* 소셜(네이버·구글)은 개인 계정 수단이다 — 관리자 탭과 학교 계정 탭에는 두지 않는다.
             (학교 계정은 학번·이름 대조가 로그인의 일부라 소셜 계정으로 대체할 수 없다.) */}
-        {tab === 'student' && mode === 'personal' && <NaverLoginButton />}
+        {tab === 'student' && mode === 'personal' && <SocialLogin mode="login" />}
+
+        {/* [왜 학교 계정 화면에 이 줄이 있는가 — 2026-08-06]
+            소셜(네이버·구글)로 가입한 계정은 예외 없이 개인 계정인데, 이 화면의 기본값은 학교 계정이다.
+            그래서 소셜로 가입한 사람이 로그인하러 오면 "버튼이 아예 없다"로 읽힌다(실제로 밟은 문제).
+            버튼을 학교 계정에도 놓는 것은 ADR 0009/0010 을 깨는 일이다 — 학교 계정은 소셜로 로그인될 수
+            없으므로 되지 않는 경로를 약속하게 된다. 그래서 버튼 대신 **개인 계정으로 가는 길**을 놓는다.
+            제공자 설정 여부로 이 줄을 감추지 않는다 — 개인 계정은 이메일로도 만들어지므로 언제나 참이다. */}
+        {tab === 'student' && mode === 'school' && (
+          <div className="hint social-hint">
+            이메일·소셜로 가입하셨나요?{' '}
+            <button type="button" className="linklike" onClick={() => switchMode('personal')}>
+              개인 계정으로 로그인
+            </button>
+          </div>
+        )}
 
         <div className="hint">
           계정이 없으신가요? <Link to="/signup">회원가입</Link>
