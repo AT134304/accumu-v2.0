@@ -34,7 +34,7 @@ const PASSWORD_MIN = 6; // Supabase Auth 기본 최소 길이
 
 function LogoMark() {
   return (
-    <svg style={{ width: 54, height: 50 }} viewBox="0 0 32 30" aria-hidden="true">
+    <svg className="lmark" viewBox="0 0 32 30" aria-hidden="true">
       <rect x="2" y="19" width="5.4" height="9" rx="2.1" fill="#BCD0FF" />
       <rect x="9" y="14" width="5.4" height="14" rx="2.1" fill="#7098EE" />
       <rect x="16" y="9" width="5.4" height="19" rx="2.1" fill="#3463DA" />
