@@ -168,6 +168,31 @@ const ICONS = {
   },
 
   // ----- 유틸 -----
+  // 캘린더 월 이동. duotone 이 아니라 선 아이콘이다 — 방향 지시라 면이 있으면 오히려 읽기 나쁘다.
+  'ic-chevL': {
+    content: (
+      <path
+        d="M14.5 6 9 12l5.5 6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  'ic-chevR': {
+    content: (
+      <path
+        d="M9.5 6 15 12l-5.5 6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
   'ic-calendar': {
     content: (
       <>

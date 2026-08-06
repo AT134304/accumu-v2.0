@@ -1,12 +1,13 @@
 // Accumu v2 — 학생 공통 셸 (docs/specs/student-home.md "A. 상단 공통 셸")
 // Accumu_prototype.html <nav class="nav">(530~547줄) + <nav class="bottomnav">(670~675줄) 재현.
 // 이후 모든 학생 화면이 이 셸 안에서 렌더된다 (src/routes/StudentLayout.jsx).
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Icon from '../Icon';
-import Modal from '../Modal';
-import { fmtDate, monthTitle, todayISO } from '../../lib/date';
+import NotifPopup from './NotifPopup';
+import CalendarPopup from './CalendarPopup';
+import { fetchUnreadCount } from '../../lib/notificationService';
 import '../../styles/StudentShell.css';
 
 // 데스크톱 상단 메뉴 (모바일 ≤768px에서는 숨기고 하단 탭바로 대체)
@@ -29,11 +30,26 @@ const navClass = ({ isActive }) => (isActive ? 'on' : undefined);
 export default function StudentShell({ children }) {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  // 'notif' | 'calendar' | null — 확정 C: 아이콘 + 빈 상태 팝업(껍데기)
+  // 'notif' | 'calendar' | null
   const [popup, setPopup] = useState(null);
+  const [unread, setUnread] = useState(0);
 
   const points = profile?.points_balance ?? 0;
   const initial = profile?.name?.trim()?.[0] ?? '';
+
+  // [배지는 개수만 읽는다] 목록은 팝업이 열릴 때 조회한다. 셸이 전체 목록을 들고 있으면
+  // 모든 학생 화면이 알림 데이터에 묶인다 — 셸은 "안 읽은 게 있는가"만 알면 된다.
+  const refreshUnread = useCallback(() => {
+    if (!profile?.id) return;
+    fetchUnreadCount()
+      .then(setUnread)
+      .catch((err) => console.error('[StudentShell] 안 읽은 알림 조회 실패:', err));
+  }, [profile?.id]);
+
+  // 팝업이 닫힐 때도 다시 센다 — QR 퇴장 인증처럼 다른 화면에서 알림이 생겼을 수 있다.
+  useEffect(() => {
+    refreshUnread();
+  }, [refreshUnread, popup]);
 
   return (
     <>
@@ -60,10 +76,16 @@ export default function StudentShell({ children }) {
         <button type="button" className="bell" onClick={() => setPopup('calendar')} aria-label="활동 캘린더">
           <Icon name="ic-calendar" size={22} />
         </button>
-        <button type="button" className="bell" onClick={() => setPopup('notif')} aria-label="알림">
+        <button
+          type="button"
+          className="bell"
+          onClick={() => setPopup('notif')}
+          aria-label={unread > 0 ? `알림 ${unread}건` : '알림'}
+        >
           <Icon name="ic-bell" size={22} />
-          {/* 안 읽은 알림 dot(.ndot)은 notifications 테이블 도입 시 연결한다.
-              지금 dot을 띄우면 근거 없는 가짜 표시가 된다 (확정 C: 조회 금지). */}
+          {/* 확정 C 가 dot 을 금지했던 이유는 "근거 없는 가짜 표시"였다. 이제 실제 개수를 세므로
+              그 전제가 사라졌다. 9를 넘으면 9+ — 정확한 숫자를 키울 이유가 없다(원칙 1). */}
+          {unread > 0 && <span className="ndot">{unread > 9 ? '9+' : unread}</span>}
         </button>
 
         {/* 포인트는 나브 우측 구석에 작게/절제해서만 (절대 원칙 4 — 홈에 큰 잔액 배너 금지).
@@ -90,44 +112,9 @@ export default function StudentShell({ children }) {
       </nav>
 
       {popup === 'calendar' && <CalendarPopup onClose={() => setPopup(null)} />}
-      {popup === 'notif' && <NotifPopup onClose={() => setPopup(null)} />}
+      {popup === 'notif' && (
+        <NotifPopup onClose={() => setPopup(null)} onReadChange={refreshUnread} />
+      )}
     </>
-  );
-}
-
-/**
- * 활동 캘린더 — 빈 상태 팝업 (확정 C).
- * 월별 뷰/일정 데이터는 participations 도입 시 별도 스펙. 지금은 기준일만 실제 오늘로 보여준다.
- * 프로토타입 TODAY_ISO='2026-07-02' 하드코딩은 쓰지 않는다 (CLAUDE.md 9장).
- */
-function CalendarPopup({ onClose }) {
-  const now = new Date(); // 팝업을 열 때마다 실제 오늘을 다시 읽는다.
-  return (
-    <Modal onClose={onClose} labelledBy="cal-title">
-      <div className="mbody">
-        <div className="calhead">
-          <h3 id="cal-title">{monthTitle(now)}</h3>
-        </div>
-        <div className="cal-today">오늘 · {fmtDate(todayISO(now))}</div>
-        <div className="empty">
-          이 달에는 나의 활동 기록이 없어요.
-          <br />
-          활동에 참여하면 이곳에 일정이 표시됩니다.
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-/** 알림 — 빈 상태 팝업 (확정 C). notifications 테이블이 없어 조회하지 않는다. */
-function NotifPopup({ onClose }) {
-  return (
-    <Modal onClose={onClose} labelledBy="notif-title">
-      <div className="mbody">
-        <h3 id="notif-title">알림</h3>
-        {/* 빈 상태 문구는 프로토타입 1150줄 카피 그대로 */}
-        <div className="empty">새로운 알림이 없습니다.</div>
-      </div>
-    </Modal>
   );
 }

@@ -1,0 +1,84 @@
+/* Accumu v2 — 알림 · 활동 캘린더 팝업
+   Accumu_prototype.html 의 .ndot/.readall(352~358줄), 캘린더(360~389줄), 알림 목록(390~399줄)
+   값을 그대로 옮긴다. 껍데기(.overlay/.modal/.mbody)는 StudentShell.css 가 소유한다.
+
+   [원칙 1 가드가 CSS 에도 있다] 연속 참여 카운터·달성률 막대·순위 배지 스타일이 이 파일에 없다.
+     캘린더의 점(.dots i)은 계열 색이지 성취 표시가 아니고, 배지(.cb)는 상태 3종뿐이다. */
+
+/* ---------- 종 아이콘 배지 ---------- */
+.bell .ndot {
+  position: absolute; top: 5px; right: 5px; min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 9px; background: var(--rose); color: #fff; font-size: 10px; font-weight: 800;
+  display: grid; place-items: center; line-height: 1;
+}
+
+.readall { font-size: 12.5px; font-weight: 700; color: var(--brand-dk); padding: 4px 9px; border-radius: 8px; }
+.readall:hover:not(:disabled) { background: var(--brand-soft); }
+.readall:disabled { color: var(--muted); cursor: not-allowed; }
+
+.pop-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.pop-head h3 { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
+
+/* ---------- 알림 목록 ---------- */
+.notiflist { margin-top: 8px; }
+.nf { display: flex; gap: 12px; padding: 13px 2px; border-top: 1px solid var(--line); position: relative; }
+.nf:first-child { border-top: none; }
+.nf .nic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; }
+.nf .ninfo { flex: 1; min-width: 0; }
+.nf .ninfo h5 { font-size: 13.5px; font-weight: 700; color: var(--ink2); }
+.nf.unread .ninfo h5 { color: var(--ink); }
+.nf .nb { font-size: 12.5px; color: var(--ink2); margin-top: 2px; line-height: 1.45; overflow-wrap: anywhere; }
+.nf .nt { font-size: 11px; color: var(--muted); margin-top: 3px; }
+/* 안 읽음 표시는 점 하나다. 숫자·강조 배경을 쓰지 않는다 — 알림은 성취물이 아니다. */
+.nf.unread::after {
+  content: ""; position: absolute; right: 0; top: 18px;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--rose);
+}
+
+/* ---------- 캘린더 ---------- */
+.calhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.calhead button { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: var(--ink2); transition: .14s; }
+.calhead button:hover:not(:disabled) { background: var(--bg2); }
+.calhead button:disabled { opacity: .25; cursor: not-allowed; }
+.caltitle { font-size: 16.5px; font-weight: 800; letter-spacing: -.3px; }
+
+.cal-today { font-size: 12.5px; font-weight: 700; color: var(--brand-dk); margin-bottom: 10px; }
+
+.calgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.calgrid .dow { text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); padding: 2px 0 3px; align-self: center; }
+.calgrid .dow.sun { color: var(--rose); }
+.cday {
+  height: 38px; border-radius: 9px; display: flex; flex-direction: column; align-items: center;
+  padding-top: 4px; position: relative; font-size: 12px; font-weight: 600; color: var(--ink2);
+}
+.cday.empty { visibility: hidden; }
+.cday.has { cursor: pointer; background: var(--bg); }
+.cday.has:hover { background: var(--brand-soft); }
+.cday.today { background: var(--ink); color: #fff; }
+.cday.today .dn { color: #fff; }
+.cday .dots { display: flex; gap: 2px; margin-top: 2px; flex-wrap: wrap; justify-content: center; max-width: 32px; }
+.cday .dots i { width: 4px; height: 4px; border-radius: 50%; }
+
+.callist { margin-top: 14px; }
+.cev {
+  display: flex; align-items: center; gap: 11px; padding: 8px 6px; border-top: 1px solid var(--line);
+  transition: .12s; border-radius: 10px; margin: 0 -6px; width: calc(100% + 12px);
+  background: none; text-align: left; color: inherit;
+}
+.cev:first-of-type { border-top: none; }
+.cev:hover { background: var(--bg); }
+.cev .cevic { width: 31px; height: 31px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; }
+.cev .cevinfo { flex: 1; min-width: 0; }
+.cev .cevinfo h5 { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cev .cevinfo .m { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+
+/* 상태 배지 3종. 등급·점수가 아니라 "예정 / 참석 중 / 완료" 사실 표시다. */
+.cb { font-size: 10.5px; font-weight: 700; padding: 4px 9px; border-radius: 20px; white-space: nowrap; flex: none; }
+.cb.done { background: var(--brand-soft); color: var(--brand-dk); }
+.cb.ing { background: var(--indigo-soft); color: var(--indigo); }
+.cb.up { background: var(--amber-soft); color: var(--amber); }
+
+@media (max-width: 430px) {
+  .cday { height: 34px; font-size: 11.5px; }
+  .cev .cevinfo h5 { font-size: 12.5px; }
+}
