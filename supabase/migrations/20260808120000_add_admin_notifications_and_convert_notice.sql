@@ -26,23 +26,24 @@
 --   누가 신청했는지는 여전히 알 수 없다(= 명단은 닫힌 채로 남는다).
 --   >>> 이 알림의 detail 에 학생 이름·학번·인원수를 추가하지 말 것. 그 순간 명단이 열린다.
 --
+-- [선행 조건] **20260808100000_extend_notification_type.sql 을 먼저 실행할 것.**
+--   이 파일은 새 enum 값(convert/apply_admin/mentee/stale)이 이미 커밋돼 있다고 가정한다.
 --   재실행해도 안전하다.
 
 -- =========================================================
--- 1. 타입 확장
+-- 1. 타입 확장 — **이 파일에 없다. 20260808100000 을 먼저 실행할 것.**
 --
--- [enum 에 값을 더하는 이유 — 새 컬럼을 만들지 않는다]
+-- [★ enum 값 추가를 여기 두면 반드시 실패한다]
+--   Postgres 는 같은 트랜잭션에서 추가한 enum 값을 그 트랜잭션 안에서 쓰는 것을 금지한다(55P04).
+--   Supabase SQL Editor 는 스크립트 전체를 한 트랜잭션으로 실행하고, 아래 2번 절의 부분 인덱스
+--   술어(where type = 'stale')가 정확히 그 "사용"에 해당한다. 2026-08-08 에 실제로 걸렸다.
+--   재실행도 통하지 않는다 — 오류가 트랜잭션을 되돌리며 alter type 까지 함께 취소하기 때문이다.
+--   >>> 이 자리에 alter type ... add value 를 되돌려 놓지 말 것. 20260808100000 에 한 줄 추가할 것.
+--
+-- [enum 값을 늘리고 새 컬럼을 만들지 않는 이유]
 --   수신자가 학생인지 관리자인지는 recipient_id 가 가리키는 profiles.role 로 이미 정해진다.
 --   'is_admin_notice' 같은 플래그를 더하면 같은 사실이 두 곳에 생긴다.
---
--- [주의] alter type ... add value 는 같은 트랜잭션 안에서 그 값을 **사용**할 수 없다(PG 제약).
---   아래 함수들은 본문에 문자열로만 등장하고 실행은 런타임이라 문제가 없다.
---   혹시 "unsafe use of new value" 오류가 나면 이 스크립트를 한 번 더 실행하면 통과한다.
 -- =========================================================
-alter type public.notification_type add value if not exists 'convert';
-alter type public.notification_type add value if not exists 'apply_admin';
-alter type public.notification_type add value if not exists 'mentee';
-alter type public.notification_type add value if not exists 'stale';
 
 -- =========================================================
 -- 2. student_id -> recipient_id

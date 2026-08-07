@@ -17,16 +17,19 @@
 --   푸시 알림이 스코프 밖이라(CLAUDE.md 11장) 이건 구조적 한계이고, 감수한다.
 --   >>> 이걸 메우려고 pg_cron 을 켜지 말 것. 시연에서 확인할 수 없는 실패 지점이 는다.
 --
+-- [선행 조건] **20260808100000 → 20260808140000 순서로 실행할 것.**
+--   이 파일은 새 enum 값(upcoming/upcoming_admin/exit_due)이 이미 커밋돼 있다고 가정한다.
 --   재실행해도 안전하다.
 
 -- =========================================================
--- 1. 타입 확장
---   [주의] add value 는 같은 트랜잭션에서 그 값을 **사용**할 수 없다. 아래 함수 본문에는 문자열로만
---   등장하고 실행은 런타임이라 문제가 없다. "unsafe use of new value" 가 나면 한 번 더 실행하면 통과한다.
+-- 1. 타입 확장 — **이 파일에 없다. 20260808100000 이 소유한다.**
+--
+-- [★ 여기 두면 반드시 실패한다] Postgres 는 같은 트랜잭션에서 추가한 enum 값을 그 트랜잭션 안에서
+--   쓰는 것을 금지한다(55P04). Supabase SQL Editor 는 스크립트 전체를 한 트랜잭션으로 실행하고,
+--   아래 2번 절의 부분 인덱스 술어(where type in ('stale', ...))가 정확히 그 "사용"이다.
+--   재실행도 통하지 않는다 — 오류가 트랜잭션을 되돌리며 alter type 까지 함께 취소한다.
+--   >>> alter type ... add value 를 이 파일에 되돌려 놓지 말 것.
 -- =========================================================
-alter type public.notification_type add value if not exists 'upcoming';
-alter type public.notification_type add value if not exists 'upcoming_admin';
-alter type public.notification_type add value if not exists 'exit_due';
 
 -- =========================================================
 -- 2. 멱등 인덱스 — "수신자 x 프로그램 x 종류" 당 1회

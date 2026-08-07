@@ -186,8 +186,34 @@ ADR 0012의 `settle_my_points()` 루프 안에서 `notify_user`를 1회 부른�
 
 ---
 
+## 구현 시 주의 — enum 확장은 **반드시 단독 마이그레이션**
+
+Postgres는 같은 트랜잭션에서 추가한 enum 값을 그 트랜잭션 안에서 **쓰는 것**을 금지한다(`55P04`).
+Supabase SQL Editor는 붙여넣은 스크립트 전체를 한 트랜잭션으로 실행하므로,
+`alter type ... add value`와 그 값을 쓰는 문장이 같은 파일에 있으면 **반드시 실패한다.**
+
+실제로 걸린 곳은 부분 인덱스의 술어였다(2026-08-08):
+
+```
+create unique index ... where type = 'stale';
+ERROR: 55P04 unsafe use of new value "stale" of enum type notification_type
+```
+
+- **함수 본문(plpgsql)은 걸리지 않는다** — 문자열이 런타임에 해석된다.
+  위험한 것은 **인덱스 술어 · CHECK · DML**이다.
+- **"실패하면 한 번 더 실행" 은 통하지 않는다.** 오류가 트랜잭션을 통째로 되돌리면서
+  `alter type`까지 함께 취소되기 때문이다(그래서 다음 스크립트에서는 `22P02 invalid input value`가 난다).
+
+>>> **규율: `notification_type`에 값을 더할 일이 생기면 `20260808100000_extend_notification_type.sql`에
+> 한 줄 추가하고 그 파일만 단독 실행할 것.** 다른 마이그레이션 안에 `alter type`을 섞지 말 것.
+
+**실행 순서**: `20260808100000` → `20260808120000` → `20260808140000`
+
+---
+
 ## 영향 파일
 
+- `supabase/migrations/20260808100000_extend_notification_type.sql` — 신규 (enum 전용, 단독 실행)
 - `supabase/migrations/20260808120000_add_admin_notifications_and_convert_notice.sql` — 신규
 - `src/lib/notificationService.js` — `syncStaleProgramNotices()` 추가
 - `src/components/student/NotifPopup.jsx` — 자동 읽음, 신규 4종 아이콘
