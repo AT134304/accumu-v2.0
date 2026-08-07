@@ -58,15 +58,21 @@ export async function markNotificationsRead() {
 }
 
 /**
- * 일정이 지났는데 아직 게시중인 내 프로그램에 대해 "내려도 괜찮아요" 알림을 만든다 (관리자 전용, ADR 0013).
+ * 상태형 알림을 서버에 만들게 한다 (ADR 0013). 학생 셸·관리자 셸이 마운트될 때 부른다.
  *
- * [화면에 들어올 때마다 불러도 안전하다] 서버가 멱등이다 — 프로그램당 1행을 부분 unique 인덱스가 보장한다.
- * [프런트가 "지났는지" 판정하지 않는다] 날짜 비교는 서버(KST) 몫이다. 여기서 비교하기 시작하면
- *   화면과 서버가 서로 다른 "오늘"을 갖게 된다(settleMyPoints 와 같은 규율).
- * @returns {Promise<number>} 새로 만들어진 알림 수 (0이면 새로 생긴 것이 없다는 뜻이지 실패가 아니다)
+ *   관리자: stale(일정이 지난 게시중 프로그램) + upcoming_admin(내일 진행)
+ *   학생  : upcoming(내일 참여 예정) + exit_due(퇴장 인증 미완료)
+ *
+ * [함수가 하나다] 역할 판정은 서버가 한다. 프런트가 role 을 보고 함수를 고르면 그것도 클라이언트 판정이고,
+ *   두 셸이 서로 다른 호출을 갖게 되어 한쪽만 조용히 낡는다.
+ * [화면에 들어올 때마다 불러도 안전하다] 서버가 멱등이다 — (수신자 x 프로그램 x 종류)당 1행을
+ *   부분 unique 인덱스가 보장한다.
+ * [프런트가 "내일인지 / 지났는지" 판정하지 않는다] 날짜 비교는 서버(KST) 몫이다. 여기서 비교하기
+ *   시작하면 화면과 서버가 서로 다른 "오늘"을 갖게 된다(settleMyPoints 와 같은 규율).
+ * @returns {Promise<number>} 새로 만들어진 알림 수 (0 은 "새로 생긴 것이 없다"이지 실패가 아니다)
  */
-export async function syncStaleProgramNotices() {
-  const { data, error } = await supabase.rpc('sync_stale_program_notices');
+export async function syncMyNotices() {
+  const { data, error } = await supabase.rpc('sync_my_notices');
   if (error) throw error;
   return data ?? 0;
 }

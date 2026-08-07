@@ -23,7 +23,7 @@ import { useAuth } from '../../context/AuthContext';
 import Icon from '../Icon';
 import NotifPopup from '../student/NotifPopup';
 import AdminCalendarPopup from './AdminCalendarPopup';
-import { fetchUnreadCount, syncStaleProgramNotices } from '../../lib/notificationService';
+import { fetchUnreadCount, syncMyNotices } from '../../lib/notificationService';
 import '../../styles/StudentShell.css';
 import '../../styles/AdminShell.css';
 
@@ -67,17 +67,18 @@ export default function AdminShell({ children }) {
       .catch((err) => console.error('[AdminShell] 안 읽은 알림 조회 실패:', err));
   }, [profile?.id]);
 
-  // ["일정이 지났다"는 사건이 아니라 상태라 여기서 계산한다 — ADR 0013]
-  //   트리거는 행이 바뀔 때만 깨어나므로 아무도 건드리지 않는 프로그램에서는 영원히 발화하지 않는다.
-  //   서버가 멱등이라(프로그램당 1행) 셸이 마운트될 때마다 불러도 안전하다.
+  // [상태형 알림은 여기서 계산한다 — ADR 0013]
+  //   "일정이 지났다"(stale) / "내일 진행이다"(upcoming_admin) 는 사건이 아니라 시간이 지나면 참이 되는
+  //   상태다. 트리거는 행이 바뀔 때만 깨어나므로 아무도 건드리지 않는 프로그램에서는 영원히 발화하지 않는다.
+  //   서버가 멱등이라 셸이 마운트될 때마다 불러도 안전하다.
   //   실패해도 셸은 그대로 뜬다 — 알림 하나 때문에 관리자 화면 전체가 죽으면 안 된다.
   useEffect(() => {
     if (!profile?.id) return;
     (async () => {
       try {
-        await syncStaleProgramNotices();
+        await syncMyNotices();
       } catch (err) {
-        console.warn('[AdminShell] 지난 프로그램 알림 동기화 실패(표시만 지연됨):', err);
+        console.warn('[AdminShell] 상태형 알림 동기화 실패(표시만 지연됨):', err);
       }
       refreshUnread();
     })();

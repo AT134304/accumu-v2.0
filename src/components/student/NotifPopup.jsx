@@ -28,9 +28,13 @@ const LOOK = {
   enter: { icon: 'ic-check', color: 'var(--brand)', soft: 'var(--brand-soft)' },
   exit: { icon: 'ic-coin', color: 'var(--amber)', soft: 'var(--amber-soft)' },
   convert: { icon: 'ic-coin', color: 'var(--amber)', soft: 'var(--amber-soft)' },
+  upcoming: { icon: 'ic-calendar', color: 'var(--brand)', soft: 'var(--brand-soft)' },
+  // 할 일이 남은 상태다. rose(거부/실패)가 아니라 amber(주의) — .pf-msg.warn 이 세운 뜻 그대로.
+  exit_due: { icon: 'ic-qr', color: 'var(--amber)', soft: 'var(--amber-soft)' },
   // 관리자 (ADR 0013). 전부 관리자 기능 3종에 관한 사실이다 — 그 밖의 종류를 늘리지 말 것.
   apply_admin: { icon: 'ic-user', color: 'var(--indigo)', soft: 'var(--indigo-soft)' },
   mentee: { icon: 'ic-school', color: 'var(--brand)', soft: 'var(--brand-soft)' },
+  upcoming_admin: { icon: 'ic-calendar', color: 'var(--brand)', soft: 'var(--brand-soft)' },
   // "내려도 괜찮아요" 는 오류가 아니라 정리 권유다 — rose(거부/실패)를 쓰지 않는다.
   stale: { icon: 'ic-calendar', color: 'var(--ink2)', soft: 'var(--bg2)' },
 };

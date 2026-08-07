@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import Icon from '../Icon';
 import NotifPopup from './NotifPopup';
 import CalendarPopup from './CalendarPopup';
-import { fetchUnreadCount } from '../../lib/notificationService';
+import { fetchUnreadCount, syncMyNotices } from '../../lib/notificationService';
 import '../../styles/StudentShell.css';
 
 // 데스크톱 상단 메뉴 (모바일 ≤768px에서는 숨기고 하단 탭바로 대체)
@@ -45,6 +45,23 @@ export default function StudentShell({ children }) {
       .then(setUnread)
       .catch((err) => console.error('[StudentShell] 안 읽은 알림 조회 실패:', err));
   }, [profile?.id]);
+
+  // [상태형 알림은 여기서 계산한다 — ADR 0013 / 마이그레이션 20260808140000]
+  //   "내일 참여 예정"(upcoming) / "퇴장 인증이 남았다"(exit_due) 는 사건이 아니라 시간이 지나면 참이
+  //   되는 상태라 트리거가 깨어날 계기가 없다. 서버가 멱등이라 마운트마다 불러도 안전하다.
+  //   관리자 셸과 **같은 함수**를 부른다 — 역할 판정은 서버가 한다.
+  //   실패해도 셸은 그대로 뜬다.
+  useEffect(() => {
+    if (!profile?.id) return;
+    (async () => {
+      try {
+        await syncMyNotices();
+      } catch (err) {
+        console.warn('[StudentShell] 상태형 알림 동기화 실패(표시만 지연됨):', err);
+      }
+      refreshUnread();
+    })();
+  }, [profile?.id, refreshUnread]);
 
   // 팝업이 닫힐 때도 다시 센다 — QR 퇴장 인증처럼 다른 화면에서 알림이 생겼을 수 있다.
   useEffect(() => {
