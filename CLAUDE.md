@@ -61,7 +61,7 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 | `invite_codes` | code, kind(school/admin), admin_id, is_active | 가입 초대코드 (ADR 0008). 관리자별 고정 school 코드 + 관리자 승격용 코드. **앱에서 생성 불가**(정책 0개, 시딩/SQL 전용) |
 | `programs` | id, category, title, description, date, time, capacity, points, is_published, created_by | is_published로 게시/게시중단 |
 | `participations` | id, student_id, program_id, status, entry_at, exit_at, entry_token, exit_token | 신청·입장·퇴장 상태 + QR 토큰 |
-| `point_transactions` | id, student_id, type(적립/전환), amount, related_participation_id | 포인트 내역 |
+| `point_transactions` | id, student_id, type(적립/전환), amount, related_participation_id, settled_month | 포인트 내역. `settled_month`(전환 행 전용)는 "어느 달 적립분의 정산인가" — ADR 0012 |
 | `reviews` | id, participation_id, rating, comment | 별점 + 한줄평 |
 | `notifications` | id, student_id, type, message, is_read, created_at | 인앱 알림 |
 
@@ -84,6 +84,18 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 - 최소 150P, 최대 3,000P, 모든 값 끝자리 0
 - 분포는 150~700P 구간에 두텁게, 2,000~3,000P는 극소수 활동만
 - 1P = 1원 개념이나 실제 결제 연동 없음
+
+**지역화폐 전환은 월 단위 자동 정산이다 (ADR 0012 / 2026-08-07).** **M월에 적립한 포인트 전액이
+(M+1)월 말일에 전환**된다 (예: 8월 적립분 → 9월 30일). 실제 제도(기후행동 기회소득 / 천권으로 독서포인트)의
+"적립기간 후 일괄 지급" 방식이다.
+
+- **학생은 전환을 실행하지 못한다.** 시점도 금액도 고르지 않는다 — 화면에 버튼도 금액 선택도 없고,
+  서버 함수 `settle_my_points()` 는 **인자가 0개**다. ADR 0007 의 `convert_points_to_currency()` 는 **drop 됐다.**
+  >>> 학생 주도 전환 경로(버튼·금액 선택·즉시 전환 RPC)를 되살리지 말 것.
+- 정산은 `pg_cron` 이 아니라 **학생 화면 진입 시 지연 실행**한다. 결과가 시각이 아니라 날짜의 함수라
+  언제 계산해도 답이 같기 때문이다. 멱등은 `unique (student_id, settled_month)` 가 보장한다.
+- `points_balance` 의 의미가 "쓸 수 있는 잔액"이 아니라 **"아직 정산되지 않은 포인트"** 다.
+- 마이페이지의 정산 상자에 **진행바·D-day·달성률**을 넣지 않는다(원칙 1). 그런 CSS 클래스도 만들지 않았다.
 
 ## 8. 디자인 시스템
 

@@ -10,17 +10,10 @@
 //   5. 뷰/embed 로 조인하지 않는다 — 정의자 권한 함정(ADR 0003 6번). 병렬 쿼리 + 클라이언트 Map 결합.
 import { supabase } from './supabaseClient';
 import { attachPrograms } from './archiveService';
-import { fmtDate, localDateOf } from './date';
+import { fmtDate, localDateOf, monthLabel } from './date';
 
 /** 원장 표시 상한. 페이징을 만들지 않는 대신 "최근 50건" 캡션과 함께 상한을 둔다(스펙 B-2 4번). */
 export const LEDGER_LIMIT = 50;
-
-/* 전환 규칙 — 확정 F. 서버(convert_points_to_currency)와 같은 값이며 서버가 최종 판정자다.
-   여기 상수는 "화면이 잘못된 금액을 만들지 않게" 하는 것이고, 우회는 서버가 22023 으로 막는다. */
-export const CONVERT_MIN = 100; // 최소 100P — 최소 적립액(150P)보다 낮아 첫 활동 1건으로도 시연된다
-export const CONVERT_UNIT = 10; // 10P 단위 — 적립액이 항상 10의 배수라 "전액 전환"이 정확히 떨어진다
-/** 프리셋 눈금. 프로토타입은 [1000,3000,5000,10000] 이었지만 데모 잔액이 수백~수천P라 눈금을 낮췄다(확정 F). */
-export const CONVERT_PRESETS = [500, 1000, 3000];
 
 /* ==========================================================================
    조회 — 포인트 내역 (원장)
@@ -35,7 +28,7 @@ export const CONVERT_PRESETS = [500, 1000, 3000];
 export async function fetchMyPointTransactions() {
   const { data, error } = await supabase
     .from('point_transactions')
-    .select('id, type, amount, related_participation_id, created_at')
+    .select('id, type, amount, related_participation_id, settled_month, created_at')
     .order('created_at', { ascending: false })
     .limit(LEDGER_LIMIT);
   if (error) throw error;
@@ -111,11 +104,16 @@ export async function fetchMyEarnedAmounts() {
 export function describeTransaction(tx) {
   const earned = tx?.type === '적립';
   const amount = Number(tx?.amount ?? 0);
+  // 전환 행의 제목은 "무엇을 정산한 것인가"다. settled_month 가 있으면 그 달을 밝힌다(ADR 0012).
+  // NULL 인 전환 행은 ADR 0007 시절의 수동 전환이라 밝힐 달이 없다 — 없는 값을 지어내지 않는다.
+  const convertTitle = tx?.settled_month
+    ? `${monthLabel(tx.settled_month)} 적립분 지역화폐 전환`
+    : '지역화폐 전환';
   return {
     earned,
     typeLabel: earned ? '적립' : '전환',
     // 적립인데 프로그램을 못 읽은 경우 = 게시중단(결정 7-4). 행을 지우지 않고 사실대로 적는다.
-    title: earned ? tx?.activityTitle ?? '게시가 중단된 프로그램' : '지역화폐 전환',
+    title: earned ? tx?.activityTitle ?? '게시가 중단된 프로그램' : convertTitle,
     dateLabel: fmtDate(localDateOf(tx?.created_at)),
     // U+2212(−). 하이픈보다 숫자와 폭이 맞는다.
     amountLabel: `${earned ? '+' : '−'}${amount.toLocaleString()}P`,
@@ -123,73 +121,46 @@ export function describeTransaction(tx) {
 }
 
 /* ==========================================================================
-   전환 (절대 원칙 3 — 시뮬레이션)
+   지역화폐 정산 (ADR 0012 — 월 단위 자동 전환, 절대 원칙 3 시뮬레이션)
+
+   [학생이 전환을 실행하는 함수가 이 파일에 없다]
+     M월 적립분 전액이 (M+1)월 말일에 자동 전환된다. 금액을 고르는 인자도, 전환을 지시하는 함수도 없다.
+     ADR 0007 의 convertToCurrency() / CONVERT_MIN / CONVERT_PRESETS 는 전부 제거됐고, 서버의
+     convert_points_to_currency() 도 drop 됐다(마이그레이션 20260807120000). 되살리지 말 것.
    ========================================================================== */
 
 /**
- * 잔액에서 고를 수 있는 전환 금액 목록.
- * 프리셋은 잔액 이하만 남기고, "전액 전환"은 잔액이 최소 단위를 넘으면 항상 있다(확정 F).
- * 잔액은 언제나 10의 배수라(원칙 7) 전액이 10P 단위를 벗어날 일이 없다.
- */
-export function convertOptions(balance) {
-  const avail = Number(balance ?? 0);
-  if (avail < CONVERT_MIN) return [];
-  const presets = CONVERT_PRESETS.filter((v) => v <= avail && v !== avail);
-  return [...presets, avail];
-}
-
-/** convertToCurrency() 결과 분류. 도메인 거부(rejected)와 기술/권한 오류(error)를 절대 섞지 않는다. */
-export const CONVERT = {
-  SUCCESS: 'success',
-  REJECTED: 'rejected',
-  ERROR: 'error',
-};
-
-/**
- * 포인트 → 지역화폐 전환.
+ * 정산 실행 + 예정 목록 조회. 학생 화면이 마운트될 때 호출한다.
  *
- * [멱등이 아니다] 두 번 호출하면 두 번 차감되는 것이 정상 도메인이다(ADR 0007 결정 3-5).
- *   그래서 더블클릭 방어는 호출부의 버튼 잠금이 진다 — 여기서 재시도를 자동으로 하지 않는다.
- * [잔액 부족은 에러가 아니다] 서버가 예외 대신 { ok:false, reason:'insufficient_balance' } 로 돌려주며,
- *   응답에 최신 잔액 3종이 함께 실린다. 42501(권한)과 절대 같은 문구로 묶지 말 것(스펙 에러 처리 표).
+ * [화면에 들어올 때마다 불러도 안전하다] 서버가 멱등이다 — 같은 달의 두 번째 정산은
+ *   unique (student_id, settled_month) 가 막는다. 프런트가 "이미 정산했는지" 를 기억하지 않는다.
+ * [프런트가 정산 여부를 판정하지 않는다] 말일 계산·월 경계(KST)·대상 선정이 전부 서버 몫이다.
+ *   여기서 날짜를 비교하기 시작하면 서버와 클라이언트가 서로 다른 "이번 달"을 갖게 된다.
+ * [잔액을 계산하지 않는다] 응답의 points_balance/currency_balance 를 그대로 쓴다(절대 원칙 3).
  *
- * @param {number} amount 10P 단위, 100P 이상, 잔액 이하 (최종 판정은 서버)
- * @returns {Promise<{outcome:'success'|'rejected'|'error', reason?:string,
- *                    errorKind?:'permission'|'invalid_amount'|'network',
- *                    amount?:number, points_balance?:number, points_total?:number, currency_balance?:number}>}
+ * @returns {Promise<{ok:true, settled:Array<{month:string, amount:number, settle_on:string}>,
+ *                    pending:Array<{month:string, amount:number, settle_on:string}>,
+ *                    points_balance:number, points_total:number, currency_balance:number}>}
+ * @throws 42501(비로그인/관리자 호출) 및 네트워크 오류는 그대로 던진다 — 호출부가 처리한다.
  */
-export async function convertToCurrency(amount) {
-  const { data, error } = await supabase.rpc('convert_points_to_currency', { p_amount: amount });
-
-  if (error) {
-    // 42501 = 비로그인/관리자 호출. 22023 = 금액 규칙 위반(정상 UI 에서는 발생하지 않는다 — 발생하면 우회나 버그).
-    const errorKind =
-      error.code === '42501' ? 'permission' : error.code === '22023' ? 'invalid_amount' : 'network';
-    console.error('[pointService] 전환 RPC 호출 실패:', error);
-    return { outcome: CONVERT.ERROR, errorKind, reason: error.message };
-  }
-
-  if (!data) return { outcome: CONVERT.ERROR, errorKind: 'network', reason: '빈 응답' };
-
-  return data.ok ? { ...data, outcome: CONVERT.SUCCESS } : { ...data, outcome: CONVERT.REJECTED };
+export async function settleMyPoints() {
+  const { data, error } = await supabase.rpc('settle_my_points');
+  if (error) throw error;
+  if (!data) throw new Error('정산 응답이 비어 있습니다.');
+  return data;
 }
 
 /**
- * 실패 사유 → 화면 문구 (스펙 "에러 처리" 표 그대로).
- * 잔액 부족 / 권한 오류 / 금액 규칙 / 네트워크가 서로 다른 문장을 갖는 것이 이 함수의 목적이다.
+ * 정산 예정 1건 → 화면 문구. "8월에 모은 4,200P · 9월 30일 전환 예정"
+ *
+ * [진척 표현을 만들지 않는다 — 원칙 1] "얼마 남았다 / 며칠 남았다 / 몇 % 달성" 을 쓰지 않는다.
+ *   여기 있는 것은 "언제 얼마가 전환된다"는 사실 두 개뿐이고, 이 함수가 그 형태를 고정한다.
  */
-export function convertFailText(result) {
-  if (result?.outcome === CONVERT.REJECTED) {
-    return result.reason === 'insufficient_balance'
-      ? '포인트가 부족합니다. 잔액을 다시 확인해 주세요.'
-      : '전환하지 못했어요. 잠시 후 다시 시도해 주세요.';
-  }
-  switch (result?.errorKind) {
-    case 'permission':
-      return '권한 오류 · 다시 로그인해 주세요.';
-    case 'invalid_amount':
-      return '전환 금액은 100P 이상, 10P 단위여야 합니다.';
-    default:
-      return '전환하지 못했어요. 잠시 후 다시 시도해 주세요.';
-  }
+export function describePending(row) {
+  const amount = Number(row?.amount ?? 0);
+  return {
+    earnedLabel: `${monthLabel(row?.month)}에 모은 ${amount.toLocaleString()}P`,
+    settleLabel: `${fmtDate(row?.settle_on)} 전환 예정`,
+    amount,
+  };
 }

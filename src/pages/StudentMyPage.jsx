@@ -21,10 +21,9 @@ import { useAuth } from '../context/AuthContext';
 import Icon from '../components/Icon';
 import Toast from '../components/Toast';
 import QrCenterModal from '../components/student/QrCenterModal';
-import ConvertModal from '../components/student/ConvertModal';
 import PointLedger from '../components/student/PointLedger';
 import { TRACK } from '../lib/taxonomy';
-import { CONVERT_MIN, fetchMyPointLedger } from '../lib/pointService';
+import { describePending, fetchMyPointLedger, settleMyPoints } from '../lib/pointService';
 import { linkSchoolAccount, setCareerInterest } from '../lib/profileService';
 import '../styles/Qr.css';
 import '../styles/StudentMyPage.css';
@@ -34,9 +33,11 @@ export default function StudentMyPage() {
   const { profile, session, signOut, applyProfilePatch } = useAuth();
 
   const [qrOpen, setQrOpen] = useState(false);
-  const [convertOpen, setConvertOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [toast, setToast] = useState(null); // { key, message }
+
+  // 지역화폐 정산 (ADR 0012). pending = 아직 전환되지 않은 달들. null = 아직 못 읽음.
+  const [pending, setPending] = useState(null);
 
   // 원장은 잔액과 독립적으로 실패해야 한다 — 내역을 못 읽었다고 포인트 카드가 사라지면 안 된다(스펙 에러 처리).
   const [ledger, setLedger] = useState([]);
@@ -84,11 +85,43 @@ export default function StudentMyPage() {
     })();
   }, [loadLedger]);
 
+  // [정산은 화면이 열릴 때 서버가 판정한다 — ADR 0012]
+  //   프런트가 "말일이 지났는가"를 계산하지 않는다. 계산하면 서버와 클라이언트가 서로 다른 "이번 달"을 갖는다.
+  //   멱등이라 매번 호출해도 안전하다(같은 달 두 번째 정산은 unique 제약이 막는다).
+  //   정산이 실제로 일어났으면 잔액 3종이 바뀌었으므로 전역 profile 과 원장을 함께 맞춘다.
+  const settle = useCallback(async () => {
+    try {
+      const res = await settleMyPoints();
+      if (!alive.current) return;
+      setPending(res.pending ?? []);
+      applyProfilePatch({
+        points_balance: res.points_balance,
+        points_total: res.points_total,
+        currency_balance: res.currency_balance,
+      });
+      if ((res.settled ?? []).length > 0) {
+        const sum = res.settled.reduce((acc, r) => acc + Number(r.amount ?? 0), 0);
+        setToast({ key: Date.now(), message: `₩${sum.toLocaleString()} 지역화폐로 전환되었어요` });
+        await loadLedger(); // 방금 생긴 '전환' 행이 내역에 바로 보여야 한다
+      }
+    } catch (err) {
+      // 조용히 삼키지 않되 화면을 막지도 않는다 — 정산은 다음 방문에 다시 시도된다(멱등).
+      console.error('[StudentMyPage] 지역화폐 정산 실패:', err);
+      if (alive.current) setPending([]);
+    }
+  }, [applyProfilePatch, loadLedger]);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    // loadLedger 와 같은 형태 — setState 가 await 뒤에서만 일어난다는 것을 호출부에서도 드러낸다.
+    (async () => {
+      await settle();
+    })();
+  }, [profile?.id, settle]);
+
   const balance = profile?.points_balance ?? 0;
   const total = profile?.points_total ?? 0;
   const currency = profile?.currency_balance ?? 0;
-  // 최소 전환 단위에 못 미치면 버튼을 연다는 게 의미가 없다(기능 요구사항). 최종 판정은 서버 몫이다.
-  const canConvert = balance >= CONVERT_MIN;
 
   // 저장 중에는 서버 응답 대신 "지금 저장하려는 값"을 보여준다. 실패하면 이 값을 버리는 것만으로
   // 이전 값으로 돌아간다(별도 롤백 코드 없음) — profile 은 서버가 확인해 준 값만 담는다.
@@ -157,16 +190,6 @@ export default function StudentMyPage() {
       setSigningOut(false);
     }
   }
-
-  const handleConverted = useCallback(
-    async (amount) => {
-      setConvertOpen(false);
-      // 잔액 3종은 ConvertModal 이 RPC 응답으로 이미 갱신했다. 여기서는 원장에 생긴 '전환' 행만 다시 읽는다.
-      await loadLedger();
-      setToast({ key: Date.now(), message: `₩${Number(amount).toLocaleString()} 지역화폐로 전환되었습니다` });
-    },
-    [loadLedger]
-  );
 
   return (
     <section className="screen my-screen">
@@ -295,9 +318,9 @@ export default function StudentMyPage() {
                 {balance.toLocaleString()}
                 <small>P</small>
               </div>
-              <div className="pl">사용 가능한 포인트 · 1P = 1원</div>
+              <div className="pl">전환을 기다리는 포인트 · 1P = 1원</div>
               <div className="psub">
-                누적 획득 <b>{total.toLocaleString()}P</b> · 전환한 지역화폐 <b>₩{currency.toLocaleString()}</b>
+                누적 획득 <b>{total.toLocaleString()}P</b> · 전환된 지역화폐 <b>₩{currency.toLocaleString()}</b>
               </div>
             </div>
             <div className="coin" aria-hidden="true">
@@ -305,22 +328,44 @@ export default function StudentMyPage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            className="convertbtn"
-            disabled={!canConvert}
-            onClick={() => setConvertOpen(true)}
-          >
-            <Icon name="ic-coin" size={18} />
-            지역화폐로 전환
-          </button>
-          {/* 비활성 사유를 화면이 말한다 — 이유 없이 잠긴 버튼은 고장으로 읽힌다.
-              "N P 더 모으면 전환 가능" 같은 진척 표현은 쓰지 않는다(원칙 1). */}
-          {!canConvert && (
-            <div className="convhint">
-              전환은 {CONVERT_MIN}P부터 할 수 있어요. 프로그램에 참여해 포인트를 모아보세요.
+          {/* [전환 버튼이 없는 것이 이 화면의 결정이다 — ADR 0012]
+              M월에 모은 포인트는 (M+1)월 말일에 전액 자동 전환된다. 학생은 시점도 금액도 고르지 않는다.
+              그래서 여기 있는 것은 "언제 얼마가 전환된다"는 예고뿐이고, 누를 것이 없다.
+              [원칙 1 가드] 진행바·D-day·"N P 더 모으면" 같은 진척 표현을 쓰지 않는다. 문장 두 줄이 전부다.
+              이 자리에 게이지를 넣으려는 변경은 곧 달성률 표시다 — 스펙이 CSS 레벨까지 막아둔 것이다. */}
+          <div className="settlebox">
+            <div className="sb-head">
+              <Icon name="ic-calendar" size={15} color="var(--brand)" />
+              지역화폐 전환 예정
             </div>
-          )}
+
+            {pending === null && <div className="sb-empty">전환 일정을 확인하는 중…</div>}
+
+            {pending !== null && pending.length === 0 && (
+              <div className="sb-empty">
+                아직 전환을 기다리는 포인트가 없어요.
+                <br />
+                활동에 참여해 모은 포인트는 다음 달 말일에 지역화폐로 전환됩니다.
+              </div>
+            )}
+
+            {pending !== null &&
+              pending.map((row) => {
+                const v = describePending(row);
+                return (
+                  <div className="sb-row" key={row.month}>
+                    <span className="sb-when">{v.earnedLabel}</span>
+                    <span className="sb-on">{v.settleLabel}</span>
+                  </div>
+                );
+              })}
+
+            {/* [삭제·축약 금지] 시뮬레이션 고지(절대 원칙 3) + 학생이 앞당길 수 없다는 사실. */}
+            <div className="sb-note">
+              한 달 동안 모은 포인트는 <b>그 다음 달 말일</b>에 전액 지역화폐로 전환됩니다. 전환 시점과 금액은
+              직접 고를 수 없어요. 이 화면의 지역화폐는 실제 결제와 연동되지 않는 시뮬레이션입니다.
+            </div>
+          </div>
 
           <PointLedger state={ledgerState} rows={ledger} />
         </div>
@@ -343,10 +388,6 @@ export default function StudentMyPage() {
             loadLedger();
           }}
         />
-      )}
-
-      {convertOpen && (
-        <ConvertModal balance={balance} onClose={() => setConvertOpen(false)} onSuccess={handleConverted} />
       )}
 
       {toast && <Toast key={toast.key} message={toast.message} onDone={() => setToast(null)} />}
