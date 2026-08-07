@@ -80,9 +80,8 @@ export default function JoinModal({ program, joined, full = false, onClose, onAp
       </div>
 
       <div className="mbody join-modal">
-        <span className="mtag">
-          {c.group} · {c.name}
-        </span>
+        {/* group(교내/교외)이 사라져 유형 이름 하나다 — ADR 0014 */}
+        <span className="mtag">{c.name}</span>
         <h3 id="join-title">{program.title}</h3>
         <div className="statusline">
           주최 <b>{program.org}</b>

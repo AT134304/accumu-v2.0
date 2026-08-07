@@ -20,7 +20,8 @@ import { todayISO } from '../../lib/date';
 import { createProgram, updateProgram } from '../../lib/programService';
 import { CAPACITY_RULE_MSG, POINTS_RULE_MSG, describeSaveError } from '../../lib/programErrors';
 
-const CAT_OPTIONS = Object.entries(CAT).map(([key, c]) => ({ key, label: `${c.group} · ${c.name}` }));
+// 라벨이 name 하나다 — 4종으로 줄면서 group(교내/교외)이 사라졌다(ADR 0014).
+const CAT_OPTIONS = Object.entries(CAT).map(([key, c]) => ({ key, label: c.name }));
 const TRACK_OPTIONS = Object.entries(TRACK).map(([key, t]) => ({ key, label: t.name }));
 const STATUS_OPTIONS = Object.entries(STATUS).map(([key, s]) => ({ key, label: s.label }));
 

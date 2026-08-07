@@ -274,12 +274,8 @@ function ProgramRow({ program, busy, highlighted, rowRef, onEdit, onPublish, onU
       <div className="info">
         <h5>{program.title}</h5>
         <div className="m">
-          {[
-            cat.group && `${cat.group} · ${cat.name}`,
-            program.org,
-            fmtDate(program.date),
-            program.time,
-          ]
+          {/* group(교내/교외)이 사라져 유형 이름 하나다 — ADR 0014 */}
+          {[cat.name, program.org, fmtDate(program.date), program.time]
             .filter(Boolean)
             .join(' · ')}
         </div>

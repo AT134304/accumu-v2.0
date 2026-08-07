@@ -23,9 +23,10 @@
 .hero .cta .o:hover { background: rgba(255, 255, 255, .18); }
 
 /* ---------- 마일스톤 스택 (확정 B-1: completed 참여 실데이터 연결) ----------
-   채워진 블록 색은 교내 = brand blue(.fill) / 교외 = indigo(.fill.i).
+   채워진 블록 색은 활동 유형(CAT) 색이며 JSX 가 인라인으로 넣는다 (ADR 0014).
    프로토타입의 .fill.a(amber)는 옮기지 않았다 — amber는 포인트 색이라 "포인트가 쌓이는 그래프"로
-   읽히면 절대 원칙 4(포트폴리오 > 포인트)에 어긋난다 (ADR 0005 결정 5 원칙 1 가드). */
+   읽히면 절대 원칙 4(포트폴리오 > 포인트)에 어긋난다 (ADR 0005 결정 5 원칙 1 가드).
+   CAT 4종 색에 amber 가 없는 것이 그 가드다(taxonomy.js). */
 .stackviz { position: relative; height: 230px; display: flex; align-items: flex-end; justify-content: center; gap: 13px; }
 .stackviz .col { display: flex; flex-direction: column-reverse; gap: 6px; width: 46px; }
 .stackviz .blk {
@@ -33,8 +34,11 @@
   border: 1px solid rgba(255, 255, 255, .16); transform-origin: bottom;
   animation: grow .6s cubic-bezier(.2, .7, .3, 1) both;
 }
-.stackviz .blk.fill { background: var(--brand); border-color: transparent; box-shadow: 0 6px 16px rgba(37, 99, 235, .45); }
-.stackviz .blk.fill.i { background: var(--indigo); box-shadow: 0 6px 16px rgba(99, 102, 241, .45); }
+/* [배경색은 인라인이다 — ADR 0014] 채워진 블록은 활동 유형(CAT) 색으로 덮인다.
+   교내/교외 축이 폐지되면서 .blk.fill.i(교외 = indigo)가 사라졌다 — 되살리지 말 것.
+   그림자는 색을 따라가지 않고 중립 잉크 톤으로 고정한다. 유형별로 그림자 색까지 갈리면
+   블록이 "빛나는 정도"로 읽혀 성취 연출이 된다(원칙 1). */
+.stackviz .blk.fill { background: var(--brand); border-color: transparent; box-shadow: 0 6px 16px rgba(18, 26, 46, .22); }
 .stackviz .cap { position: absolute; bottom: -26px; font-size: 11.5px; color: #9FB0C9; width: 46px; text-align: center; }
 @keyframes grow { from { transform: scaleY(0); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
 

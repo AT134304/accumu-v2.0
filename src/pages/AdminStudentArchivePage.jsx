@@ -181,7 +181,7 @@ export default function AdminStudentArchivePage() {
           600px 이하·인쇄에서는 사라지고 아래 요약 블록이 같은 정보를 텍스트로 전달한다. */}
       {listState === 'ready' && activities.length > 0 && <ArchiveHero completed={activities} />}
 
-      {/* 요약(결정 C / 확정 L-1) — 활동 기간 + 교내/교외 + 유형 분포. 게이지·퍼센트·달성률 없음.
+      {/* 요약(결정 C / 확정 L-1) — 활동 수 + 유형 분포 + 활동 기간. 게이지·퍼센트·달성률 없음.
           조회 중/실패에는 그리지 않는다 — "총 0"은 사실이 아니라 아직 모르는 상태다. */}
       {listState === 'ready' && activities.length > 0 && <ArchiveSummary activities={activities} />}
 

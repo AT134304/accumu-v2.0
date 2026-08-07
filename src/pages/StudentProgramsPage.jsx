@@ -17,12 +17,12 @@ import { todayISO } from '../lib/date';
 import { applyToProgram, fetchAllPrograms, fetchAppliedProgramIds } from '../lib/programService';
 import '../styles/StudentPrograms.css';
 
-// 카테고리 그룹 2종 (프로토타입 904줄 groups). "날짜 지난 프로그램"은 8종을 한 그룹에 모은다.
-const GROUPS = [
-  { key: '교내', label: '학교 내 활동', icon: 'ic-school', cats: ['hbk', 'hdo', 'hdc', 'het'] },
-  { key: '교외', label: '학교 외 활동', icon: 'ic-globe', cats: ['ecp', 'evo', 'edc', 'eet'] },
-];
-const ALL_CATS = GROUPS.flatMap((g) => g.cats);
+// [카테고리 그룹이 사라졌다 — ADR 0014]
+//   2026-08-09 이전에는 '학교 내 활동' / '학교 외 활동' 두 그룹으로 8종을 나눠 그렸다(프로토타입 904줄).
+//   교내/교외 축이 폐지되면서 그 묶음의 근거가 없어졌고, 유형이 4종이라 한 화면에 다 들어간다.
+//   남는 구분은 "참여할 수 있는 것 / 날짜가 지난 것" 하나뿐이다 — 그건 학생이 실제로 신경 쓰는 축이다.
+//   >>> 여기에 CAT 을 다시 묶는 그룹 배열을 만들지 말 것. 4종은 묶을 필요가 없다.
+const ALL_CATS = Object.keys(CAT);
 
 // 확정 B-1: 3종 유지, 기본값 인기순. (포인트순이 기본이 되면 절대 원칙 4 위반)
 const SORTS = [
@@ -86,7 +86,7 @@ export default function StudentProgramsPage() {
   }, []);
 
   // ---- 검색 / 필터 / 정렬 -> 그룹별 카테고리 행 ----
-  const { groupRows, pastRows, total } = useMemo(() => {
+  const { upcomingRows, pastRows, total } = useMemo(() => {
     const q = query.trim().toLowerCase();
     const today = todayISO(); // 로컬(KST) 기준. toISOString()은 오전 9시 이전에 하루 밀린다.
 
@@ -99,39 +99,32 @@ export default function StudentProgramsPage() {
     const visible = programs.filter((p) => match(p) && trackOk(p));
     const sortAll = (list) => [...list].sort(COMPARE[sortMode]);
 
-    const buildRows = (cats, source, pastLabel) =>
-      cats
-        .filter((catKey) => typeFilter === 'all' || catKey === typeFilter)
+    const buildRows = (source) =>
+      ALL_CATS.filter((catKey) => typeFilter === 'all' || catKey === typeFilter)
         .map((catKey) => ({
           catKey,
-          // "날짜 지난 프로그램" 그룹은 교내/교외 구분이 사라지므로 라벨을 `그룹 · 이름`으로 (프로토타입 893줄)
-          label: pastLabel ? `${CAT[catKey].group} · ${CAT[catKey].name}` : CAT[catKey].name,
+          label: CAT[catKey].name,
           list: sortAll(source.filter((p) => p.category === catKey)),
         }))
         // 프로그램이 0개인 카테고리 행은 렌더하지 않는다
         .filter((row) => row.list.length > 0);
 
-    const upcoming = visible.filter((p) => p.date >= today);
-    const past = visible.filter((p) => p.date < today);
-
-    const nextGroupRows = GROUPS.map((g) => ({ ...g, rows: buildRows(g.cats, upcoming, false) })).filter(
-      (g) => g.rows.length > 0 // 행이 하나도 없는 그룹은 통째로 렌더하지 않는다
-    );
-    const nextPastRows = buildRows(ALL_CATS, past, true);
+    const nextUpcomingRows = buildRows(visible.filter((p) => p.date >= today));
+    const nextPastRows = buildRows(visible.filter((p) => p.date < today));
 
     const count =
-      nextGroupRows.reduce((n, g) => n + g.rows.reduce((m, r) => m + r.list.length, 0), 0) +
+      nextUpcomingRows.reduce((m, r) => m + r.list.length, 0) +
       nextPastRows.reduce((m, r) => m + r.list.length, 0);
 
-    return { groupRows: nextGroupRows, pastRows: nextPastRows, total: count };
+    return { upcomingRows: nextUpcomingRows, pastRows: nextPastRows, total: count };
   }, [programs, query, sortMode, typeFilter, trackFilter]);
 
   // 빈 상태 문구 (프로토타입 939줄 카피). 선택한 조건을 ` · `로 연결해 앞에 붙인다.
-  // 유형은 칩 라벨과 같은 `그룹 이름` 형태로 — CAT 에 '대회'(hdc/edc)와 '기타'(het/eet)가 각각 둘씩 있어
-  // 이름만 쓰면 어느 칩을 눌렀는지 문구로 구분되지 않는다.
+  // [이름만으로 충분하다 — ADR 0014] 예전에는 '대회'(hdc/edc)와 '기타'(het/eet)가 각각 둘씩이라
+  // 그룹까지 붙여야 어느 칩을 눌렀는지 구분됐다. 4종에는 같은 이름이 없다.
   const emptyCond = [
     query.trim() && `'${query.trim()}'`,
-    typeFilter !== 'all' && CAT[typeFilter] && `${CAT[typeFilter].group} ${CAT[typeFilter].name}`,
+    typeFilter !== 'all' && CAT[typeFilter]?.name,
     trackFilter !== 'all' && TRACK[trackFilter]?.name,
   ].filter(Boolean);
 
@@ -208,11 +201,7 @@ export default function StudentProgramsPage() {
           label="유형"
           value={typeFilter}
           onChange={setTypeFilter}
-          options={Object.entries(CAT).map(([k, c]) => ({
-            key: k,
-            name: `${c.group} ${c.name}`,
-            color: c.color,
-          }))}
+          options={Object.entries(CAT).map(([k, c]) => ({ key: k, name: c.name, color: c.color }))}
         />
         <FilterGroup
           icon="ic-target"
@@ -241,25 +230,26 @@ export default function StudentProgramsPage() {
         </div>
       )}
 
-      {state === 'ready' &&
-        groupRows.map((g) => (
-          <div className="catgroup" key={g.key}>
-            <div className="gl">
-              <Icon name={g.icon} size={16} />
-              {g.label}
-            </div>
-            {g.rows.map((row) => (
-              <CatRow
-                key={row.catKey}
-                row={row}
-                appliedIds={appliedIds}
-                fullIds={fullIds}
-                onOpen={setOpenProgram}
-                past={false}
-              />
-            ))}
+      {/* [그룹이 하나다 — ADR 0014] 교내/교외 두 묶음이 사라지고 "참여할 수 있는 프로그램" 하나만 남았다.
+          아래 "날짜 지난 프로그램"과의 대비가 학생이 실제로 신경 쓰는 유일한 구분이다. */}
+      {state === 'ready' && upcomingRows.length > 0 && (
+        <div className="catgroup">
+          <div className="gl">
+            <Icon name="ic-compass" size={16} />
+            참여할 수 있는 프로그램
           </div>
-        ))}
+          {upcomingRows.map((row) => (
+            <CatRow
+              key={row.catKey}
+              row={row}
+              appliedIds={appliedIds}
+              fullIds={fullIds}
+              onOpen={setOpenProgram}
+              past={false}
+            />
+          ))}
+        </div>
+      )}
 
       {state === 'ready' && pastRows.length > 0 && (
         <div className="catgroup past">

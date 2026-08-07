@@ -13,7 +13,7 @@ import { supabase } from './supabaseClient';
  * [값 검증을 여기서 하지 않는다] 인자 타입이 career_track enum 이라 5종 외의 값은 PostgREST 캐스팅
  *   단계에서 22P02 로 걸린다. 프런트가 5종 목록을 다시 적으면 taxonomy 와 갈라진다(드리프트).
  *
- * @param {'sci'|'it'|'hum'|'biz'|'art'|null} track
+ * @param {'hum'|'soc'|'biz'|'sci'|'eng'|'med'|'art'|null} track  (7종 — ADR 0014)
  * @returns {Promise<{ok:true, career_interest:string|null}>}
  * @throws 권한(42501)·네트워크 오류는 그대로 던진다 — 호출부가 칩을 이전 값으로 롤백하고 사유를 띄운다.
  */

@@ -15,7 +15,7 @@
 //   4. 새 RLS 정책/마이그레이션이 필요한 조회를 하지 않는다. 여기 있는 쿼리는 전부 기존 권한으로 성립한다.
 import { supabase } from './supabaseClient';
 import { CAT, TRACK, catOf } from './taxonomy';
-import { fmtDate, localDateOf, monthLabel } from './date';
+import { fmtDate, localDateOf, monthKey, monthLabel } from './date';
 
 /**
  * 아카이브 문서에 필요한 프로그램 필드.
@@ -215,7 +215,8 @@ export function describeActivity(activity) {
     cat,
     // 학생은 미게시 programs 행을 읽을 수 없다. 행을 지우는 대신 사실대로 적는다 (ADR 0005 결정 7-4).
     title: p?.title ?? '게시가 중단된 프로그램',
-    catLabel: known ? `${cat.group} · ${cat.name}` : '분류 없음',
+    // group(교내/교외)이 사라져 유형 이름 하나다 — ADR 0014
+    catLabel: known ? cat.name : '분류 없음',
     org: p?.org ?? '',
     dateISO,
     dateLabel: dateISO ? fmtDate(dateISO) : '',
@@ -233,13 +234,15 @@ export function describeActivity(activity) {
  * [M-2 이후에도 유지] 계열 레이더(summarizeByTrack)가 추가됐지만 이 텍스트 요약을 대체하지 않는다.
  *   그래프가 유일한 정보원이 되면 인쇄·모바일·스크린리더에서 정보가 통째로 사라진다.
  *
- * @returns {{total:number, inCount:number, exCount:number, unknown:number,
+ * [inCount/exCount 가 없다 — ADR 0014] 교내/교외 축이 폐지되면서 그 두 값의 근거가 사라졌다.
+ *   대신 catKinds(경험한 유형 수)와 monthSpan(활동 개월 수)을 준다. 둘 다 분모가 없는 개수라
+ *   "4종 중 3종" 같은 달성률로 읽힐 자리가 없다(원칙 1).
+ *
+ * @returns {{total:number, catKinds:number, monthSpan:number, unknown:number,
  *            byCat: Array<{key:string, label:string, count:number, color:string}>,
  *            periodLabel: string}}
  */
 export function summarizeActivities(activities = []) {
-  let inCount = 0;
-  let exCount = 0;
   let unknown = 0;
   const counts = new Map();
   const months = [];
@@ -248,8 +251,6 @@ export function summarizeActivities(activities = []) {
     const key = a?.program?.category;
     const c = key ? CAT[key] : null;
     if (c) {
-      if (c.group === '교외') exCount += 1;
-      else inCount += 1;
       counts.set(key, (counts.get(key) ?? 0) + 1);
     } else {
       // 조용히 빼지 않는다 — 총합과 분포가 어긋나면 학생이 "기록이 사라졌다"고 읽는다.
@@ -259,7 +260,7 @@ export function summarizeActivities(activities = []) {
     if (d) months.push(d);
   }
 
-  // CAT 선언 순서(교내 4 → 교외 4)를 유지해 화면마다 순서가 달라지지 않게 한다.
+  // CAT 선언 순서를 유지해 화면마다 순서가 달라지지 않게 한다.
   const byCat = Object.keys(CAT)
     .filter((k) => counts.has(k))
     .map((k) => ({ key: k, label: CAT[k].name, count: counts.get(k), color: CAT[k].color }));
@@ -268,10 +269,13 @@ export function summarizeActivities(activities = []) {
   const first = months[0] ? monthLabel(months[0]) : '';
   const last = months[months.length - 1] ? monthLabel(months[months.length - 1]) : '';
 
+  // 활동이 걸쳐 있는 개월 수. 같은 달에 몰려 있으면 1이다("몇 달에 걸쳐 꾸준히 했는가"의 사실 표시).
+  const monthSpan = new Set(months.map((d) => monthKey(d))).size;
+
   return {
     total: activities.length,
-    inCount,
-    exCount,
+    catKinds: counts.size, // 경험한 유형 수. 분모(4)를 함께 내보내지 않는다 — 내보내면 화면이 게이지를 그린다.
+    monthSpan,
     unknown,
     byCat,
     periodLabel: !first ? '' : first === last ? first : `${first} ~ ${last}`,

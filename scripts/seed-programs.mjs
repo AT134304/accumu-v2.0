@@ -6,7 +6,7 @@
  * (ADR 0003 "시드 설계" 그대로 구현, docs/adr/0003-programs-schema-and-career-track-taxonomy.md 참고)
  *
  * 목적: 학생 홈(docs/specs/student-home.md)의 추천 프로그램 카드가 실제로 렌더되도록
- *   public.programs 에 데모 프로그램 20건을 넣는다. created_by 는 데모 관리자(ADM-0001)로 채운다.
+ *   public.programs 에 데모 프로그램 17건을 넣는다. created_by 는 데모 관리자(ADM-0001)로 채운다.
  *
  * 전제 조건
  *   - supabase/migrations/*.sql 이 대상 Supabase 프로젝트에 이미 적용되어 있어야 함
@@ -29,7 +29,7 @@
  * 재실행 안전성(idempotency)
  *   seed-accounts.mjs 와 동일하게 "신규 프로젝트에 1회 실행" 전제이며, 재실행 시 즉시 중단된다.
  *   다만 중단 방식이 다르다: 계정 시딩은 이메일 unique 제약이 재실행을 자연히 막아주지만,
- *   programs 에는 unique 제약이 없어 그냥 두면 재실행이 "조용히 20건 더 쌓기"가 된다(홈에 중복 카드).
+ *   programs 에는 unique 제약이 없어 그냥 두면 재실행이 "조용히 17건 더 쌓기"가 된다(홈에 중복 카드).
  *   그래서 insert 전에 기존 행 수를 확인하고 0이 아니면 중단한다 — 같은 fail-fast 정책을
  *   unique 제약이 없는 테이블에 옮긴 것이다. 다시 시딩하려면 아래를 먼저 실행할 것:
  *     delete from public.programs;
@@ -105,7 +105,7 @@ function dateFromToday(offsetDays) {
 }
 
 // ---------------------------------------------------------------------------
-// 데모 프로그램 20건
+// 데모 프로그램 17건 (ADR 0014 로 방과후 3건 삭제 — 이전 20건)
 //
 // 출처: Accumu_prototype.html PROGRAMS(720~761줄). 제목/주최/설명/시간/포인트/계열/인기/상태를
 //   그대로 가져왔고, 날짜만 상대값(dayOffset)으로 바꿨다.
@@ -126,75 +126,41 @@ function dateFromToday(offsetDays) {
 //   이유는 buildRows() 주석 참고.
 //
 // 인수 조건 검증용 fixture (ADR 0003 "시드 설계" 2·3번):
-//   - "수학 심화 탐구반" = 유일한 과거 날짜 행. is_published 는 true 여야 한다
+//   - "하천 환경 정화 봉사" = 유일한 과거 날짜 행. is_published 는 true 여야 한다
 //     (미게시면 is_published 필터에 먼저 걸려서 "지난 날짜 제외" 를 검증하지 못한다).
+//     [2026-08-09 이전에는 "수학 심화 탐구반"이 이 역할이었다] 그 행이 삭제되면서(ADR 0014)
+//     이미 끝난 활동으로 자연스러운 이 봉사로 옮겼다.
 //   - "교내 UCC 공모전" = 유일한 미게시 행. 날짜는 미래여야 한다
 //     (과거면 날짜 필터에 먼저 걸려서 "미게시 제외" 를 검증하지 못한다).
-//   - "또래 멘토링 프로그램"(het, 교내) + "지역 연계 진로 박람회"(eet, 교외) = dayOffset 0 = 오늘 (ADR 0005 결정 8-1).
-//     관리자 홈의 "오늘 진행 프로그램" 이 항상 교내 1 + 교외 1 로 채워지게 하는 fixture 다.
-//     [행을 추가하지 않고 기존 2건의 날짜를 옮긴 것이다] 2건을 추가하면 22건이 되어 확정 F(16~20)와
-//     아래 assertSeedInvariants() 의 상한 검사에 걸린다. 관측 결과는 동일하다.
+//   - "또래 멘토링 프로그램" + "지역 연계 진로 박람회" = dayOffset 0 = 오늘 (ADR 0005 결정 8-1).
+//     관리자 홈의 "오늘 진행 프로그램" 이 비지 않게 하는 fixture 다.
+//     [교내 1 + 교외 1 이라는 조건은 사라졌다 — ADR 0014] 그 축이 폐지돼 요구는 "1건 이상"뿐이다.
+//     [행을 추가하지 않고 기존 2건의 날짜를 옮긴 것이다] 아래 assertSeedInvariants() 가 매 실행마다 검증한다.
 // ---------------------------------------------------------------------------
 const DEMO_PROGRAMS = [
-  // --- 교내: 방과후 (hbk) ---
-  {
-    category: 'hbk',
-    title: '파이썬 코딩 기초 방과후',
-    org: '정보교과부',
-    dayOffset: 5,
-    time: '15:30–17:00',
-    points: 400,
-    status: 'open',
-    career_track: 'it',
-    popularity: 98,
-    is_published: true,
-    description:
-      '코딩이 처음인 학생을 위한 8주 방과후 과정. 간단한 게임을 직접 만들며 프로그래밍의 기초를 익힙니다.',
-  },
-  {
-    category: 'hbk',
-    title: 'AI·데이터 기초 방과후',
-    org: '정보교과부',
-    dayOffset: 12,
-    time: '15:30–17:00',
-    points: 450,
-    status: 'open',
-    career_track: 'it',
-    popularity: 72,
-    is_published: true,
-    description: '엑셀과 파이썬으로 데이터를 다뤄보는 입문 방과후 과정.',
-  },
-  {
-    // [fixture] 유일한 과거 날짜 행 — 인수 조건 "지난 날짜 제외" 검증용. 게시 상태는 true 유지.
-    category: 'hbk',
-    title: '수학 심화 탐구반',
-    org: '수학교과부',
-    dayOffset: -6,
-    time: '16:00–17:30',
-    points: 350,
-    status: 'ing',
-    career_track: 'sci',
-    popularity: 61,
-    is_published: true,
-    description: '교과 과정 너머의 수학 주제를 탐구하고 발표하는 심화반입니다.',
-  },
+  // [방과후 3건 삭제 — 2026-08-09, ADR 0014]
+  //   "파이썬 코딩 기초 방과후" / "AI·데이터 기초 방과후" / "수학 심화 탐구반" 을 뺐다.
+  //   - 방과후는 참여에 비용이 든다. 유료 활동을 포인트로 보상하면 "돈 내고 포인트 사는" 구조가 된다.
+  //   - "수학 심화 탐구반" 은 그와 별개로 절대 원칙 2 위반이었다(학업이지 진로·커리어 활동이 아니다).
+  //   그 자리를 채우려고 새 행을 만들지 않았다 — 17건은 확정 F(16~20) 안이다.
+  //   >>> 유료 활동을 시드에 다시 넣지 말 것.
 
-  // --- 교내: 동아리 (hdo) ---
+  // --- 교내 활동 (school) ---
   {
-    category: 'hdo',
+    category: 'school',
     title: '발명·메이커 동아리',
     org: '창의융합부',
     dayOffset: 8,
     time: '방과후',
     points: 350,
     status: 'open',
-    career_track: 'it',
+    career_track: 'eng',
     popularity: 87,
     is_published: true,
     description: '아두이노와 3D 프린터로 나만의 아이디어를 직접 만들어보는 자율동아리.',
   },
   {
-    category: 'hdo',
+    category: 'school',
     title: '수리과학 탐구 동아리',
     org: '과학교과부',
     dayOffset: 10,
@@ -207,7 +173,7 @@ const DEMO_PROGRAMS = [
     description: '실험과 데이터 분석을 중심으로 운영되는 과학 탐구 동아리.',
   },
   {
-    category: 'hdo',
+    category: 'school',
     title: '밴드부 정기공연 준비',
     org: '음악교과부',
     dayOffset: 14,
@@ -220,9 +186,9 @@ const DEMO_PROGRAMS = [
     description: '악기 파트를 맡아 정기공연 무대를 함께 준비하는 동아리.',
   },
 
-  // --- 교내: 대회 (hdc) ---
+  // --- 대회·공모전 (contest) ---
   {
-    category: 'hdc',
+    category: 'contest',
     title: '교내 과학탐구대회',
     org: '과학교과부',
     dayOffset: 18,
@@ -235,7 +201,7 @@ const DEMO_PROGRAMS = [
     description: '자유 주제 과학 탐구 보고서를 작성해 발표하는 교내 대회. 수상 시 생기부 기재.',
   },
   {
-    category: 'hdc',
+    category: 'contest',
     title: '교내 토론대회',
     org: '사회교과부',
     dayOffset: 6,
@@ -249,7 +215,7 @@ const DEMO_PROGRAMS = [
   },
   {
     // [fixture] 유일한 미게시 행 — 인수 조건 "미게시 제외" 검증용. 날짜는 미래 유지.
-    category: 'hdc',
+    category: 'contest',
     title: '교내 UCC 공모전',
     org: '방송부',
     dayOffset: 9,
@@ -262,12 +228,13 @@ const DEMO_PROGRAMS = [
     description: '우리 학교를 소개하는 1분 영상 공모전.',
   },
 
-  // --- 교내: 기타 (het) ---
+  // --- 교내 활동 (school) — 자율활동 ---
   {
     // [fixture] 오늘 진행 프로그램 (교내) — ADR 0005 결정 8-1. 관리자 홈 "오늘 진행 프로그램" 이 항상
-    //   비지 않게 하려고 dayOffset 2 -> 0 으로 옮겼다(행을 추가하지 않는다 — 총 20건 = 확정 F 유지).
-    //   교외 짝은 아래 "지역 연계 진로 박람회"(eet). 아래 assertSeedInvariants() 가 이 쌍을 매 실행마다 검증한다.
-    category: 'het',
+    //   비지 않게 하려고 dayOffset 2 -> 0 으로 옮겼다(행을 추가하지 않는다 — 확정 F 16~20 유지).
+    //   짝은 아래 "지역 연계 진로 박람회". assertSeedInvariants() 가 "오늘 1건 이상"을 매 실행마다 검증한다
+    //   (교내 1 + 교외 1 조건은 그 축이 폐지되며 사라졌다 — ADR 0014).
+    category: 'school',
     title: '또래 멘토링 프로그램',
     org: '상담부',
     dayOffset: 0,
@@ -280,48 +247,49 @@ const DEMO_PROGRAMS = [
     description: '후배에게 공부 방법을 알려주며 함께 성장하는 또래 멘토링.',
   },
   {
-    category: 'het',
+    category: 'school',
     title: '학생자치회 정책 제안',
     org: '학생자치회',
     dayOffset: 7,
     time: '점심시간',
     points: 250,
     status: 'open',
-    career_track: 'biz',
+    // biz -> soc (ADR 0014). 학교 정책 제안은 상경이 아니라 사회·교육 축이다.
+    career_track: 'soc',
     popularity: 46,
     is_published: true,
     description: '학교에 바라는 점을 정책으로 제안하고 직접 추진해봅니다.',
   },
 
-  // --- 교외: 기업·국가기관 (ecp) ---
+  // --- 진로 체험 (career) — 기업·국가기관 ---
   {
-    category: 'ecp',
+    category: 'career',
     title: '삼성 주니어 SW 아카데미',
     org: '삼성전자',
     dayOffset: 15,
     time: '10:00–17:00',
     points: 1200,
     status: 'open',
-    career_track: 'it',
+    career_track: 'eng',
     popularity: 210,
     is_published: true,
     description: '현직 개발자와 함께하는 1일 소프트웨어 집중 캠프. 수료증 발급.',
   },
   {
-    category: 'ecp',
+    category: 'career',
     title: '카카오 진로 멘토링 데이',
     org: '카카오',
     dayOffset: 11,
     time: '13:00–16:00',
     points: 900,
     status: 'wait',
-    career_track: 'it',
+    career_track: 'eng',
     popularity: 165,
     is_published: true,
     description: 'IT 기업 현직자에게 직무와 진로를 직접 묻는 멘토링 행사.',
   },
   {
-    category: 'ecp',
+    category: 'career',
     title: '교육부 진로체험 캠프',
     org: '교육부',
     dayOffset: 21,
@@ -334,50 +302,54 @@ const DEMO_PROGRAMS = [
     description: '다양한 직업을 체험하는 1박 진로 캠프.',
   },
 
-  // --- 교외: 봉사활동 (evo) ---
+  // --- 봉사활동 (volunteer) ---
   {
-    category: 'evo',
+    category: 'volunteer',
     title: '지역 아동센터 학습 봉사',
     org: 'OO시 자원봉사센터',
     dayOffset: 13,
     time: '10:00–12:00',
     points: 400,
     status: 'open',
-    career_track: 'hum',
+    // hum -> soc (ADR 0014). 학습 지도 봉사는 교육 축이다.
+    career_track: 'soc',
     popularity: 110,
     is_published: true,
     description: '지역 아동센터 아이들의 학습을 돕는 정기 봉사. 봉사시간 인정.',
   },
   {
-    category: 'evo',
+    // [fixture] 유일한 과거 날짜 행 — 인수 조건 "지난 날짜 제외" 검증용. is_published 는 true 여야 한다.
+    //   2026-08-09 이전에는 "수학 심화 탐구반"(방과후)이 이 역할이었는데 그 행이 삭제되면서
+    //   이미 끝난 활동으로 자연스러운 이 봉사로 옮겼다(ADR 0014). dayOffset 16 -> -6.
+    category: 'volunteer',
     title: '하천 환경 정화 봉사',
     org: 'OO시청',
-    dayOffset: 16,
+    dayOffset: -6,
     time: '09:00–11:00',
     points: 300,
-    status: 'open',
+    status: 'ing',
     career_track: 'sci',
     popularity: 58,
     is_published: true,
     description: '우리 지역 하천을 함께 정화하는 환경 봉사 활동.',
   },
 
-  // --- 교외: 대회 (edc) ---
+  // --- 대회·공모전 (contest) — 교외 ---
   {
-    category: 'edc',
+    category: 'contest',
     title: '경기도 메이커 챌린지',
     org: '경기도교육청',
     dayOffset: 19,
     time: '09:00–18:00',
     points: 2000,
     status: 'open',
-    career_track: 'it',
+    career_track: 'eng',
     popularity: 128,
     is_published: true,
     description: '주어진 미션을 직접 제작물로 해결하는 메이커 경진대회.',
   },
   {
-    category: 'edc',
+    category: 'contest',
     title: '전국 청소년 창업 경진대회',
     org: '중소벤처기업부',
     dayOffset: 25,
@@ -390,9 +362,9 @@ const DEMO_PROGRAMS = [
     description: '아이디어를 사업 모델로 발전시켜 겨루는 전국 단위 창업 대회.',
   },
 
-  // --- 교외: 기타 (eet) ---
+  // --- 진로 체험 (career) — 박람회·전공체험 ---
   {
-    category: 'eet',
+    category: 'career',
     title: '대학 전공 체험의 날',
     org: 'OO대학교',
     dayOffset: 17,
@@ -406,7 +378,7 @@ const DEMO_PROGRAMS = [
   },
   {
     // [fixture] 오늘 진행 프로그램 (교외) — ADR 0005 결정 8-1. dayOffset 4 -> 0 (교내 짝: "또래 멘토링 프로그램").
-    category: 'eet',
+    category: 'career',
     title: '지역 연계 진로 박람회',
     org: 'OO교육지원청',
     dayOffset: 0,
@@ -421,12 +393,14 @@ const DEMO_PROGRAMS = [
 ];
 
 // 값 집합 — 마이그레이션의 enum 3종과 동일해야 한다. 아래 검증에서 오타를 잡는 용도.
-const CATEGORIES = ['hbk', 'hdo', 'hdc', 'het', 'ecp', 'evo', 'edc', 'eet'];
-const TRACKS = ['sci', 'it', 'hum', 'biz', 'art'];
+// ADR 0014 — 활동 유형 4종 / 진로 계열 7종. DB enum(마이그레이션 20260809100000)과 같은 값 집합이다.
+const CATEGORIES = ['school', 'contest', 'volunteer', 'career'];
+const TRACKS = ['hum', 'soc', 'biz', 'sci', 'eng', 'med', 'art'];
 const STATUSES = ['open', 'ing', 'wait', 'full', 'over'];
 
 // 주 데모 계정(10718 신지훈)의 관심 계열. seed-accounts.mjs 의 DEMO_ACCOUNTS 와 맞춰야 한다.
-const PRIMARY_DEMO_TRACK = 'it';
+// it -> eng (ADR 0014: IT·소프트웨어가 공학·IT 에 흡수됐다). seed-accounts.mjs 도 함께 바뀌었다.
+const PRIMARY_DEMO_TRACK = 'eng';
 
 /**
  * insert 할 행 생성.
@@ -474,10 +448,9 @@ function assertSeedInvariants() {
   const usedCategories = new Set(rows.map((p) => p.category));
 
   // ADR 0005 결정 8-2: 관리자 홈 "오늘 진행 프로그램" fixture.
-  // 교내/교외 판정은 카테고리 첫 글자로 한다(h=교내, e=교외 — DB에 그룹 컬럼을 두지 않기로 한 ADR 0003 그대로).
+  // [교내/교외 쌍 검사는 사라졌다 — ADR 0014] 카테고리 첫 글자(h/e)로 교내·교외를 판정하던 규칙은
+  //   그 축 자체가 폐지되면서 근거가 없어졌다. 남은 요구는 "오늘 진행 게시 프로그램이 1건 이상"뿐이다.
   const todayPrograms = rows.filter((p) => p.is_published && p.date === today);
-  const todayOnCampus = todayPrograms.filter((p) => p.category[0] === 'h');
-  const todayOffCampus = todayPrograms.filter((p) => p.category[0] === 'e');
 
   const problems = [];
 
@@ -486,10 +459,10 @@ function assertSeedInvariants() {
     problems.push(`프로그램 수가 ${rows.length}건 — 확정 F(16~20개) 위반`);
   }
 
-  // 확정 F: 카테고리 8종 전부 등장
+  // 확정 F: 카테고리 4종 전부 등장 (ADR 0014 — 8종에서 줄었다)
   const missingCategories = CATEGORIES.filter((c) => !usedCategories.has(c));
   if (missingCategories.length > 0) {
-    problems.push(`등장하지 않는 카테고리: ${missingCategories.join(', ')} — 확정 F(8종 유지) 위반`);
+    problems.push(`등장하지 않는 카테고리: ${missingCategories.join(', ')} — 확정 F(4종 전부) 위반`);
   }
 
   // 시드 설계 1번: 게시 + 미래 행이 8개 이상 (홈이 카드 8장을 채워야 함)
@@ -527,16 +500,11 @@ function assertSeedInvariants() {
     );
   }
 
-  // ADR 0005 결정 8-2: 오늘(dayOffset=0) 프로그램이 교내 1건 이상 + 교외 1건 이상.
+  // ADR 0005 결정 8-2: 오늘(dayOffset=0) 게시 프로그램이 1건 이상.
   // 없으면 관리자 홈이 항상 빈 상태가 되는데, 그건 화면 버그가 아니라 시드가 조용히 깨진 것이다.
-  if (todayOnCampus.length < 1) {
+  if (todayPrograms.length < 1) {
     problems.push(
-      '오늘 날짜(dayOffset=0) 교내(category h*) 게시 프로그램이 없음 — 관리자 홈 "오늘 진행 프로그램" 이 비게 됨 (ADR 0005 결정 8-2)'
-    );
-  }
-  if (todayOffCampus.length < 1) {
-    problems.push(
-      '오늘 날짜(dayOffset=0) 교외(category e*) 게시 프로그램이 없음 — 관리자 홈 "오늘 진행 프로그램" 이 비게 됨 (ADR 0005 결정 8-2)'
+      '오늘 날짜(dayOffset=0) 게시 프로그램이 없음 — 관리자 홈 "오늘 진행 프로그램" 이 비게 됨 (ADR 0005 결정 8-2)'
     );
   }
 
@@ -563,12 +531,17 @@ function assertSeedInvariants() {
 
   console.log(`[검증] 총 ${rows.length}건 / 오늘 = ${today}`);
   console.log(`[검증] 게시+미래 ${publishedFuture.length}건, 미게시 ${unpublished.length}건, 지난 날짜 ${past.length}건`);
-  console.log(`[검증] 카테고리 ${usedCategories.size}/8종 등장`);
+  console.log(`[검증] 카테고리 ${usedCategories.size}/${CATEGORIES.length}종 등장`);
   console.log(`[검증] 주 데모 계정(10718) 계열 '${PRIMARY_DEMO_TRACK}' 일치 + 게시 + 미래: ${primaryMatches.length}건`);
   console.log(`[검증] 포인트 분포: 150~700P ${lowBand}건 / 2000~3000P ${highBand}건 (CLAUDE.md 7장)`);
   console.log(
-    `[검증] 오늘 진행 프로그램 ${todayPrograms.length}건 (교내 ${todayOnCampus.length} / 교외 ${todayOffCampus.length}) — ` +
+    `[검증] 오늘 진행 프로그램 ${todayPrograms.length}건 — ` +
       `관리자 홈 fixture (ADR 0005): ${todayPrograms.map((p) => p.title).join(', ')}`
+  );
+  // 계열 분포도 함께 찍는다. 7종 중 값이 0인 축이 있는 것은 정상이다 —
+  // 레이더는 "무엇을 아직 안 했는가"까지 읽히는 게 값이라 축을 빼지 않는다(archiveService summarizeByTrack).
+  console.log(
+    `[검증] 계열 분포: ${TRACKS.map((t) => `${t} ${rows.filter((p) => p.career_track === t).length}`).join(' / ')}`
   );
 
   return { today, publishedFuture, unpublished, past, primaryMatches, todayPrograms };

@@ -6,8 +6,11 @@
 //     프로그램 상세와 같은 날짜 축을 써야 화면끼리 어긋나지 않는다.
 //   - 월 캡션은 항상 실제 오늘 기준으로 계산한다(하드코딩 금지). 프로토타입의 ['3월'..'이번 달']은
 //     TODAY_ISO='2026-07-02' 고정 전제의 산물이라 쓰지 않는다.
-//   - 색: 교내 = brand blue / 교외 = indigo. **amber 금지** — amber는 포인트 색이라
-//     "포인트가 쌓이는 그래프"로 읽히면 절대 원칙 4에 어긋난다.
+//   - 색: **활동 유형(CAT) 색**. 2026-08-09 이전에는 교내 = brand blue / 교외 = indigo 였는데
+//     교내/교외 축이 폐지되면서(ADR 0014) 기준이 사라졌다. 캘린더 팝업의 날짜 점이 이미 계열 색을
+//     쓰므로 같은 언어를 따른다 — 블록 색이 "무슨 활동이었는지"를 말한다.
+//     **amber 금지**는 그대로다 — amber는 포인트 색이라 "포인트가 쌓이는 그래프"로 읽히면 절대 원칙 4에
+//     어긋난다. CAT 4종 색에 amber 가 없는 것이 그 가드다(taxonomy.js).
 //   - [원칙 1 가드] 숫자·레벨·게이지·"N개 달성" 라벨·학생 간 비교 표시를 넣지 않는다. 블록이 쌓이는 것까지만.
 //   - [알려진 틈] 게시중단된 프로그램은 학생이 programs 행을 읽을 수 없어 월/카테고리를 결정할 수 없다.
 //     그 활동은 블록으로 그리지 않는다(빈칸). 화면이 죽지 않는 것이 우선이다 (ADR 0005 결정 7-4).
@@ -24,14 +27,14 @@ const BLOCKS = 4; // 기둥당 블록 수 — 초과분은 그리지 않는다(�
 export default function StackViz({ completed = [] }) {
   const months = recentMonths(COLS);
 
-  // 월 키 -> 해당 월의 그룹('교내'|'교외') 목록. 날짜순으로 아래에서 위로 쌓는다.
+  // 월 키 -> 해당 월의 활동 목록. 날짜순으로 아래에서 위로 쌓는다.
   const buckets = new Map(months.map((m) => [m.key, []]));
   for (const row of completed) {
     const date = row?.program?.date;
     if (!date) continue; // 프로그램 정보를 못 찾은 완료 건 — 방어적으로 건너뛴다
     const bucket = buckets.get(monthKey(date));
     if (!bucket) continue; // 최근 5개월 밖
-    bucket.push({ date, group: catOf(row.program.category).group });
+    bucket.push({ date, color: catOf(row.program.category).color });
   }
   for (const list of buckets.values()) list.sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
@@ -43,14 +46,16 @@ export default function StackViz({ completed = [] }) {
           <div className="col" key={m.key}>
             {Array.from({ length: BLOCKS }, (_, bi) => {
               const item = filled[bi];
-              // 교외만 indigo(.i). 교내와 미분류는 brand blue 기본. amber(.a)는 쓰지 않는다.
-              const cls = item ? (item.group === '교외' ? 'blk fill i' : 'blk fill') : 'blk';
               return (
                 <div
-                  className={cls}
+                  className={item ? 'blk fill' : 'blk'}
                   key={bi}
-                  // 아래->위로 순차 등장 (프로토타입 animation-delay 계산식 그대로)
-                  style={{ animationDelay: `${ci * 0.08 + bi * 0.05}s` }}
+                  style={{
+                    // 아래->위로 순차 등장 (프로토타입 animation-delay 계산식 그대로)
+                    animationDelay: `${ci * 0.08 + bi * 0.05}s`,
+                    // 채워진 블록만 유형 색으로 덮는다. 빈 블록은 CSS 기본(테두리만) 그대로다.
+                    ...(item ? { background: item.color, borderColor: 'transparent' } : null),
+                  }}
                 />
               );
             })}

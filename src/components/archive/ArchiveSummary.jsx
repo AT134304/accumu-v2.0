@@ -4,10 +4,10 @@
 //
 // [결정 C — 막대 게이지 기각 / 확정 M-2 이후에도 이 블록은 텍스트다]
 //   프로토타입의 .cc .bar 막대(width:N%)를 옮기지 않았다. 원칙 1: 게이지·레벨·"N개 달성"은 성취 연출이다.
-//   사실 기술 텍스트로만 적는다: `총 5 · 교내 3 · 교외 2` / `방과후 2 · 봉사활동 2` / `2026년 3월 ~ 7월`.
+//   사실 기술 텍스트로만 적는다: `총 5 · 유형 3종 · 4개월` / `교내 활동 2 · 봉사활동 2` / `2026년 3월 ~ 7월`.
 //
 //   [레이더와의 관계 — 지우지 말 것] 확정이 M-1(레이더 기각) -> M-2(추가)로 뒤집혀 TrackRadar 가 생겼지만,
-//   이 텍스트 요약은 **그대로 유지한다.** 축이 다르고(여기는 활동 유형 CAT 8종, 레이더는 진로 계열 TRACK 5종)
+//   이 텍스트 요약은 **그대로 유지한다.** 축이 다르고(여기는 활동 유형 CAT 4종, 레이더는 진로 계열 TRACK 7종)
 //   무엇보다 그래프가 유일한 정보원이 되면 안 된다 — 스크린리더·저시력·인쇄 축소본에서 정보가 통째로 사라진다.
 //
 // [원칙 4] 3칸은 전부 활동 수다. 포인트 총액 칸을 추가하지 말 것 — 요약이 활동 수라는 것이 위계의 핵심이다.
@@ -29,13 +29,16 @@ export default function ArchiveSummary({ activities = [] }) {
           <div className="n">{s.total}</div>
           <div className="l">총 참여 활동</div>
         </div>
+        {/* [교내/교외 2칸을 대체한다 — ADR 0014] 교내/교외 축이 폐지되면서 두 값의 근거가 사라졌다.
+            대신 "얼마나 넓게(유형) / 얼마나 길게(개월)" 했는지를 적는다. 둘 다 분모 없는 개수다 —
+            "4종 중 3종" 처럼 분모를 붙이면 그 순간 달성률이 되고 화면이 게이지를 그리게 된다(원칙 1). */}
         <div className="arc-tot">
-          <div className="n">{s.inCount}</div>
-          <div className="l">교내 활동</div>
+          <div className="n">{s.catKinds}</div>
+          <div className="l">경험한 활동 유형</div>
         </div>
         <div className="arc-tot">
-          <div className="n">{s.exCount}</div>
-          <div className="l">교외 활동</div>
+          <div className="n">{s.monthSpan}</div>
+          <div className="l">활동한 개월 수</div>
         </div>
       </div>
 

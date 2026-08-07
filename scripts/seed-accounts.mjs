@@ -44,10 +44,10 @@
  * 화면만 봐서는 정상 동작과 구별되지 않는다.
  *
  * 해결: 계정을 지우고 재시딩할 필요 없이, Supabase SQL Editor 에서 아래를 1회 실행하면 된다.
- *   update public.profiles set career_interest = 'it'  where code = '10718';
+ *   update public.profiles set career_interest = 'eng' where code = '10718';  -- ADR 0014: it -> eng
  *   update public.profiles set career_interest = 'sci' where code = '10719';
  *   update public.profiles set career_interest = 'hum' where code = '10720';
- *   update public.profiles set career_interest = 'biz' where code = '10721';
+ *   update public.profiles set career_interest = 'soc' where code = '10721';  -- ADR 0014: biz -> soc
  *   -- 10722(최하은), ADM-0001(정하윤)은 NULL 유지 — 의도된 fallback 시연 / 관리자는 계열 개념 없음
  *
  * 값은 아래 DEMO_ACCOUNTS 와 반드시 일치해야 한다(둘 다 ADR 0003 "시드 설계" 표가 출처).
@@ -118,12 +118,12 @@ function buildVirtualEmail(code) {
 // 표가 바뀌면 이 배열도 함께 수정한다.
 //
 // career_interest (ADR 0003 "시드 설계", 2026-07-16 케빈 확정)
-//   - 값 공간은 career_track enum 5종(sci/it/hum/biz/art). 오타는 profiles insert 시점에 거부된다.
+//   - 값 공간은 career_track enum 7종(hum/soc/biz/sci/eng/med/art — ADR 0014). 오타는 profiles insert 시점에 거부된다.
 //   - [왜 시딩이 유일한 입력 경로인가] 계열 선택 UI는 마이페이지 스펙(이번 스코프 아님)이고,
 //     profiles 에 update 정책이 0개라 앱에서 저장할 방법 자체가 없다. 시딩하지 않으면 학생 홈은
 //     100% 최신순 fallback 으로만 동작해 인수 조건("계열 일치 항목이 앞에 오고 배지가 붙는다")을
 //     검증할 수 없다.
-//   - 10718(주 데모 계정)은 it. 시드 프로그램에 it 계열이 가장 많다(scripts/seed-programs.mjs).
+//   - 10718(주 데모 계정)은 eng. 시드 프로그램에 eng 계열이 가장 많다(scripts/seed-programs.mjs PRIMARY_DEMO_TRACK).
 //   - 10722는 의도적으로 null — 계열 미설정 학생의 최신순 fallback 경로(확정 E의 빈 값 분기) 시연용.
 //   - admin(ADM-0001)은 계열 개념 자체가 없어 null. DB CHECK로 강제하지 않고 이 스크립트의 책임으로 둔다
 //     (mentor_students 의 role 정합성을 트리거로 강제하지 않은 ADR 0002 판단과 동일).
@@ -136,11 +136,13 @@ const DEMO_PASSWORD = 'accumu2026';
 //   - 시드 학생 5명은 아래에서 ADM-0001 에 전원 매핑되므로 'school' 이 사실과 일치한다.
 //   - 앱 회원가입으로 만들어지는 계정은 이 스크립트가 아니라 handle_new_user() 트리거가 채운다
 //     (그 경로는 metadata 의 초대코드 유무로 school/personal 을 판정한다).
+// [계열 값 갱신 — ADR 0014] 5종 -> 7종. it 은 eng(공학·IT)에 흡수됐다.
+//   최하은(10722)의 NULL 은 그대로다 — "계열 미선택" 은 정상 도메인 상태이고 홈 fallback 시연에 필요하다.
 const DEMO_ACCOUNTS = [
-  { role: 'student', code: '10718', name: '신지훈', career_interest: 'it', account_type: 'school' },
+  { role: 'student', code: '10718', name: '신지훈', career_interest: 'eng', account_type: 'school' },
   { role: 'student', code: '10719', name: '김도윤', career_interest: 'sci', account_type: 'school' },
   { role: 'student', code: '10720', name: '이서연', career_interest: 'hum', account_type: 'school' },
-  { role: 'student', code: '10721', name: '박민준', career_interest: 'biz', account_type: 'school' },
+  { role: 'student', code: '10721', name: '박민준', career_interest: 'soc', account_type: 'school' },
   { role: 'student', code: '10722', name: '최하은', career_interest: null, account_type: 'school' },
   { role: 'admin', code: 'ADM-0001', name: '정하윤', career_interest: null, account_type: null },
 ];

@@ -59,11 +59,33 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 | `profiles` | id, role, code, name, points_balance, points_total, currency_balance, career_interest, account_type | 학생/관리자 공통 계정. `account_type`(school/personal)은 학생 전용 (ADR 0008) |
 | `mentor_students` | admin_id, student_id | 관리자-담당학생 매핑. **권한 경계 자체**라 앱에 편집 UI가 없다. 생기는 경로는 시딩 + 학생의 초대코드 입력 2가지뿐 |
 | `invite_codes` | code, kind(school/admin), admin_id, is_active | 가입 초대코드 (ADR 0008). 관리자별 고정 school 코드 + 관리자 승격용 코드. **앱에서 생성 불가**(정책 0개, 시딩/SQL 전용) |
-| `programs` | id, category, title, description, date, time, capacity, points, is_published, created_by | is_published로 게시/게시중단 |
+| `programs` | id, category, title, org, description, date, time, capacity, points, career_track, is_published, created_by | is_published로 게시/게시중단. `category`·`career_track` 값은 아래 참고 |
 | `participations` | id, student_id, program_id, status, entry_at, exit_at, entry_token, exit_token | 신청·입장·퇴장 상태 + QR 토큰 |
 | `point_transactions` | id, student_id, type(적립/전환), amount, related_participation_id, settled_month | 포인트 내역. `settled_month`(전환 행 전용)는 "어느 달 적립분의 정산인가" — ADR 0012 |
 | `reviews` | id, participation_id, rating, comment | 별점 + 한줄평 |
 | `notifications` | id, recipient_id, type, message, detail, program_id, is_read, created_at | 인앱 알림. 수신자는 학생·관리자 둘 다 가능하며 역할은 `profiles.role`이 소유한다 (ADR 0013) |
+
+### 프로그램 분류 (ADR 0014 / 2026-08-09 재편)
+
+두 축은 **완전히 별개**다. `category`는 "무엇을 하는가", `career_track`은 "어느 진로 계열인가".
+
+| `program_category` (4종) | 포함 |
+|---|---|
+| `school` 교내 활동 | 동아리 · 자율활동 · 학생회 · 또래멘토링 |
+| `contest` 대회·공모전 | 교내외 모든 대회 |
+| `volunteer` 봉사활동 | 주최 무관 모든 봉사 |
+| `career` 진로 체험 | 박람회 · 학과탐방 · 멘토링 · 기업/대학/기관 프로그램 · 공유학교 · 온라인학교 |
+
+`career_track` (7종): `hum` 인문·어학 / `soc` 사회·교육 / `biz` 상경·경영 / `sci` 자연과학 /
+`eng` 공학·IT / `med` 의약·보건 / `art` 예술·체육. **`profiles.career_interest`와 같은 타입을 공유**한다(ADR 0003 결정 3).
+
+- **교내/교외 축은 폐지됐다.** 한 enum에 "어디서"와 "무엇을" 두 축이 눌려 있어 대회·기타가 각각 두 키로 갈렸다.
+  >>> `CAT[].group`을 되살리지 말 것.
+- **기타 칸을 만들지 말 것.** 애매한 것이 갈 곳이 생기면 그리로 몰려 분류가 다시 무너진다.
+- **주최(기업/대학/국가기관/공유학교/온라인학교)는 카테고리가 아니다.** `programs.org` 텍스트가 화면에 찍어 준다.
+- **방과후는 없다.** 참여에 비용이 드는 활동을 포인트로 보상하면 "돈 내고 포인트 사는" 구조가 된다.
+  >>> 유료 활동을 시드에 다시 넣지 말 것.
+- **CAT 색에 amber가 없다.** amber는 포인트 전용이다(원칙 4).
 
 ## 6. QR 이중 인증 작동 방식
 

@@ -38,9 +38,8 @@ export default function ProgramCard({ program, onOpen, joined = false, past = fa
       }}
     >
       <div className="thumb" style={{ background: `linear-gradient(135deg,${c.soft},#fff)` }}>
-        <span className="tag">
-          {c.group} · {c.name}
-        </span>
+        {/* group(교내/교외)이 사라져 유형 이름 하나다 — ADR 0014 */}
+        <span className="tag">{c.name}</span>
         {/* 계열 매칭 배지 — 개인화 표시일 뿐 보상/랭킹 요소가 아니다 (확정 E) */}
         {program.isMatched && (
           <span className="matchbadge">
