@@ -6,6 +6,11 @@
 
 > **갱신 이력**
 > - 2026-08-06 구현. 마이그레이션 `20260806120000_add_notifications.sql`.
+> - **2026-08-08 — 결정 D(관리자 알림 없음)와 화면 A(자동 읽음 금지)를 `docs/adr/0013-admin-notifications.md`가 대체한다** (케빈 요청).
+>   관리자 알림 3종(`apply_admin`/`mentee`/`stale`) + 학생 `convert` 알림이 생겼고, 관리자 셸에 종·캘린더가 붙었다.
+>   "모두 읽음" 버튼은 사라지고 팝업을 여는 것이 곧 읽음이 됐다. 수신자 컬럼도 `student_id` → `recipient_id`.
+>   마이그레이션 `20260808120000_add_admin_notifications_and_convert_notice.sql`.
+>   **아래 결정 D와 화면 A는 더 이상 현재 동작이 아니다** — 원래 근거는 ADR 0013이 각각에 대응해 남겼다.
 
 ---
 

@@ -12,11 +12,9 @@
   display: grid; place-items: center; line-height: 1;
 }
 
-.readall { font-size: 12.5px; font-weight: 700; color: var(--brand-dk); padding: 4px 9px; border-radius: 8px; }
-.readall:hover:not(:disabled) { background: var(--brand-soft); }
-.readall:disabled { color: var(--muted); cursor: not-allowed; }
-
-.pop-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+/* [.readall 이 없다 — 2026-08-08] "모두 읽음" 버튼을 없애고 팝업을 여는 것이 곧 읽음이 됐다(ADR 0013).
+   스타일을 남겨두면 "되살릴 수 있는 버튼"으로 읽히므로 함께 지운다. */
+.pop-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .pop-head h3 { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
 
 /* ---------- 알림 목록 ---------- */

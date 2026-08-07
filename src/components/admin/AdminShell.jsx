@@ -1,9 +1,15 @@
 // Accumu v2 — 관리자 공통 셸 (docs/specs/qr-dual-auth.md "C. 관리자 — 공통 셸", 확정 G-3 1단계분)
 //
-// 학생 셸(StudentShell)의 시각 언어를 그대로 따르되 세 가지를 **의도적으로 넣지 않는다**:
+// 학생 셸(StudentShell)의 시각 언어를 그대로 따르되 두 가지를 **의도적으로 넣지 않는다**:
 //   - 포인트 표시: 관리자에게 포인트 개념이 없다(스펙 C절).
-//   - 알림/캘린더: 관리자용 이벤트 소스가 없다.
 //   - 참여자 수·출석률·랭킹·학교 통계: 원칙 1·6. 애초에 관리자에게 그 데이터를 주는 RLS 정책이 없다.
+//
+// [알림·캘린더 — 2026-08-08 추가, ADR 0013]
+//   원래 이 자리에는 "관리자용 이벤트 소스가 없다"고 적혀 있었다. 이제 있다(내 프로그램에 신청,
+//   담당 학생 추가, 일정이 지난 게시중 프로그램).
+//   원칙 6 은 지켜진다 — 관리자 기능 3종은 **동작**이고, 이 둘은 그 3종에 관한 **읽기**다.
+//   메뉴(MENU) 항목이 4개 그대로이고 관리자가 새로 할 수 있게 된 일이 0개다.
+//   >>> 알림 종류가 3종 기능 밖의 사실을 나르거나 이 팝업에 액션 버튼이 붙으면 그때가 위반이다.
 //
 // [로그아웃] 기존 AdminHomePage 63줄 골격의 유일한 기능이었다. 홈이 실제 화면으로 바뀌면서 갈 곳을 잃지 않도록
 //   여기(셸 우측)로 옮긴다. 1인 시연에서 학생/관리자 계정을 오가는 필수 경로다.
@@ -11,9 +17,13 @@
 // [StudentShell.css 를 함께 import 하는 이유] 그 파일은 학생 전용이 아니라 앱 공통 시각 언어
 //   (.nav / .wrap / .bottomnav / .screen / .empty / .overlay / .modal)를 담고 있다. 관리자 셸도 같은 언어를 쓴다.
 //   200줄을 복제하면 두 셸이 시간이 지나며 어긋난다.
+import { useCallback, useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Icon from '../Icon';
+import NotifPopup from '../student/NotifPopup';
+import AdminCalendarPopup from './AdminCalendarPopup';
+import { fetchUnreadCount, syncStaleProgramNotices } from '../../lib/notificationService';
 import '../../styles/StudentShell.css';
 import '../../styles/AdminShell.css';
 
@@ -43,7 +53,40 @@ export default function AdminShell({ children }) {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
 
+  // 'notif' | 'calendar' | null
+  const [popup, setPopup] = useState(null);
+  const [unread, setUnread] = useState(0);
+
   const initial = profile?.name?.trim()?.[0] ?? '';
+
+  // [셸은 개수만 안다] 목록은 팝업이 열릴 때 조회한다 — 학생 셸과 같은 규율.
+  const refreshUnread = useCallback(() => {
+    if (!profile?.id) return;
+    fetchUnreadCount()
+      .then(setUnread)
+      .catch((err) => console.error('[AdminShell] 안 읽은 알림 조회 실패:', err));
+  }, [profile?.id]);
+
+  // ["일정이 지났다"는 사건이 아니라 상태라 여기서 계산한다 — ADR 0013]
+  //   트리거는 행이 바뀔 때만 깨어나므로 아무도 건드리지 않는 프로그램에서는 영원히 발화하지 않는다.
+  //   서버가 멱등이라(프로그램당 1행) 셸이 마운트될 때마다 불러도 안전하다.
+  //   실패해도 셸은 그대로 뜬다 — 알림 하나 때문에 관리자 화면 전체가 죽으면 안 된다.
+  useEffect(() => {
+    if (!profile?.id) return;
+    (async () => {
+      try {
+        await syncStaleProgramNotices();
+      } catch (err) {
+        console.warn('[AdminShell] 지난 프로그램 알림 동기화 실패(표시만 지연됨):', err);
+      }
+      refreshUnread();
+    })();
+  }, [profile?.id, refreshUnread]);
+
+  // 팝업이 닫힐 때도 다시 센다 — 다른 화면에서 알림이 생겼을 수 있다.
+  useEffect(() => {
+    refreshUnread();
+  }, [refreshUnread, popup]);
 
   return (
     <>
@@ -75,6 +118,20 @@ export default function AdminShell({ children }) {
 
         <div className="spacer" />
 
+        {/* 학생 셸과 같은 .bell 버튼·같은 위치. 두 화면이 다른 시각 언어를 갖지 않게 한다. */}
+        <button type="button" className="bell" onClick={() => setPopup('calendar')} aria-label="활동 캘린더">
+          <Icon name="ic-calendar" size={22} />
+        </button>
+        <button
+          type="button"
+          className="bell"
+          onClick={() => setPopup('notif')}
+          aria-label={unread > 0 ? `알림 ${unread}건` : '알림'}
+        >
+          <Icon name="ic-bell" size={22} />
+          {unread > 0 && <span className="ndot">{unread > 9 ? '9+' : unread}</span>}
+        </button>
+
         <div className="me">
           <div className="adminname">
             {profile?.name}
@@ -98,6 +155,15 @@ export default function AdminShell({ children }) {
           </NavLink>
         ))}
       </nav>
+
+      {/* [NotifPopup 을 학생 것과 공유한다] 알림 조회에 역할 분기가 없다 — 누구의 알림인지는
+          RLS(recipient_id = auth.uid())가 정한다. 관리자용 사본을 만들면 두 화면이 시간이 지나며 어긋난다. */}
+      {popup === 'calendar' && (
+        <AdminCalendarPopup adminId={profile?.id} onClose={() => setPopup(null)} />
+      )}
+      {popup === 'notif' && (
+        <NotifPopup onClose={() => setPopup(null)} onReadChange={refreshUnread} />
+      )}
     </>
   );
 }

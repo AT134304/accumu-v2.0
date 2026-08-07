@@ -164,6 +164,28 @@
   border: 1.5px solid var(--line2); border-radius: 10px; background: #fff; transition: .16s;
 }
 .pf input, .pf select { height: 44px; }
+
+/* [날짜/시간 칸만 유독 크던 문제 — 2026-08-08 수정]
+   iOS Safari 는 input[type=date|time] 에 자체 컨트롤(-webkit-datetime-edit)과 기본 여백·min-height 를
+   붙인다. 그 값이 위 height:44px 를 무시하고 안쪽에서 밀어 올려서, 모바일에서 이 두 칸만 다른 칸보다
+   높고 넓게 보였다(자동 확대 방지용 16px 규칙이 겹치면서 더 커졌다).
+   appearance:none 으로 네이티브 상자를 끄고, 내부 편집 영역의 여백을 0 으로 맞춘다.
+   >>> 값 선택 UI(달력 피커)는 그대로 뜬다 — 끄는 것은 "칸의 껍데기"이지 입력 방식이 아니다. */
+.pf input[type="date"],
+.pf input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 0;
+  line-height: normal;
+  /* iOS 는 값이 없을 때 칸을 내용 폭으로 잡는다. 다른 칸과 같은 100% 를 명시해 폭도 맞춘다. */
+  display: block;
+  width: 100%;
+}
+.pf input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+.pf input[type="date"]::-webkit-datetime-edit,
+.pf input[type="time"]::-webkit-datetime-edit { padding: 0; }
+/* 달력/시계 아이콘이 오른쪽 여백을 먹어 값이 잘리는 것을 막는다 */
+.pf input[type="date"]::-webkit-calendar-picker-indicator { margin-left: auto; opacity: .55; }
 .pf textarea { padding: 11px 13px; line-height: 1.6; resize: vertical; min-height: 84px; }
 .pf select { appearance: none; padding-right: 34px; cursor: pointer;
   background-image: linear-gradient(45deg, transparent 50%, var(--line2) 50%), linear-gradient(135deg, var(--line2) 50%, transparent 50%);

@@ -63,7 +63,7 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 | `participations` | id, student_id, program_id, status, entry_at, exit_at, entry_token, exit_token | 신청·입장·퇴장 상태 + QR 토큰 |
 | `point_transactions` | id, student_id, type(적립/전환), amount, related_participation_id, settled_month | 포인트 내역. `settled_month`(전환 행 전용)는 "어느 달 적립분의 정산인가" — ADR 0012 |
 | `reviews` | id, participation_id, rating, comment | 별점 + 한줄평 |
-| `notifications` | id, student_id, type, message, is_read, created_at | 인앱 알림 |
+| `notifications` | id, recipient_id, type, message, detail, program_id, is_read, created_at | 인앱 알림. 수신자는 학생·관리자 둘 다 가능하며 역할은 `profiles.role`이 소유한다 (ADR 0013) |
 
 ## 6. QR 이중 인증 작동 방식
 
@@ -112,6 +112,16 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 ## 10. 관리자 화면 (기획서 5장)
 
 관리자 홈(오늘 진행 프로그램 우선) / 프로그램 관리(올리기·내리기·수정) / 담당 학생 5명 아카이브 조회 + PDF 확인 / QR 카메라 스캔.
+
+**상단 공통: 알림, 캘린더 (ADR 0013 / 2026-08-08 추가).** 원칙 6은 **동작**으로 센다 — 이 둘은 위 3종에
+관한 **읽기**이고 관리자가 새로 할 수 있게 된 일이 0개다(셸 메뉴도 4개 그대로).
+
+- 알림 3종: `apply_admin`(내 프로그램에 새 신청) / `mentee`(담당 학생 추가) / `stale`(일정이 지난 게시중 프로그램)
+- 캘린더: 내가 올린 프로그램의 날짜축. 새 테이블·새 권한 0개
+- >>> **알림 종류가 3종 기능 밖의 사실을 나르거나, 두 팝업에 액션 버튼이 붙으면 그때가 원칙 6 위반이다.**
+  학교 전체 통계·다른 관리자 활동·학생 성취 요약·랭킹 추가 금지.
+- >>> **`apply_admin` 알림에 학생 이름·학번·인원수를 넣지 말 것.** 신청자 명단은 ADR 0005 결정 7-2(d)가
+  의도적으로 닫아둔 것이고, 지금은 "신청이 있었다"까지만 연 상태다.
 
 ## 11. 스코프 제외 사항 (구현하지 않음)
 
