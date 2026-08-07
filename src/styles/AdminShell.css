@@ -336,6 +336,13 @@
   /* 세로로 접히되 게시 배지는 계속 보인다 */
   .adm-row.prog .info { flex-basis: calc(100% - 53px); }
   .adm-row.prog .adm-acts { margin-left: auto; }
+  /* [관리자 홈 행도 제목이 한 줄을 통째로 쓴다 — 2026-08-07]
+     .info 는 flex:1 = basis 0 이라 줄바꿈을 스스로 만들지 못한다. 그래서 오른쪽의 포인트 +
+     'QR 스캔' 버튼이 가로를 먹는 만큼 제목·설명이 세로로 길게 접혔다(폭 좁을수록 심해진다).
+     .prog 행은 이미 calc 로 처리돼 있었는데 홈 행만 빠져 있었다. 이제 둘 다 2줄 구조다 —
+     1줄: 아이콘 + 제목/설명, 2줄: 포인트 + 액션. */
+  .adm-row:not(.prog):not(.student) .info { flex-basis: calc(100% - 53px); }
+  .adm-row .adm-scan { margin-left: auto; }
   .pf-2col { grid-template-columns: 1fr; }
 }
 @media (max-width: 430px) {

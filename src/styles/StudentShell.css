@@ -112,6 +112,29 @@ h2.sec { font-size: clamp(20px, 3.4vw, 23px); font-weight: 800; letter-spacing: 
   background: var(--bg); display: grid; place-items: center; color: var(--ink2); z-index: 1;
 }
 .modal .mclose:hover { background: var(--bg2); }
+
+/* [닫기 버튼을 카드 바깥 위로 빼는 변형 — Modal closeAbove, 2026-08-07]
+   기본 .mclose 는 카드 안 우상단 절대 위치다. 프로토타입에서는 그 자리가 컬러 썸네일(.mthumb)이라
+   가릴 내용이 없었지만, 썸네일이 없는 알림/캘린더 팝업에서는 같은 자리에 "모두 읽음" 버튼과
+   다음 달 화살표가 있어 서로를 가렸다. 카드는 overflow:auto 라 안쪽에서 음수 top 으로 빼낼 수
+   없다(잘린다) — 그래서 카드와 형제로 두고 세로 스택으로 쌓는다. */
+.mstack {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  width: 460px; max-width: 100%; max-height: 100%;
+}
+/* 스택이 높이를 제한하므로 카드의 자체 max-height 는 넘긴다. min-height:0 이 없으면
+   flex 항목이 콘텐츠 높이 아래로 줄지 못해 카드 아래쪽이 화면 밖으로 나간다. */
+.mstack > .modal { width: 100%; max-height: none; min-height: 0; }
+/* 배경 딤이 없어서 흰 원만으로는 본문 위에 떠 보이지 않는다 — 테두리 + 그림자로 층을 만든다. */
+.mclose.above {
+  width: 30px; height: 30px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; color: var(--ink2);
+  background: #fff; border: 1px solid var(--line);
+  box-shadow: 0 6px 18px rgba(18, 26, 46, .18);
+  animation: pop .26s cubic-bezier(.2, .8, .3, 1) both;
+}
+.mclose.above:hover { background: var(--bg); color: var(--ink); }
+
 .modal .mbody { padding: 22px 24px 24px; }
 .modal h3 { font-size: 21px; font-weight: 800; letter-spacing: -.5px; }
 
@@ -185,6 +208,10 @@ h2.sec { font-size: clamp(20px, 3.4vw, 23px); font-weight: 800; letter-spacing: 
   .nav .menu { display: none; }
   .bottomnav { display: grid; }
   .wrap { padding-bottom: 86px; }
+  /* 하단 탭바(≈62px + safe-area)를 피해 위로 올린다. 가운데 정렬을 유지하면 카드가 길어질수록
+     아래가 탭바 밑으로 들어간다 — 관리자 폼 모달과 같은 처리(AdminShell.css 768 블록). */
+  .overlay:has(.mstack) { align-items: flex-start; }
+  .mstack { margin-top: 4px; max-height: calc(100dvh - 96px - env(safe-area-inset-bottom)); }
 }
 @media (max-width: 600px) {
   .nav .me .pts em { display: none; }

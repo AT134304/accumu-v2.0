@@ -5,7 +5,11 @@ import { createPortal } from 'react-dom';
 import Icon from './Icon';
 
 // className: 모달 크기/여백을 화면별로 좁힐 때만 쓴다(예: 관리자 폼 모달의 넓은 폭 + 모바일 탭바 회피).
-export default function Modal({ onClose, labelledBy, className = '', children }) {
+// closeAbove: 닫기 버튼을 카드 안 우상단이 아니라 카드 바깥 바로 위에 놓는다.
+//   프로토타입에서 그 자리는 컬러 썸네일(.mthumb)이라 가릴 내용이 없었지만, 썸네일이 없는
+//   알림/캘린더 팝업에서는 같은 자리에 "모두 읽음" 버튼과 다음 달 화살표가 있어 서로 가렸다.
+//   기본값은 false — 기존 팝업들의 배치는 그대로 둔다.
+export default function Modal({ onClose, labelledBy, className = '', closeAbove = false, children }) {
   // Esc로 닫기 (프로토타입에는 없지만 접근성 기본. 오버레이 클릭 닫기는 프로토타입 closeOverlay 동작 그대로)
   useEffect(() => {
     function onKey(e) {
@@ -32,24 +36,40 @@ export default function Modal({ onClose, labelledBy, className = '', children })
   //   떠서, 아래로 스크롤한 상태에서 카드를 누르면 팝업이 위쪽 어딘가에 열린다.
   //   body 로 빼내면 조상에 transform 이 없어 fixed 가 본래대로 뷰포트 기준이 된다.
   //   (애니메이션 타이밍이나 CSS 순서에 기대지 않는 확실한 방법이다.)
-  return createPortal(
+  // 바깥(빈 곳) 클릭으로 닫기. closeAbove 일 때는 카드를 감싸는 .mstack 도 같은 판정을 받는다 —
+  // 버튼과 카드 사이 여백이 "안 닫히는 구멍"이 되지 않게.
+  const closeOnSelf = (e) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  const card = (
     <div
-      className="overlay"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      className={className ? `modal ${className}` : 'modal'}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={labelledBy}
     >
-      <div
-        className={className ? `modal ${className}` : 'modal'}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={labelledBy}
-      >
+      {!closeAbove && (
         <button type="button" className="mclose" onClick={onClose} aria-label="닫기">
           <Icon name="ic-close" size={18} />
         </button>
-        {children}
-      </div>
+      )}
+      {children}
+    </div>
+  );
+
+  return createPortal(
+    <div className="overlay" onClick={closeOnSelf}>
+      {closeAbove ? (
+        <div className="mstack" onClick={closeOnSelf}>
+          <button type="button" className="mclose above" onClick={onClose} aria-label="닫기">
+            <Icon name="ic-close" size={16} />
+          </button>
+          {card}
+        </div>
+      ) : (
+        card
+      )}
     </div>,
     document.body
   );

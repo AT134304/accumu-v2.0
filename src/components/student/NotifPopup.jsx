@@ -80,8 +80,9 @@ export default function NotifPopup({ onClose, onReadChange }) {
     }
   }
 
+  // closeAbove — 기본 위치(카드 안 우상단)는 "모두 읽음" 버튼과 정확히 겹친다.
   return (
-    <Modal onClose={onClose} labelledBy="notif-title">
+    <Modal onClose={onClose} labelledBy="notif-title" closeAbove>
       <div className="mbody">
         <div className="pop-head">
           <h3 id="notif-title">알림</h3>

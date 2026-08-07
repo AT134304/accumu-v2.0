@@ -101,8 +101,9 @@ export default function CalendarPopup({ onClose }) {
     );
   }
 
+  // closeAbove — 기본 위치(카드 안 우상단)는 "다음 달" 화살표와 정확히 겹친다.
   return (
-    <Modal onClose={onClose} labelledBy="cal-title">
+    <Modal onClose={onClose} labelledBy="cal-title" closeAbove>
       <div className="mbody">
         <div className="calhead">
           <button type="button" onClick={() => move(-1)} aria-label="이전 달">
