@@ -25,7 +25,17 @@ import {
 } from '../../lib/participationService';
 import '../../styles/Qr.css';
 
-const POLL_MS = 10_000; // 스펙 요구사항: 10초 간격 폴링 (realtime 구독 금지)
+// [폴링 주기 — 2026-08-07 단일 10초에서 2단으로 바꿨다]
+//   증상: 관리자 화면에는 인증 성공이 즉시 뜨는데 학생 화면이 "인증 완료"로 넘어가는 데 오래 걸린다.
+//   원인: 10초 단일 주기라 평균 5초, 최악 10초 늦었다. 카메라 인식 속도와는 무관한 지연이다.
+//   현장에서 스캔은 QR 을 띄운 직후 몇 초 안에 일어나므로, 그 구간만 2초로 좁히고 이후 10초로 되돌린다.
+//   비용은 사실상 0 이다 — 이 폴링은 QR 화면이 열려 있는 동안에만 돌고(done 이면 멈춘다),
+//   쿼리도 본인 행의 select id, status 뿐이다(fetchParticipationStatuses).
+//   >>> Realtime 구독으로 바꾸지 말 것. 스펙(qr-dual-auth.md)이 명시적으로 배제했고, 테이블 publication
+//       설정이 늘어 시연 당일 실패 지점만 는다. 2초면 체감 차이가 거의 없다.
+const POLL_FAST_MS = 2_000;
+const POLL_SLOW_MS = 10_000;
+const POLL_FAST_WINDOW_MS = 120_000; // QR 표시(또는 재발급) 후 2분
 
 /** 참여 상태 -> 목록 보조 문구 (프로토타입 1013줄 카피) */
 const STATUS_LABEL = { applied: '입장 대기', entered: '참석 중 (퇴장 전)' };
@@ -224,34 +234,62 @@ function QrView({ participation, type, issued: initialIssued, onBack, onClose })
     return () => clearInterval(id);
   }, [done]);
 
-  // 10초 폴링 — 관리자가 스캔하면 화면이 자동으로 완료 상태로 넘어간다.
+  // 상태 확인 1회. 주기 폴링과 "화면 복귀 시 즉시 확인"이 같은 함수를 부른다.
+  // [의존성이 전부 안정값이다] 아래 폴링 effect 가 1초 카운트다운 리렌더마다 재시작하면
+  //   빠른 구간(2분)이 영원히 갱신돼 느려지지 않는다. refreshProfile 은 AuthContext 의 useCallback([]) 이다.
+  const checkOnce = useCallback(async () => {
+    if (doneRef.current) return;
+    const target = isEntry ? 'entered' : 'completed';
+    try {
+      const rows = await fetchParticipationStatuses();
+      const mine = rows.find((r) => r.id === participation.id);
+      if (!mine || doneRef.current) return;
+      if (mine.status === target || (isEntry && mine.status === 'completed')) {
+        doneRef.current = true;
+        setDone(true);
+        // 퇴장 인증이 끝나면 서버가 points_balance 를 올린 상태다. 전역 profile 을 다시 읽어
+        // 나브 상단 잔액을 맞춘다 — 안 하면 완료 화면엔 "+400P 적립"이 뜨는데 나브는 그대로라
+        // "포인트가 안 들어왔다"로 보인다. 프런트가 값을 계산하는 게 아니라 서버 값을 재조회한다.
+        if (!isEntry) {
+          refreshProfile?.().catch((err) =>
+            console.warn('[QrCenterModal] 잔액 갱신 실패(표시만 지연됨):', err)
+          );
+        }
+      }
+    } catch (err) {
+      // 폴링 실패는 조용히 넘어간다 — 다음 주기에 다시 시도한다. QR 자체는 여전히 유효하다.
+      console.warn('[QrCenterModal] 상태 폴링 실패:', err);
+    }
+  }, [isEntry, participation.id, refreshProfile]);
+
+  // 폴링 — 관리자가 스캔하면 화면이 자동으로 완료 상태로 넘어간다.
+  // setInterval 이 아니라 자기 자신을 다시 예약하는 setTimeout 이다: 주기가 도중에 바뀌고(2초 -> 10초),
+  // 이전 요청이 끝난 뒤에 다음을 잡아 느린 네트워크에서 요청이 겹쳐 쌓이지 않는다.
+  // issued.token 이 의존성에 있어 "다시 발급받기"를 누르면 빠른 구간이 새로 시작된다(= 다시 스캔할 상황).
   useEffect(() => {
     if (done) return undefined;
-    const target = isEntry ? 'entered' : 'completed';
-    const id = setInterval(async () => {
-      try {
-        const rows = await fetchParticipationStatuses();
-        const mine = rows.find((r) => r.id === participation.id);
-        if (!mine || doneRef.current) return;
-        if (mine.status === target || (isEntry && mine.status === 'completed')) {
-          doneRef.current = true;
-          setDone(true);
-          // 퇴장 인증이 끝나면 서버가 points_balance 를 올린 상태다. 전역 profile 을 다시 읽어
-          // 나브 상단 잔액을 맞춘다 — 안 하면 완료 화면엔 "+400P 적립"이 뜨는데 나브는 그대로라
-          // "포인트가 안 들어왔다"로 보인다. 프런트가 값을 계산하는 게 아니라 서버 값을 재조회한다.
-          if (!isEntry) {
-            refreshProfile?.().catch((err) =>
-              console.warn('[QrCenterModal] 잔액 갱신 실패(표시만 지연됨):', err)
-            );
-          }
-        }
-      } catch (err) {
-        // 폴링 실패는 조용히 넘어간다 — 다음 주기에 다시 시도한다. QR 자체는 여전히 유효하다.
-        console.warn('[QrCenterModal] 상태 폴링 실패:', err);
-      }
-    }, POLL_MS);
-    return () => clearInterval(id);
-  }, [done, isEntry, participation.id, refreshProfile]);
+    const startedAt = Date.now();
+    let timer = null;
+
+    const tick = async () => {
+      await checkOnce();
+      if (doneRef.current) return;
+      const fast = Date.now() - startedAt < POLL_FAST_WINDOW_MS;
+      timer = setTimeout(tick, fast ? POLL_FAST_MS : POLL_SLOW_MS);
+    };
+    timer = setTimeout(tick, POLL_FAST_MS);
+
+    // 폰을 잠갔다 켜면 그동안 타이머가 억제됐을 수 있다. 돌아온 즉시 한 번 확인한다.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') checkOnce();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [done, checkOnce, issued.token]);
 
   async function reissue() {
     if (busy) return;
@@ -329,8 +367,11 @@ function QrView({ participation, type, issued: initialIssued, onBack, onClose })
       <div className="qrbox">
         <span className={isEntry ? 'qtag' : 'qtag exit'}>{isEntry ? '입장' : '퇴장'} 인증</span>
 
+        {/* [level M -> Q] payload 가 토큰 10자(영숫자)로 줄어 QR 버전 1(21×21)에 들어간다.
+            버전 1 영숫자 용량은 Q 에서 16자라 10자는 여유가 있다 — 즉 격자를 더 키우지 않고
+            오류 정정만 15% -> 25% 로 올린 것이다. 지문·화면 반사·기울임에 그만큼 강해진다. */}
         <div className={expired ? 'qr is-expired' : 'qr'} style={{ marginTop: 14 }}>
-          <QRCodeSVG value={payload} size={164} level="M" bgColor="#FFFFFF" fgColor="#16213E" />
+          <QRCodeSVG value={payload} size={164} level="Q" bgColor="#FFFFFF" fgColor="#16213E" />
         </div>
 
         <h3 id="qr-title" style={{ marginTop: 16 }}>

@@ -79,6 +79,31 @@ ADR 0003/0004가 세운 "인덱스를 추가하지 않는다" 원칙의 예외�
 - **컬럼 간 충돌(`entry_token` = 다른 행의 `exit_token`)은 unique로 표현할 수 없다.** 그래서 발급 함수에 "생성 → 두 컬럼 전체에서 존재 확인 → 충돌 시 재시도(최대 5회)" 루프를 둔다. 20행 규모에서 비용은 무시 가능하다.
 - 검증 함수는 `entry_token`을 먼저 조회하고 없으면 `exit_token`을 조회하는 **결정적 순서**를 쓴다(모호성 원천 차단).
 
+### 1-6. QR payload: **토큰 문자열 하나만 담는다** (2026-08-07 추가 — 1-3의 후속)
+
+1-3은 "payload 구조 `{participation_id, type, expires_at, token}`를 그대로 유지하되 검증 함수는 `token` 하나만
+받는다"로 정했다. **그 절반을 되돌린다: 검증에 쓰이지 않는 3개 필드를 payload에서도 뺀다.**
+
+계기는 설계가 아니라 현장 증상이었다 — QR이 눈에 띄게 촘촘하고 카메라가 잘 못 잡는다는 보고(2026-08-07).
+
+- **왜 뺄 수 있는가.** 세 필드는 이미 어디에서도 읽히지 않았다. `participation_id`/`type`은 `extractToken()`이
+  명시적으로 버린다(위조 가능한 값이라 검증에 넣지 않는다 — 결정 2-4의 "토큰 자체가 종류를 결정해야 한다"와
+  같은 이유). `expires_at`은 학생 화면의 카운트다운 표시용인데, 그 값은 QR이 아니라 **발급 응답**에서 읽는다.
+  서버 `verify_participation_qr(p_token)`은 애초에 인자가 토큰 하나다.
+- **왜 빼야 하는가.** 4필드 JSON은 약 136바이트 = **QR 버전 7(45×45 모듈)**. 토큰 10자는 Crockford Base32라
+  QR 영숫자 모드에 그대로 들어가 **버전 1(21×21 모듈)** 이다. 같은 화면 크기에서 모듈 하나가 2배 이상
+  커지므로 카메라 인식이 실제로 빨라진다. 오류 정정도 M → **Q**(15% → 25%)로 올렸는데, 버전 1 영숫자
+  용량이 Q에서 16자라 격자를 키우지 않고 얻는다.
+- **보안 경계는 줄지 않는다.** 서버가 읽지 않던 값을 빼는 것이라 검증에 쓰이는 정보량이 그대로다.
+  1-3의 핵심 주장(**만료 판정의 소유자는 DB 컬럼**)은 오히려 더 명확해진다 — 이제 학생 기기의 payload에
+  만료 값이 존재하지도 않는다.
+- **부수 효과 1**: 수동 입력 fallback(확정 D-1)용으로 화면에 띄우던 `코드 XXXXXXXXXX`와 QR 내용이
+  **글자 단위로 같아진다.** 카메라 경로와 수동 경로가 같은 문자열을 지난다.
+- **부수 효과 2**: `extractToken()`의 JSON 분기는 **남겨 둔다.** 이전 형식으로 이미 떠 있는 화면이 그대로
+  인식되고, 유지 비용이 `if` 한 줄이다.
+- >>> **payload에 필드를 다시 추가하지 말 것.** 추가하는 값은 정의상 서버가 읽지 않는 값이고(읽으면
+  위조 가능한 입력을 판정에 쓰는 것 = 1-3 기각 사유), 얻는 것 없이 QR 밀도만 올린다.
+
 ---
 
 ## 결정 2 — 상태 전이 경로: **`security definer` RPC 2개. RLS update 정책은 0개를 유지한다** (이 ADR 최대 쟁점)
@@ -595,17 +620,21 @@ participations_select_mentored_as_admin    : using (is_admin() and status='compl
 
 1. **`src/lib/participationService.js`(신규)**
    - `issueQr(participationId, type)` → `supabase.rpc('issue_participation_qr', { p_participation_id, p_type })`.
-     반환 `{ok:true, participation_id, type, token, expires_at}`로 **QR payload를 프런트가 조립**한다:
-     `JSON.stringify({ participation_id, type, expires_at, token })` (CLAUDE.md 6장 구조 그대로).
+     반환은 `{ok:true, participation_id, type, token, expires_at}`이고, **QR payload는 그중 `token` 하나다**
+     (결정 1-6, 2026-08-07 변경. 그 전에는 4필드를 `JSON.stringify` 했다 — 나머지 3개는 검증에 쓰이지 않으면서
+     QR만 버전 7로 촘촘하게 만들었다).
      `{ok:false, reason}`(`already_completed`/`wrong_order`)이면 목록을 새로고침한다(화면 상태가 서버와 어긋난 것).
    - `verifyQr(rawScanned)` → **스캔 문자열이 JSON이면 `token` 필드만 꺼내고, 파싱 실패하면 문자열 전체를 토큰으로 취급**한 뒤 `supabase.rpc('verify_participation_qr', { p_token })`. 이 한 줄 덕에 **카메라와 수동 입력이 완전히 같은 경로**를 탄다(확정 D-1).
-   - **payload의 `expires_at`을 검증에 쓰지 말 것.** 카운트다운 표시 전용이다.
+   - **`expires_at`을 검증에 쓰지 말 것.** 카운트다운 표시 전용이며, 발급 응답에서 읽는다(QR에 없다).
    - 403(`42501`)은 "권한 오류"로, `{ok:false, reason}`은 "인증 거부"로 **분리 표시**한다.
 2. **학생 QR 목록/표시 모달**
    - 목록: `fetchMyParticipations()` 결과 중 `status !== 'completed'`. 버튼은 `applied`→입장 QR / `entered`→퇴장 QR.
-   - 표시: `qrcode.react`로 payload 인코딩 + **남은 유효시간(mm:ss)**. 프로토타입의 "5초 후 자동 처리" 카운트다운은 **삭제**(그게 곧 단순화다).
+   - 표시: `qrcode.react`로 토큰 인코딩(`level="Q"` — 결정 1-6) + **남은 유효시간(mm:ss)**. 프로토타입의 "5초 후 자동 처리" 카운트다운은 **삭제**(그게 곧 단순화다).
    - 만료 시 QR을 흐리게 + `다시 발급받기` → **같은 `issueQr()`를 다시 호출**하면 된다(재발급 = 덮어쓰기).
-   - **10초 폴링**은 `participations`만 조회한다(`participations_select_own`). realtime 구독 금지.
+   - **폴링**은 `participations`만 조회한다(`participations_select_own`). realtime 구독 금지.
+     주기는 QR 표시(또는 재발급) 후 **2분간 2초, 이후 10초**다 (2026-08-07 변경 — 단일 10초일 때 관리자
+     화면에는 인증 성공이 즉시 뜨는데 학생 화면이 평균 5초·최악 10초 늦었다). 화면 복귀(`visibilitychange`)
+     시에도 1회 확인한다.
    - 완료 화면: 큰 문구 = "입장이 확인되었습니다" / "참여가 기록되었습니다"(brand blue), 포인트는 **아래 한 줄 amber**. 컨페티·사운드·카운트업·이모지 금지. **퇴장 완료 지점에 만족도 평가 훅 주석**을 남길 것(B-1).
    - 학생 화면의 `+NNNP` 표시는 클라이언트가 이미 들고 있는 `programs.points`로 그린다(폴링은 금액을 돌려주지 않는다).
 3. **관리자 셸 + 홈**

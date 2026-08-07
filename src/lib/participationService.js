@@ -99,18 +99,26 @@ export async function issueQr({ participationId, type }) {
 }
 
 /**
- * QR 로 인코딩할 payload. 구조는 CLAUDE.md 6장 그대로 {participation_id, type, expires_at, token}.
+ * QR 로 인코딩할 payload = **토큰 문자열 하나**.
  *
- * [expires_at 은 표시용이다] 학생 화면의 30분 카운트다운을 그리기 위해서만 들어간다.
- *   서버는 이 값을 읽지 않는다(읽으면 학생이 만료를 위조할 수 있다 — ADR 0005 결정 1-3).
+ * [2026-08-07 변경 — 4필드 JSON 에서 토큰 1개로 줄였다]
+ *   이전에는 {participation_id, type, expires_at, token} 을 JSON 으로 담았다(CLAUDE.md 6장 초안).
+ *   그런데 그 3개는 **어디에서도 읽히지 않았다**:
+ *     - participation_id / type : extractToken() 이 명시적으로 버린다(아래 함수 주석 — 위조 가능한 값이라
+ *       검증에 넣지 않는다). 서버 verify_participation_qr(p_token) 은 인자가 토큰 하나뿐이다.
+ *     - expires_at : 학생 화면의 30분 카운트다운은 QR 이 아니라 발급 응답(issued)에서 읽는다.
+ *       만료 판정의 소유자는 서버의 *_token_expires_at 컬럼이다(ADR 0005 결정 1-3).
+ *   즉 세 필드는 QR 을 촘촘하게 만들기만 했다: 약 136바이트 = QR 버전 7(45×45 모듈).
+ *   토큰만 담으면 10자 영숫자 = **버전 1(21×21 모듈)** 이다. 한 변 모듈 수가 절반 이하가 되어
+ *   같은 화면 크기에서 모듈 하나가 2배 커지고, 그만큼 카메라가 빨리 잡는다.
+ *
+ * [보안 경계는 그대로다] 서버가 읽지 않던 값을 빼는 것이라 검증에 쓰이는 정보가 줄지 않는다.
+ *   토큰은 여전히 서버만 만들고(qr_generate_token 은 grant 0개), 1회용이며, 30분 만료다.
+ * [덤] 화면 아래 수동 입력용으로 이미 보여주던 "코드 XXXXXXXXXX" 와 QR 내용이 글자 단위로 같아진다.
+ *   카메라 경로와 수동 입력 경로가 같은 문자열을 지난다(확정 D-1 이 의도한 모양).
  */
 export function buildQrPayload(issued) {
-  return JSON.stringify({
-    participation_id: issued.participation_id,
-    type: issued.type,
-    expires_at: issued.expires_at,
-    token: issued.token,
-  });
+  return issued.token;
 }
 
 /* ==========================================================================
@@ -121,9 +129,11 @@ export function buildQrPayload(issued) {
  * 스캔 문자열에서 토큰만 꺼낸다.
  *
  * [이 한 줄이 "카메라와 수동 입력이 같은 경로"를 만든다 — 확정 D-1]
- *   카메라는 JSON payload 를 읽고, 수동 입력은 토큰 문자열만 받는다. 둘을 여기서 같은 문자열로 만든 뒤
- *   같은 verify_participation_qr() 하나를 호출한다. 인증 단계를 줄이는 게 아니라 입력 수단만 다르다
- *   (절대 원칙 5의 "단순화"에 해당하지 않는다).
+ *   카메라와 수동 입력을 여기서 같은 문자열로 만든 뒤 같은 verify_participation_qr() 하나를 호출한다.
+ *   인증 단계를 줄이는 게 아니라 입력 수단만 다르다(절대 원칙 5의 "단순화"에 해당하지 않는다).
+ *   buildQrPayload() 가 토큰만 담게 된 뒤로는 두 경로의 입력이 애초에 같은 문자열이다.
+ * [JSON 분기는 남겨 둔다] 이전 형식(4필드 JSON)으로 이미 떠 있는 화면·캡처본이 그대로 인식되게 하는
+ *   호환 경로이고, 유지 비용이 if 한 줄이다. 여기서 얻는 값은 여전히 token 뿐이다.
  * [payload 의 participation_id / type 은 버린다] 위조 가능한 값이라 검증에 넣지 않는다.
  *   종류(입장/퇴장)는 서버가 "어느 컬럼에 매칭됐는가"로만 결정한다.
  * 대소문자·하이픈·공백 섞임은 서버 qr_normalize_token() 이 처리하므로 여기서 손대지 않는다.
