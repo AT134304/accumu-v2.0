@@ -165,12 +165,17 @@
 }
 .pf input, .pf select { height: 44px; }
 
-/* [날짜/시간 칸만 유독 크던 문제 — 2026-08-08 수정]
-   iOS Safari 는 input[type=date|time] 에 자체 컨트롤(-webkit-datetime-edit)과 기본 여백·min-height 를
-   붙인다. 그 값이 위 height:44px 를 무시하고 안쪽에서 밀어 올려서, 모바일에서 이 두 칸만 다른 칸보다
+/* [날짜 칸만 유독 크던 문제 — 2026-08-08 수정]
+   iOS Safari 는 input[type=date] 에 자체 컨트롤(-webkit-datetime-edit)과 기본 여백·min-height 를
+   붙인다. 그 값이 위 height:44px 를 무시하고 안쪽에서 밀어 올려서, 모바일에서 이 칸만 다른 칸보다
    높고 넓게 보였다(자동 확대 방지용 16px 규칙이 겹치면서 더 커졌다).
    appearance:none 으로 네이티브 상자를 끄고, 내부 편집 영역의 여백을 0 으로 맞춘다.
-   >>> 값 선택 UI(달력 피커)는 그대로 뜬다 — 끄는 것은 "칸의 껍데기"이지 입력 방식이 아니다. */
+   >>> 값 선택 UI(달력 피커)는 그대로 뜬다 — 끄는 것은 "칸의 껍데기"이지 입력 방식이 아니다.
+
+   [time 도 함께 거는 이유 — 지금은 해당 없음] 프로그램 폼의 "시간"은 type=text 다.
+   DB 컬럼이 자유 텍스트라 "방과후"·"무박 2일" 같은 값이 들어가기 때문이다(ProgramFormModal 267줄).
+   그래서 아래 time 규칙은 현재 걸리는 요소가 없다 — 나중에 시간 피커를 도입하면 같은 증상이
+   그대로 재현되므로 미리 막아 둔다. */
 .pf input[type="date"],
 .pf input[type="time"] {
   -webkit-appearance: none;
@@ -342,6 +347,10 @@
 }
 @media (max-width: 768px) {
   .nav .me .adminname { display: none; }
+  /* [430 -> 768 로 앞당김 — 2026-08-08] 캘린더·종이 붙어 우측 아이콘이 3개가 되면서
+     431~768px 구간에서 상단바가 넘쳤다. 이름·코드가 이미 숨는 구간이라 배지만 남겨둘 이유가 없다
+     (관리자라는 사실은 메뉴 구성과 화면 내용이 이미 말한다). */
+  .adminbadge { display: none; }
   /* 모바일 하단 탭바(높이 ~62px + safe-area)를 피해 모달을 위로 올린다 */
   .overlay:has(.pform-modal), .overlay:has(.confirm-modal) { align-items: flex-start; }
   .modal.pform-modal, .modal.confirm-modal {
@@ -368,7 +377,7 @@
   .pf-2col { grid-template-columns: 1fr; }
 }
 @media (max-width: 430px) {
-  .adminbadge { display: none; }
+  /* .adminbadge 는 위 768 블록으로 올라갔다 */
   .rpanel .t { font-size: 18px; }
   .manual form { flex-direction: column; }
   .manual button { width: 100%; }

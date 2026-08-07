@@ -208,6 +208,13 @@ h2.sec { font-size: clamp(20px, 3.4vw, 23px); font-weight: 800; letter-spacing: 
   .nav .menu { display: none; }
   .bottomnav { display: grid; }
   .wrap { padding-bottom: 86px; }
+  /* [상단바가 넘치던 문제 — 2026-08-08 수정]
+     메뉴가 숨겨져도 gap 은 24px 그대로였다. 관리자 셸에 캘린더·종이 붙으면서 우측 아이콘이
+     3개(캘린더·종·로그아웃)가 되어, 431px 폭 기준으로 내용이 약 68px 넘쳤다.
+     학생 셸도 2개 + 포인트 칩이라 360px 에서 이미 아슬아슬했다.
+     body 의 overflow-x: clip 때문에 스크롤은 안 생기지만, 대신 flex 가 아이콘 버튼을 찌그러뜨려
+     22px SVG 가 40px 상자를 넘고 서로 겹친다 — "잘리진 않는데 뭉개지는" 형태로 나타난다. */
+  .nav { gap: 12px; }
   /* 하단 탭바(≈62px + safe-area)를 피해 위로 올린다. 가운데 정렬을 유지하면 카드가 길어질수록
      아래가 탭바 밑으로 들어간다 — 관리자 폼 모달과 같은 처리(AdminShell.css 768 블록). */
   .overlay:has(.mstack) { align-items: flex-start; }
@@ -217,8 +224,17 @@ h2.sec { font-size: clamp(20px, 3.4vw, 23px); font-weight: 800; letter-spacing: 
   .nav .me .pts em { display: none; }
 }
 @media (max-width: 430px) {
-  .nav { gap: 10px; }
+  .nav { gap: 8px; }
   .logo .word { font-size: 18px; }
+  .bell { width: 36px; height: 36px; }
+  /* [폭이 모자랄 때 무엇이 양보하는지 못박는다]
+     픽셀을 더 깎아 맞추는 대신, 넘칠 때의 결과를 결정해 둔다:
+     아이콘 버튼과 우측 칩은 절대 찌그러지지 않고(flex:none), 대신 로고 글자가 말줄임된다.
+     어느 폭에서든 아이콘이 겹치거나 로그아웃 버튼이 화면 밖으로 밀려나지 않는다는 보장이다.
+     (320px 같은 초소형 화면에서는 "Accu…" 로 줄어든 상태로 보인다 — 의도된 열화다.) */
+  .bell, .nav .me { flex: none; }
+  .logo { min-width: 0; }
+  .logo .word { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .infogrid { grid-template-columns: 1fr; } /* 프로토타입 454줄 */
 }
 
