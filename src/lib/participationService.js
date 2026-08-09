@@ -14,8 +14,10 @@ import { supabase } from './supabaseClient';
 /** QR 목록/스택 렌더에 필요한 프로그램 필드. 학생 RLS(programs_select_published)로 조회된다.
  *  end_date — 기간제 프로그램 판별(not null)과 QR 센터의 "오늘 세션" 범위 계산에 쓴다.
  *  attendance_payout_mode — QR 센터가 "이번 퇴장에서 포인트가 지급되는가"를 판정할 때 쓴다
- *  (20260809160000). min_attendance_days는 QR 센터 화면에 노출하지 않는다(원칙 1 — 남은 일수 게이지 금지). */
-const PROGRAM_FIELDS = 'id, category, title, date, end_date, time, points, attendance_payout_mode';
+ *  (20260809160000). min_attendance_days는 QR 센터 화면에 노출하지 않는다(원칙 1 — 남은 일수 게이지 금지).
+ *  session_dates — "오늘이 실제 진행일인가"를 QR 센터가 판정할 때 쓴다(20260809180000). */
+const PROGRAM_FIELDS =
+  'id, category, title, date, end_date, time, points, attendance_payout_mode, session_dates';
 
 /* ==========================================================================
    조회
@@ -281,6 +283,7 @@ export function issueRejectText(reason) {
   if (reason === 'wrong_order') return '입장 인증을 먼저 완료해 주세요.';
   // 기간제 프로그램(issueAttendanceQr) 전용 사유 — CLAUDE.md 6장/ADR 신규.
   if (reason === 'out_of_range') return '아직 참여 기간이 아니거나 이미 끝났습니다.';
+  if (reason === 'not_a_session_day') return '오늘은 이 프로그램의 진행일이 아닙니다.';
   if (reason === 'not_period_program') return '기간제 프로그램이 아닙니다. 새로고침 후 다시 시도해 주세요.';
   return 'QR을 발급하지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }

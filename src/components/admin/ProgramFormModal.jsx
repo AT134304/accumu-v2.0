@@ -12,7 +12,7 @@
 //
 // [원칙 4] 포인트 입력칸은 상단·강조 위치에 두지 않는다. 제목·유형·설명·일정 아래에 두고,
 //   amber 는 값 표시에만 쓴다. 폼 어디에도 참여자 수/신청자 수 관련 칸이 없다(F-3: 데이터를 얻을 수도 없다).
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '../Modal';
 import Icon from '../Icon';
 import { CAT, TRACK, STATUS } from '../../lib/taxonomy';
@@ -34,13 +34,26 @@ const PAYOUT_MODE_OPTIONS = [
   { key: 'threshold', label: '최소 참여일수 도달 시 (그 시점 1회)' },
 ];
 
-/** 'YYYY-MM-DD' 두 개 사이 시작일 포함 총 일수. 값이 비어 있으면 null(계산 불가). */
-function dayCount(startIso, endIso) {
-  if (!startIso || !endIso) return null;
+// [진행일 캘린더 그리드 — 20260809180000] CalendarPopup.jsx와 같은 요일 순서(일~토)를 쓴다.
+const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+
+/** 'YYYY-MM-DD' 사이 모든 날짜를 배열로. UTC 자정 파싱이라 두 값을 같은 방식으로 다루는 한 안전하다
+ *  (todayISO()처럼 "실제 오늘"을 구하는 게 아니라 이미 확정된 두 날짜를 잇는 것뿐이라 로컬 타임존 이슈가 없다). */
+function datesBetween(startIso, endIso) {
+  if (!startIso || !endIso) return [];
   const start = new Date(startIso);
   const end = new Date(endIso);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
-  return Math.round((end - start) / 86_400_000) + 1;
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return [];
+  const out = [];
+  for (let t = start.getTime(); t <= end.getTime(); t += 86_400_000) {
+    out.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+/** 'YYYY-MM-DD' -> 요일 인덱스(0=일~6=토). datesBetween과 같은 UTC 파싱을 써야 어긋나지 않는다. */
+function weekdayOf(iso) {
+  return new Date(iso).getUTCDay();
 }
 
 /** 프로그램 행 -> 폼 값. 숫자/NULL 을 input 이 다룰 수 있는 문자열로 바꾼다. */
@@ -86,6 +99,9 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
   // [기간제 — 20260809140000 마이그레이션] 체크가 꺼지면 저장 시 end_date를 null로 보낸다(단일 일자로 되돌림).
   // 켜졌을 때만 종료일 입력이 뜨고 필수가 된다. program.end_date 유무로 초기값을 정한다(수정 모드).
   const [isPeriod, setIsPeriod] = useState(() => Boolean(program?.end_date));
+  // [진행일 목록 — 20260809180000] Set<'YYYY-MM-DD'>. 저장 진실은 이 Set 하나뿐이고, 아래 프리셋
+  // 버튼들은 전부 이 Set을 채우는 도우미다(계산 결과를 별도로 저장하지 않는다).
+  const [sessionDates, setSessionDates] = useState(() => new Set(program?.session_dates ?? []));
   const [touched, setTouched] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -106,6 +122,20 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
   };
   const blur = (key) => () => setTouched((prev) => ({ ...prev, [key]: true }));
 
+  // [기간이 바뀌면 진행일 목록을 그 범위로 정리한다]
+  //   - 처음 기간을 잡는 순간(Set이 비어 있을 때)은 "매일"로 기본 채운다 — 빈 캘린더보다 낫다.
+  //   - 이미 손댄 뒤(Set에 값이 있음)라면 범위 밖으로 밀려난 날짜만 걷어낸다. 골라둔 요일 패턴을
+  //     날짜만 살짝 조정했다고 통째로 초기화하지 않는다.
+  useEffect(() => {
+    if (!isPeriod || !v.date || !v.end_date) return;
+    const valid = new Set(datesBetween(v.date, v.end_date));
+    setSessionDates((prev) => {
+      if (prev.size === 0) return valid;
+      const next = new Set([...prev].filter((d) => valid.has(d)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [isPeriod, v.date, v.end_date]);
+
   // 필수 8개 (category/title/org/description/date/time/career_track/points).
   // capacity 는 선택 — 빈칸 = 정원 제한 없음.
   const missing = useMemo(() => {
@@ -116,6 +146,9 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
     if (!v.description.trim()) e.description = '설명을 입력해 주세요.';
     if (!v.date) e.date = '날짜를 선택해 주세요.';
     if (isPeriod && !v.end_date) e.end_date = '종료일을 선택해 주세요.';
+    if (isPeriod && v.date && v.end_date && sessionDates.size === 0) {
+      e.session_dates = '진행일을 하나 이상 선택해 주세요.';
+    }
     if (isPeriod && v.attendance_payout_mode === 'threshold' && !String(v.min_attendance_days).trim()) {
       e.min_attendance_days = '최소 참여일수를 입력해 주세요.';
     }
@@ -123,7 +156,7 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
     if (!v.career_track) e.career_track = '진로 계열을 선택해 주세요.';
     if (!String(v.points).trim()) e.points = '지급 포인트를 입력해 주세요.';
     return e;
-  }, [v, isPeriod]);
+  }, [v, isPeriod, sessionDates]);
 
   // "값은 들어 있는데 규칙 위반" — 확정 G. 서버를 왕복시키지 않고 저장 버튼을 잠근다.
   // (DB CHECK 도 그대로 살아 있다. 프런트 검증은 개발자도구로 우회 가능하므로 23514 처리는 describeSaveError 가 맡는다.)
@@ -144,18 +177,20 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
       e.end_date = '종료일은 시작일보다 빠를 수 없습니다.';
     }
     // [최소 참여일수 — DB 제약 programs_min_days_range 를 프런트에서 먼저 막는다]
+    //   상한은 달력 일수가 아니라 "실제로 고른 진행일 수"다(20260809180000) — 주말만 8일 진행인데
+    //   최소참여일수를 10일로 걸면 절대 달성 불가능한 목표가 된다.
     if (isPeriod && v.attendance_payout_mode === 'threshold' && String(v.min_attendance_days).trim()) {
       const n = Number(v.min_attendance_days);
-      const totalDays = dayCount(v.date, v.end_date); // 시작일 포함 총 일수. 날짜가 아직 없으면 null.
-      if (!Number.isInteger(n) || n < 1 || (totalDays != null && n > totalDays)) {
+      const totalSessions = sessionDates.size;
+      if (!Number.isInteger(n) || n < 1 || (totalSessions > 0 && n > totalSessions)) {
         e.min_attendance_days =
-          totalDays != null
-            ? `1~${totalDays}일 사이여야 합니다(현재 기간 기준).`
-            : '1 이상의 정수를 입력해 주세요.';
+          totalSessions > 0
+            ? `1~${totalSessions}일 사이여야 합니다(현재 고른 진행일 기준).`
+            : '진행일을 먼저 선택해 주세요.';
       }
     }
     return e;
-  }, [v.points, v.capacity, v.date, v.end_date, v.attendance_payout_mode, v.min_attendance_days, isPeriod]);
+  }, [v.points, v.capacity, v.date, v.end_date, v.attendance_payout_mode, v.min_attendance_days, isPeriod, sessionDates]);
 
   // 규칙 위반 값이 있으면 저장 버튼을 잠근다. 빈 필수값은 잠그지 않고 제출 시 사유를 드러낸다
   // (처음부터 잠가두면 왜 못 누르는지 알 수 없는 버튼이 된다).
@@ -170,6 +205,43 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
 
   // 확정 H: 지난 날짜는 막지 않고 경고만 한다 (학생 쪽 차단이 이미 있고, 시드의 과거 행도 수정할 수 있어야 한다).
   const isPastDate = Boolean(v.date) && v.date < todayISO();
+
+  // [진행일 그리드 핸들러 3개] 저장하는 값은 언제나 sessionDates(Set) 하나뿐 — 프리셋/요일칩/개별
+  // 클릭 전부 이 Set을 채우는 도우미일 뿐 각자의 "모드"를 별도로 기억하지 않는다(원칙: 명시적 상태 하나).
+  const applyPreset = useCallback(
+    (preset) => {
+      const dates = datesBetween(v.date, v.end_date);
+      let next;
+      if (preset === 'weekday') next = dates.filter((d) => weekdayOf(d) >= 1 && weekdayOf(d) <= 5);
+      else if (preset === 'weekend') next = dates.filter((d) => weekdayOf(d) === 0 || weekdayOf(d) === 6);
+      else if (preset === 'everyOther') next = dates.filter((_, i) => i % 2 === 0);
+      else next = dates; // 'all'
+      setSessionDates(new Set(next));
+    },
+    [v.date, v.end_date]
+  );
+
+  const toggleWeekday = useCallback(
+    (w) => {
+      const matching = datesBetween(v.date, v.end_date).filter((d) => weekdayOf(d) === w);
+      setSessionDates((prev) => {
+        const allSelected = matching.length > 0 && matching.every((d) => prev.has(d));
+        const next = new Set(prev);
+        matching.forEach((d) => (allSelected ? next.delete(d) : next.add(d)));
+        return next;
+      });
+    },
+    [v.date, v.end_date]
+  );
+
+  const toggleDate = useCallback((d) => {
+    setSessionDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(d)) next.delete(d);
+      else next.add(d);
+      return next;
+    });
+  }, []);
 
   // 스크롤 컨테이너는 .mbody 가 아니라 .modal 이다(overflow:auto 가 거기 있다).
   // 첫 오류 필드가 접힌 스크롤 아래에 있으면 "눌리지도 않고 이유도 안 보이는" 상태가 된다.
@@ -197,6 +269,8 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
       attendance_payout_mode: isPeriod ? v.attendance_payout_mode : null,
       min_attendance_days:
         isPeriod && v.attendance_payout_mode === 'threshold' ? Number(v.min_attendance_days) : null,
+      // 정렬은 의미가 없다(DB 제약이 min/max만 본다) — 그래도 보기 좋으라고 오름차순으로 보낸다.
+      session_dates: isPeriod ? [...sessionDates].sort() : null,
       time: v.time.trim(),
       career_track: v.career_track,
       points: Number(v.points),
@@ -347,9 +421,10 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
                 const checked = e.target.checked;
                 setIsPeriod(checked);
                 if (!checked) {
-                  // 체크를 끄면 종료일·지급 방식·최소일수를 모두 초기화한다 — payload는 이미 isPeriod로
-                  // null을 보내지만, 다시 켰을 때 지난 값이 남아있는 것도 혼란스러우므로 화면 값도 지운다.
+                  // 체크를 끄면 종료일·지급 방식·최소일수·진행일 목록을 모두 초기화한다 — payload는 이미
+                  // isPeriod로 null을 보내지만, 다시 켰을 때 지난 값이 남아있는 것도 혼란스러우므로 지운다.
                   setV((prev) => ({ ...prev, end_date: '', attendance_payout_mode: 'full', min_attendance_days: '' }));
+                  setSessionDates(new Set());
                 }
               }}
             />
@@ -373,6 +448,29 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
                 min={v.date || undefined}
               />
             </Field>
+          )}
+
+          {/* [진행일 — 20260809180000] 종료일까지 정해져야 그릴 수 있다(범위가 있어야 날짜 목록이 나온다). */}
+          {isPeriod && v.date && v.end_date && (
+            <div className={errorOf('session_dates') ? 'pf err' : 'pf'}>
+              <label>
+                진행일<em className="req">필수</em>
+              </label>
+              <SessionDatesPicker
+                startIso={v.date}
+                endIso={v.end_date}
+                selected={sessionDates}
+                onPreset={applyPreset}
+                onToggleWeekday={toggleWeekday}
+                onToggleDate={toggleDate}
+              />
+              {errorOf('session_dates') && <p className="pf-msg err">{errorOf('session_dates')}</p>}
+              {!errorOf('session_dates') && (
+                <p className="pf-msg hint">
+                  빠른 채우기로 큰 틀을 잡고, 달력에서 개별 날짜를 눌러 세부 조정하세요.
+                </p>
+              )}
+            </div>
           )}
 
           {isPeriod && (
@@ -411,9 +509,9 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
               required
               error={errorOf('min_attendance_days')}
               hint={
-                v.date && v.end_date
-                  ? `현재 기간은 총 ${dayCount(v.date, v.end_date)}일입니다.`
-                  : '시작일·종료일을 먼저 정해주세요.'
+                sessionDates.size > 0
+                  ? `현재 고른 진행일은 총 ${sessionDates.size}일입니다.`
+                  : '진행일을 먼저 선택해 주세요.'
               }
             >
               <input
@@ -421,7 +519,7 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
                 type="number"
                 inputMode="numeric"
                 min={1}
-                max={dayCount(v.date, v.end_date) || undefined}
+                max={sessionDates.size || undefined}
                 value={v.min_attendance_days}
                 onChange={set('min_attendance_days')}
                 onBlur={blur('min_attendance_days')}
@@ -540,6 +638,86 @@ function Field({ label, htmlFor, required = false, error = null, warn = null, hi
         </p>
       )}
       {!error && !warn && hint && <p className="pf-msg hint">{hint}</p>}
+    </div>
+  );
+}
+
+/**
+ * 기간제 프로그램의 진행일 선택 UI (20260809180000). 저장되는 값은 selected(Set) 그대로 —
+ * 프리셋/요일칩/개별 클릭은 전부 이 컴포넌트 밖(ProgramFormModal)의 핸들러 3개가 처리하고,
+ * 여기는 순수하게 그 결과를 그린다(제어 컴포넌트).
+ */
+function SessionDatesPicker({ startIso, endIso, selected, onPreset, onToggleWeekday, onToggleDate }) {
+  const dates = datesBetween(startIso, endIso);
+  if (dates.length === 0) return null;
+
+  // 그리드가 요일 열에 맞게 정렬되도록 시작일 앞을 그 주의 일요일까지 빈 칸으로 채운다.
+  const leadingBlanks = weekdayOf(dates[0]);
+  const cells = [...Array(leadingBlanks).fill(null), ...dates];
+
+  return (
+    <div className="pf-sessionpicker">
+      <div className="pf-sessionpresets">
+        <button type="button" onClick={() => onPreset('all')}>
+          매일
+        </button>
+        <button type="button" onClick={() => onPreset('weekday')}>
+          평일만
+        </button>
+        <button type="button" onClick={() => onPreset('weekend')}>
+          주말만
+        </button>
+        <button type="button" onClick={() => onPreset('everyOther')}>
+          격일
+        </button>
+      </div>
+
+      {/* 요일 칩 — 눌린 요일에 해당하는 날짜 전부를 한 번에 토글한다("특정 요일마다"를 이 칩들의
+          조합으로 표현한다: 예) 월+수+금 = 매주 월수금). 이미 그 요일 전부가 선택된 상태면 끈다. */}
+      <div className="pf-weekdaychips">
+        {DOW.map((label, w) => {
+          const matching = dates.filter((d) => weekdayOf(d) === w);
+          const active = matching.length > 0 && matching.every((d) => selected.has(d));
+          return (
+            <button
+              key={label}
+              type="button"
+              className={active ? 'pf-daychip on' : 'pf-daychip'}
+              aria-pressed={active}
+              disabled={matching.length === 0}
+              onClick={() => onToggleWeekday(w)}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="pf-sessiongrid">
+        {DOW.map((label) => (
+          <div key={label} className="pf-sessiondow">
+            {label}
+          </div>
+        ))}
+        {cells.map((d, i) =>
+          d === null ? (
+            <div key={`blank-${i}`} className="pf-sessioncell blank" aria-hidden="true" />
+          ) : (
+            <button
+              key={d}
+              type="button"
+              className={selected.has(d) ? 'pf-sessioncell on' : 'pf-sessioncell'}
+              aria-pressed={selected.has(d)}
+              onClick={() => onToggleDate(d)}
+            >
+              {Number(d.slice(8, 10))}
+            </button>
+          )
+        )}
+      </div>
+
+      {/* 원칙 1 — 분모 없는 개수만. "8/20일" 같은 비율은 만들지 않는다. */}
+      <div className="pf-sessioncount">{selected.size}일 선택됨</div>
     </div>
   );
 }

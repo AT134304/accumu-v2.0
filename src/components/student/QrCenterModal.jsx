@@ -89,6 +89,10 @@ function periodActionOf(item, sessions) {
   const today = todayISO();
   if (today < prog.date) return { disabled: true, label: '기간 시작 전', type: null };
   if (today > prog.end_date) return { disabled: true, label: '기간이 끝났어요', type: null };
+  // [진행일 — 20260809180000] 범위 안이라도 관리자가 고른 진행일이 아니면(주말만/특정요일 등) 오늘은 쉬는 날이다.
+  if (Array.isArray(prog.session_dates) && !prog.session_dates.includes(today)) {
+    return { disabled: true, label: '오늘은 진행일이 아니에요', type: null };
+  }
 
   const todaySession = (sessions ?? []).find((s) => s.session_date === today) ?? null;
   if (!todaySession || todaySession.status === 'applied') {

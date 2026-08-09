@@ -9,8 +9,10 @@ import { todayISO } from './date';
 // [attendance_payout_mode/min_attendance_days — 지급 방식 3종, 20260809160000] 기간제일 때만 값이 있다.
 //   카드에는 표시하지 않는다(원칙 1 — 지급 시점을 카드에서 강조하지 않는다). JoinModal 안내문과
 //   QrCenterModal의 완료 판정이 이 값을 쓴다.
+// [session_dates — 실제 진행일 목록, 20260809180000] 기간제일 때만 값이 있다. JoinModal의 "총 N일 진행"
+//   안내에 쓴다. 카드 자체에는 표시하지 않는다(칩 하나에 다 못 담긴다 — 팝업에서 자세히 보여준다).
 const CARD_FIELDS =
-  'id, category, title, org, date, end_date, time, points, career_track, status, attendance_payout_mode, min_attendance_days';
+  'id, category, title, org, date, end_date, time, points, career_track, status, attendance_payout_mode, min_attendance_days, session_dates';
 
 // 프로그램 선택 화면용. 카드 필드 + 팝업(description) + 클라이언트 정렬 입력(popularity/created_at).
 //
@@ -170,7 +172,7 @@ export async function fetchAdminHomePrograms(adminId) {
 // [popularity 를 가져오지 않는다] 화면에 쓰지 않는 값을 페이로드에 싣지 않는다 — 원칙 가드를 코드로 표현한 것이다
 //   (표시도 편집도 하지 않는다: 컬럼 주석 / 스펙 이슈 3).
 const ADMIN_MANAGE_FIELDS =
-  'id, category, title, org, description, date, end_date, time, capacity, points, career_track, status, is_published, created_by, created_at, attendance_payout_mode, min_attendance_days';
+  'id, category, title, org, description, date, end_date, time, capacity, points, career_track, status, is_published, created_by, created_at, attendance_payout_mode, min_attendance_days, session_dates';
 
 // 폼이 소유하는 컬럼 화이트리스트. insert/update 페이로드는 반드시 이 목록을 통과한다.
 //
@@ -188,6 +190,7 @@ const FORM_COLUMNS = [
   'end_date', // 기간제 프로그램의 종료일. 단일 일자면 null (ProgramFormModal 이 그 분기를 만든다).
   'attendance_payout_mode', // 기간제 지급 방식 3종(20260809160000). 단일 일자면 null.
   'min_attendance_days', // attendance_payout_mode='threshold'일 때만. 그 외엔 null.
+  'session_dates', // 실제 진행일 목록(20260809180000). 단일 일자면 null.
   'time',
   'career_track',
   'points',

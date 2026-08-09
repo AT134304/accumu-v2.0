@@ -19,7 +19,7 @@ import Toast from '../components/Toast';
 import Modal from '../components/Modal';
 import ProgramFormModal from '../components/admin/ProgramFormModal';
 import { catOf, statusOf } from '../lib/taxonomy';
-import { fmtDate, todayISO } from '../lib/date';
+import { fmtDateRange, todayISO } from '../lib/date';
 import { fetchAdminPrograms, setProgramPublished } from '../lib/programService';
 import { describeSaveError } from '../lib/programErrors';
 import '../styles/AdminShell.css';
@@ -274,8 +274,9 @@ function ProgramRow({ program, busy, highlighted, rowRef, onEdit, onPublish, onU
       <div className="info">
         <h5>{program.title}</h5>
         <div className="m">
-          {/* group(교내/교외)이 사라져 유형 이름 하나다 — ADR 0014 */}
-          {[cat.name, program.org, fmtDate(program.date), program.time]
+          {/* group(교내/교외)이 사라져 유형 이름 하나다 — ADR 0014.
+              기간제(end_date 있음)는 범위로 찍힌다 — fmtDateRange가 단일 일자면 fmtDate와 같다. */}
+          {[cat.name, program.org, fmtDateRange(program.date, program.end_date), program.time]
             .filter(Boolean)
             .join(' · ')}
         </div>
