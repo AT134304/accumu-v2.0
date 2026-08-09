@@ -276,12 +276,12 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
   const isEntry = type === 'entry';
   const v = programView(participation.program);
 
+  // [기간제 지급 방식 — 20260809160000] 카드/QR 목록과 같은 필드(participation.program.attendance_payout_mode).
+  // period=true인데도 값이 없으면(레거시 데이터) 'full'로 취급한다 — DB가 백필해두지만 프런트도 fail-safe.
+  const payoutMode = period ? participation.program?.attendance_payout_mode ?? 'full' : null;
+
   const { refreshProfile } = useAuth();
   const [issued, setIssued] = useState(initialIssued);
-  // [기간제 — 마지막 날인가] 이 QR이 "오늘"(issued.session_date) 것이고, 그 날짜가 종료일과 같으면
-  // 서버(verify_attendance_qr)가 퇴장 시 참여 전체를 completed로 전이시키고 포인트를 지급한다.
-  // 그 전 날짜의 퇴장은 그날 출석만 기록한다 — 화면도 그 차이를 반영해야 "포인트 지급"을 거짓 약속하지 않는다.
-  const isFinalDay = Boolean(period) && issued.session_date === participation.program?.end_date;
   const [now, setNow] = useState(() => Date.now());
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -289,9 +289,14 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
   const doneRef = useRef(false);
   // 퇴장 완료 화면의 만족도 평가 (CLAUDE.md 6장 3번). 'open' = 자동 노출 상태.
   // [QR 상태와 섞지 않는다] 이 값은 done/issued/폴링에 아무 영향을 주지 않는다 — 평가는 QR 흐름의 곁가지다.
-  // [기간제] 마지막 날 퇴장에서만 연다 — 중간 날 퇴장은 참여가 아직 안 끝났으니 평가를 물을 시점이 아니다.
   const [reviewState, setReviewState] = useState('open'); // 'open' | 'saved' | 'skipped'
-  const showCompletion = !isEntry && (!period || isFinalDay); // "참여 완료" UX(포인트·평가)를 보일지
+  // [완료 여부는 서버 판정을 그대로 옮겨온다 — 날짜 비교로 추정하지 않는다]
+  //   full 모드는 "종료일 퇴장"이 곧 완료지만, threshold 모드는 종료일 전에 완료될 수 있고, per_session
+  //   모드는 매 퇴장마다 지급되면서도 완료(=participations.status)는 여전히 종료일에만 일어난다.
+  //   그래서 폴링이 이 QR의 참여 건 전체 상태(fetchParticipationStatuses)를 함께 확인해 결과를 여기 담는다.
+  //   pointsAwarded: 이번 퇴장에서 포인트가 지급됐는가(화면에 +P 를 보일지).
+  //   fullyCompleted: 이번 퇴장으로 참여 전체가 끝났는가(평가폼·"확인" 버튼을 보일지).
+  const [exitOutcome, setExitOutcome] = useState({ pointsAwarded: false, fullyCompleted: false });
 
   const payload = useMemo(() => buildQrPayload(issued), [issued]);
   const expiresMs = Date.parse(issued.expires_at);
@@ -319,15 +324,32 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
         const sessions = await fetchAttendanceSessions(participation.id);
         const mine = sessions.find((s) => s.session_date === issued.session_date);
         if (!mine || doneRef.current) return;
-        if (mine.status === target) {
-          doneRef.current = true;
+        if (mine.status !== target) return;
+
+        doneRef.current = true;
+
+        if (isEntry) {
           setDone(true);
-          // 잔액은 "마지막 날 퇴장"일 때만 실제로 바뀐다 — 그 외엔 재조회해도 값이 그대로다.
-          if (!isEntry && isFinalDay) {
-            refreshProfile?.().catch((err) =>
-              console.warn('[QrCenterModal] 잔액 갱신 실패(표시만 지연됨):', err)
-            );
-          }
+          return;
+        }
+
+        // 퇴장 — 참여 전체가 이번에 끝났는지는 participations.status 를 다시 봐야 안다(위 주석 참고).
+        let fullyCompleted = false;
+        try {
+          const rows = await fetchParticipationStatuses();
+          fullyCompleted = rows.find((r) => r.id === participation.id)?.status === 'completed';
+        } catch (err) {
+          console.warn('[QrCenterModal] 참여 완료 여부 확인 실패(완료 화면만 단순화됨):', err);
+        }
+        // per_session 은 완료 여부와 무관하게 이번 퇴장에서 항상 지급된다(서버가 매번 지급).
+        // threshold/full 은 "이번 퇴장으로 완료됐을 때"만 지급된 것이다.
+        const pointsAwarded = payoutMode === 'per_session' || fullyCompleted;
+        setExitOutcome({ pointsAwarded, fullyCompleted });
+        setDone(true);
+        if (pointsAwarded) {
+          refreshProfile?.().catch((err) =>
+            console.warn('[QrCenterModal] 잔액 갱신 실패(표시만 지연됨):', err)
+          );
         }
         return;
       }
@@ -342,6 +364,7 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
         // 나브 상단 잔액을 맞춘다 — 안 하면 완료 화면엔 "+400P 적립"이 뜨는데 나브는 그대로라
         // "포인트가 안 들어왔다"로 보인다. 프런트가 값을 계산하는 게 아니라 서버 값을 재조회한다.
         if (!isEntry) {
+          setExitOutcome({ pointsAwarded: true, fullyCompleted: true });
           refreshProfile?.().catch((err) =>
             console.warn('[QrCenterModal] 잔액 갱신 실패(표시만 지연됨):', err)
           );
@@ -351,7 +374,7 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
       // 폴링 실패는 조용히 넘어간다 — 다음 주기에 다시 시도한다. QR 자체는 여전히 유효하다.
       console.warn('[QrCenterModal] 상태 폴링 실패:', err);
     }
-  }, [isEntry, participation.id, refreshProfile, period, issued.session_date, isFinalDay]);
+  }, [isEntry, participation.id, refreshProfile, period, issued.session_date, payoutMode]);
 
   // 폴링 — 관리자가 스캔하면 화면이 자동으로 완료 상태로 넘어간다.
   // setInterval 이 아니라 자기 자신을 다시 예약하는 setTimeout 이다: 주기가 도중에 바뀌고(2초 -> 10초),
@@ -414,30 +437,37 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
             <Icon name="ic-check" size={38} />
           </div>
           {/* [원칙 4] 큰 문구는 언제나 포트폴리오 서사다. 포인트는 아래 한 줄 보조로만 놓는다.
-              [기간제 — 마지막 날이 아닌 퇴장] "참여가 기록되었습니다"(완료를 암시)를 쓰지 않는다.
-              그날 출석만 기록됐을 뿐 참여 전체는 아직 끝나지 않았다 — showCompletion 이 그 경계다. */}
+              [기간제 — 참여 전체가 안 끝난 퇴장] "참여가 기록되었습니다"(완료를 암시)를 쓰지 않는다.
+              exitOutcome.fullyCompleted 가 그 경계다 — 지급 방식(full/per_session/threshold)마다
+              "언제 끝나는가"가 다르므로 날짜 비교가 아니라 서버가 돌려준 참여 상태로 판정한다. */}
           <h3 id="qr-title">
-            {isEntry ? '입장이 확인되었습니다' : showCompletion ? '참여가 기록되었습니다' : '오늘 출석이 기록되었습니다'}
+            {isEntry
+              ? '입장이 확인되었습니다'
+              : exitOutcome.fullyCompleted
+                ? '참여가 기록되었습니다'
+                : '오늘 출석이 기록되었습니다'}
           </h3>
           <div className="desc">
             {isEntry
               ? `${v.title} · ${period ? '오늘 ' : ''}퇴장 시 한 번 더 인증해 주세요`
-              : showCompletion
+              : exitOutcome.fullyCompleted
                 ? v.title
                 : `${v.title} · 종료일까지 계속 인증해 주세요`}
           </div>
           {/* 지급 포인트는 클라이언트가 이미 들고 있는 programs.points 로 그린다(폴링은 금액을 돌려주지 않는다).
               amber·작게. 숫자 카운트업/컨페티/사운드 금지 (원칙 1·4).
-              [기간제] 마지막 날 퇴장에서만 보인다 — 중간 날 퇴장은 지급이 없으므로 약속하지 않는다. */}
-          {showCompletion && v.points != null && <div className="done-pts">+{v.points}P 적립</div>}
+              [기간제] exitOutcome.pointsAwarded 가 실제 지급 여부다 — per_session 모드는 완료 전에도
+              매번 지급되므로 fullyCompleted 와 별개로 여기서 보인다. full/threshold 는 완료된 순간에만 같이 켜진다. */}
+          {exitOutcome.pointsAwarded && v.points != null && <div className="done-pts">+{v.points}P 적립</div>}
 
           {/* [CLAUDE.md 6장 3번 — 퇴장 인증 완료 시 만족도 평가 자동 노출]
               별도 모달을 겹치지 않는다. 이미 모달 안이므로 같은 mbody 에서 이어서 보여준다(스펙 결정 D-1).
-              [입장 완료·기간제 중간 날에는 노출하지 않는다] 아직 활동(전체)이 끝나지 않았다 —
-              showCompletion 가드가 그것이다(입장 여부 + 기간제 마지막 날 여부를 함께 본다).
+              [입장 완료·참여가 아직 안 끝난 날에는 노출하지 않는다] fullyCompleted 가 아니면 평가를 묻지
+              않는다 — per_session 모드로 매일 지급받아도 참여 자체가 끝나기 전엔 "어떠셨나요"를 물을 시점이
+              아니다(리뷰는 활동 전체에 대한 평가이지 하루치 평가가 아니다).
               [건너뛰기 필수] 평가를 강제하면 현장에서 모달을 못 닫는 상황이 생기고, 그건 QR 2회 인증
               (원칙 5)의 신뢰를 깎는다. 건너뛴 활동은 아카이브에서 "평가 미작성"으로 남는다. */}
-          {showCompletion && reviewState === 'open' && (
+          {exitOutcome.fullyCompleted && reviewState === 'open' && (
             <div className="qr-review">
               <ReviewForm
                 participationId={participation.id}
@@ -446,10 +476,10 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
               />
             </div>
           )}
-          {showCompletion && reviewState === 'saved' && (
+          {exitOutcome.fullyCompleted && reviewState === 'saved' && (
             <div className="qr-reviewdone">평가가 저장되었어요 · 아카이브에 함께 기록됩니다</div>
           )}
-          {showCompletion && reviewState === 'skipped' && (
+          {exitOutcome.fullyCompleted && reviewState === 'skipped' && (
             <div className="qr-reviewdone muted">평가는 아카이브에서 언제든 남길 수 있어요</div>
           )}
 
@@ -457,9 +487,9 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
             type="button"
             className="mbtn"
             style={{ marginTop: 22 }}
-            onClick={showCompletion ? onClose : onBack}
+            onClick={isEntry || !exitOutcome.fullyCompleted ? onBack : onClose}
           >
-            {showCompletion ? '확인' : '목록으로'}
+            {isEntry || !exitOutcome.fullyCompleted ? '목록으로' : '확인'}
           </button>
         </div>
       </div>

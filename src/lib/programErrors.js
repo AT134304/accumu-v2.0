@@ -10,6 +10,7 @@
 export const POINTS_RULE_MSG = '포인트는 150~3,000P 사이의 10원 단위여야 합니다.';
 export const CAPACITY_RULE_MSG = '정원은 1명 이상이거나 비워두세요.';
 export const END_DATE_RULE_MSG = '종료일은 시작일보다 빠를 수 없습니다.';
+export const MIN_DAYS_RULE_MSG = '최소 참여일수는 1일 이상, 전체 기간 이하여야 합니다.';
 
 /**
  * @param {any} err supabase-js 에러 또는 ProgramNotAffectedError
@@ -24,8 +25,13 @@ export function describeSaveError(err) {
   if (code === '23514') {
     if (raw.includes('programs_points_rule')) return { field: 'points', message: POINTS_RULE_MSG };
     if (raw.includes('programs_capacity_positive')) return { field: 'capacity', message: CAPACITY_RULE_MSG };
-    // 기간제 프로그램(20260809140000) — 프런트가 이미 막지만, 개발자도구 우회 시 여기서 잡힌다.
+    // 기간제 프로그램(20260809140000) / 지급 방식 3종(20260809160000) — 프런트가 이미 막지만,
+    // 개발자도구 우회 시 여기서 잡힌다.
     if (raw.includes('programs_end_date_after_start')) return { field: 'end_date', message: END_DATE_RULE_MSG };
+    if (raw.includes('programs_min_days_range')) return { field: 'min_attendance_days', message: MIN_DAYS_RULE_MSG };
+    if (raw.includes('programs_threshold_requires_min_days') || raw.includes('programs_min_days_requires_threshold')) {
+      return { field: 'min_attendance_days', message: MIN_DAYS_RULE_MSG };
+    }
     return { message: '입력값이 저장 규칙에 맞지 않습니다. 값을 다시 확인해 주세요.' };
   }
 

@@ -121,11 +121,16 @@ export default function JoinModal({ program, joined, full = false, onClose, onAp
 
         {/* 기간제 프로그램 안내 — 신청 후 QR 센터에서 "오늘 입장/퇴장" 흐름이 하루짜리와 다르다는 것을
             미리 말해준다. 카피에서 QR을 약속하지 않는 기존 규율(확정 F-1)과 달리 여기는 신청 여부를
-            결정하는 정보라 언급이 필요하다 — "매일 인증해야 한다"를 모르고 신청하면 놀란다. */}
+            결정하는 정보라 언급이 필요하다 — "매일 인증해야 한다"와 "포인트를 언제 받는지"를 모르고
+            신청하면 놀란다. 지급 방식 3종(20260809160000)에 따라 마지막 문장만 갈린다. */}
         {isPeriod && (
           <p className="join-period-note">
-            시작일부터 종료일까지 <b>매일</b> 입·퇴장 QR 인증이 필요합니다. 포인트는 종료일 퇴장 인증 때
-            한 번에 지급됩니다.
+            시작일부터 종료일까지 <b>매일</b> 입·퇴장 QR 인증이 필요합니다.{' '}
+            {program.attendance_payout_mode === 'per_session'
+              ? '포인트는 퇴장 인증을 할 때마다 매번 지급됩니다.'
+              : program.attendance_payout_mode === 'threshold'
+                ? `최소 ${program.min_attendance_days ?? '-'}일 이상 참여하면 그 시점에 포인트가 한 번 지급됩니다.`
+                : '포인트는 종료일 퇴장 인증 때 한 번에 지급됩니다.'}
           </p>
         )}
 

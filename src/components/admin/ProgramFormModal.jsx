@@ -27,6 +27,22 @@ const STATUS_OPTIONS = Object.entries(STATUS).map(([key, s]) => ({ key, label: s
 
 // [드롭다운 옵션의 유일한 소유자는 taxonomy.js 다] 여기 없는 값을 하드코딩하면 enum 위반(22P02)이 난다.
 
+// [지급 방식 3종 — 20260809160000] DB enum attendance_payout_mode 와 키까지 그대로 맞춘다(CAT/TRACK와 같은 관례).
+const PAYOUT_MODE_OPTIONS = [
+  { key: 'full', label: '전체 수강 완료 시 (종료일 퇴장 인증 1회)' },
+  { key: 'per_session', label: '참석할 때마다 (퇴장 인증마다 매번)' },
+  { key: 'threshold', label: '최소 참여일수 도달 시 (그 시점 1회)' },
+];
+
+/** 'YYYY-MM-DD' 두 개 사이 시작일 포함 총 일수. 값이 비어 있으면 null(계산 불가). */
+function dayCount(startIso, endIso) {
+  if (!startIso || !endIso) return null;
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  return Math.round((end - start) / 86_400_000) + 1;
+}
+
 /** 프로그램 행 -> 폼 값. 숫자/NULL 을 input 이 다룰 수 있는 문자열로 바꾼다. */
 function toFormValues(program) {
   if (!program) {
@@ -38,6 +54,8 @@ function toFormValues(program) {
       // 캘린더/날짜 기본값은 하드코딩이 아니라 실행 시점의 실제 오늘 (CLAUDE.md 9장, toISOString() 금지)
       date: todayISO(),
       end_date: '', // 기간제 프로그램의 종료일. "기간제 프로그램" 체크가 꺼져 있으면 저장 시 null로 보낸다.
+      attendance_payout_mode: 'full', // 기간제 기본 지급 방식. 체크가 꺼져 있으면 저장 시 null로 보낸다.
+      min_attendance_days: '', // attendance_payout_mode='threshold'일 때만 쓴다.
       time: '',
       career_track: '',
       points: '',
@@ -52,6 +70,8 @@ function toFormValues(program) {
     description: program.description ?? '',
     date: program.date ?? '',
     end_date: program.end_date ?? '',
+    attendance_payout_mode: program.attendance_payout_mode ?? 'full',
+    min_attendance_days: program.min_attendance_days == null ? '' : String(program.min_attendance_days),
     time: program.time ?? '',
     career_track: program.career_track ?? '',
     points: program.points == null ? '' : String(program.points),
@@ -96,6 +116,9 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
     if (!v.description.trim()) e.description = '설명을 입력해 주세요.';
     if (!v.date) e.date = '날짜를 선택해 주세요.';
     if (isPeriod && !v.end_date) e.end_date = '종료일을 선택해 주세요.';
+    if (isPeriod && v.attendance_payout_mode === 'threshold' && !String(v.min_attendance_days).trim()) {
+      e.min_attendance_days = '최소 참여일수를 입력해 주세요.';
+    }
     if (!v.time.trim()) e.time = '시간을 입력해 주세요.';
     if (!v.career_track) e.career_track = '진로 계열을 선택해 주세요.';
     if (!String(v.points).trim()) e.points = '지급 포인트를 입력해 주세요.';
@@ -120,8 +143,19 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
     if (isPeriod && v.date && v.end_date && v.end_date < v.date) {
       e.end_date = '종료일은 시작일보다 빠를 수 없습니다.';
     }
+    // [최소 참여일수 — DB 제약 programs_min_days_range 를 프런트에서 먼저 막는다]
+    if (isPeriod && v.attendance_payout_mode === 'threshold' && String(v.min_attendance_days).trim()) {
+      const n = Number(v.min_attendance_days);
+      const totalDays = dayCount(v.date, v.end_date); // 시작일 포함 총 일수. 날짜가 아직 없으면 null.
+      if (!Number.isInteger(n) || n < 1 || (totalDays != null && n > totalDays)) {
+        e.min_attendance_days =
+          totalDays != null
+            ? `1~${totalDays}일 사이여야 합니다(현재 기간 기준).`
+            : '1 이상의 정수를 입력해 주세요.';
+      }
+    }
     return e;
-  }, [v.points, v.capacity, v.date, v.end_date, isPeriod]);
+  }, [v.points, v.capacity, v.date, v.end_date, v.attendance_payout_mode, v.min_attendance_days, isPeriod]);
 
   // 규칙 위반 값이 있으면 저장 버튼을 잠근다. 빈 필수값은 잠그지 않고 제출 시 사유를 드러낸다
   // (처음부터 잠가두면 왜 못 누르는지 알 수 없는 버튼이 된다).
@@ -160,6 +194,9 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
       // 체크가 꺼져 있으면 v.end_date에 남은 값이 있어도(예: 껐다 켰다) 무시하고 null을 보낸다 —
       // "기간제 프로그램" 체크박스가 유일한 소유자다.
       end_date: isPeriod ? v.end_date : null,
+      attendance_payout_mode: isPeriod ? v.attendance_payout_mode : null,
+      min_attendance_days:
+        isPeriod && v.attendance_payout_mode === 'threshold' ? Number(v.min_attendance_days) : null,
       time: v.time.trim(),
       career_track: v.career_track,
       points: Number(v.points),
@@ -310,9 +347,9 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
                 const checked = e.target.checked;
                 setIsPeriod(checked);
                 if (!checked) {
-                  // 체크를 끄면 종료일을 비운다 — payload는 이미 isPeriod로 null을 보내지만,
-                  // 다시 켰을 때 지난 값이 남아있는 것도 혼란스러우므로 화면 값도 함께 지운다.
-                  setV((prev) => ({ ...prev, end_date: '' }));
+                  // 체크를 끄면 종료일·지급 방식·최소일수를 모두 초기화한다 — payload는 이미 isPeriod로
+                  // null을 보내지만, 다시 켰을 때 지난 값이 남아있는 것도 혼란스러우므로 화면 값도 지운다.
+                  setV((prev) => ({ ...prev, end_date: '', attendance_payout_mode: 'full', min_attendance_days: '' }));
                 }
               }}
             />
@@ -325,7 +362,7 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
               htmlFor="pf-enddate"
               required
               error={errorOf('end_date')}
-              hint="학생은 시작일~종료일 동안 매일 입·퇴장 QR을 인증합니다. 포인트는 종료일 퇴장 인증 시 지급됩니다."
+              hint="학생은 시작일~종료일 동안 매일 입·퇴장 QR을 인증합니다."
             >
               <input
                 id="pf-enddate"
@@ -334,6 +371,61 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
                 onChange={set('end_date')}
                 onBlur={blur('end_date')}
                 min={v.date || undefined}
+              />
+            </Field>
+          )}
+
+          {isPeriod && (
+            <Field
+              label="포인트 지급 방식"
+              htmlFor="pf-payoutmode"
+              required
+              error={errorOf('attendance_payout_mode')}
+              hint={
+                v.attendance_payout_mode === 'per_session'
+                  ? '퇴장 인증을 할 때마다 매번 지급 포인트만큼 지급됩니다.'
+                  : v.attendance_payout_mode === 'threshold'
+                    ? '아래 최소 참여일수에 도달한 퇴장 인증에서 한 번 지급됩니다.'
+                    : '종료일 퇴장 인증 시 한 번 지급됩니다.'
+              }
+            >
+              <select
+                id="pf-payoutmode"
+                value={v.attendance_payout_mode}
+                onChange={set('attendance_payout_mode')}
+                onBlur={blur('attendance_payout_mode')}
+              >
+                {PAYOUT_MODE_OPTIONS.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+
+          {isPeriod && v.attendance_payout_mode === 'threshold' && (
+            <Field
+              label="최소 참여일수"
+              htmlFor="pf-mindays"
+              required
+              error={errorOf('min_attendance_days')}
+              hint={
+                v.date && v.end_date
+                  ? `현재 기간은 총 ${dayCount(v.date, v.end_date)}일입니다.`
+                  : '시작일·종료일을 먼저 정해주세요.'
+              }
+            >
+              <input
+                id="pf-mindays"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={dayCount(v.date, v.end_date) || undefined}
+                value={v.min_attendance_days}
+                onChange={set('min_attendance_days')}
+                onBlur={blur('min_attendance_days')}
+                placeholder="예) 8"
               />
             </Field>
           )}
