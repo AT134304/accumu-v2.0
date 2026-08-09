@@ -15,11 +15,13 @@ import Modal from '../Modal';
 import ReviewForm from './ReviewForm';
 import { useAuth } from '../../context/AuthContext';
 import { catOf } from '../../lib/taxonomy';
-import { fmtDate } from '../../lib/date';
+import { fmtDateRange, todayISO } from '../../lib/date';
 import {
   buildQrPayload,
+  fetchAttendanceSessions,
   fetchMyParticipationsWithProgram,
   fetchParticipationStatuses,
+  issueAttendanceQr,
   issueQr,
   issueRejectText,
 } from '../../lib/participationService';
@@ -37,7 +39,8 @@ const POLL_FAST_MS = 2_000;
 const POLL_SLOW_MS = 10_000;
 const POLL_FAST_WINDOW_MS = 120_000; // QR 표시(또는 재발급) 후 2분
 
-/** 참여 상태 -> 목록 보조 문구 (프로토타입 1013줄 카피) */
+/** 참여 상태 -> 목록 보조 문구 (프로토타입 1013줄 카피). 단일 일자 프로그램 전용 —
+ *  기간제는 참여 전체 상태가 아니라 "오늘" 세션 상태를 보여줘야 해서 periodActionOf()가 별도로 만든다. */
 const STATUS_LABEL = { applied: '입장 대기', entered: '참석 중 (퇴장 전)' };
 
 /**
@@ -52,7 +55,10 @@ function programView(program) {
       icon: cat.icon,
       color: cat.color,
       soft: cat.soft,
-      meta: [fmtDate(program.date), program.points ? `+${program.points}P` : null].filter(Boolean),
+      // 기간제(program.end_date 있음)는 범위로 찍힌다 — fmtDateRange가 단일 일자면 자동으로 fmtDate와 같다.
+      meta: [fmtDateRange(program.date, program.end_date), program.points ? `+${program.points}P` : null].filter(
+        Boolean
+      ),
       points: program.points ?? null,
     };
   }
@@ -66,10 +72,41 @@ function programView(program) {
   };
 }
 
+/**
+ * 기간제 프로그램(program.end_date 있음)의 "오늘" 액션을 결정한다. 단일 일자면 null을 돌려주고
+ * 호출부가 기존(participation.status 기반) 분기를 그대로 쓴다.
+ *
+ * [원칙 1 가드] "N일차/M일 중 N일 출석" 같은 진행률 라벨을 만들지 않는다 — 오늘 할 수 있는 행동 하나만 말한다.
+ *
+ * @param {object} item fetchMyParticipationsWithProgram() 행 (program 포함)
+ * @param {Array<{session_date:string, status:string}>} sessions fetchAttendanceSessions() 결과
+ * @returns {{disabled:boolean, label:string, type:'entry'|'exit'|null}|null}
+ */
+function periodActionOf(item, sessions) {
+  const prog = item.program;
+  if (!prog?.end_date) return null;
+
+  const today = todayISO();
+  if (today < prog.date) return { disabled: true, label: '기간 시작 전', type: null };
+  if (today > prog.end_date) return { disabled: true, label: '기간이 끝났어요', type: null };
+
+  const todaySession = (sessions ?? []).find((s) => s.session_date === today) ?? null;
+  if (!todaySession || todaySession.status === 'applied') {
+    return { disabled: false, label: '오늘 입장 QR', type: 'entry' };
+  }
+  if (todaySession.status === 'entered') {
+    return { disabled: false, label: '오늘 퇴장 QR', type: 'exit' };
+  }
+  return { disabled: true, label: '오늘 출석 완료', type: null }; // completed
+}
+
 export default function QrCenterModal({ onClose }) {
   const [items, setItems] = useState([]);
+  // 기간제 참여 건의 "오늘까지의 출석 기록" — participation.id -> attendance_sessions 행 배열.
+  // 단일 일자 항목은 이 맵에 없다(조회 자체를 하지 않는다).
+  const [sessionsByParticipation, setSessionsByParticipation] = useState(() => new Map());
   const [state, setState] = useState('loading'); // 'loading' | 'ready' | 'error'
-  const [active, setActive] = useState(null); // { participation, type, issued }
+  const [active, setActive] = useState(null); // { participation, type, issued, period }
   const [busyId, setBusyId] = useState(null);
   const [notice, setNotice] = useState('');
 
@@ -78,7 +115,21 @@ export default function QrCenterModal({ onClose }) {
     try {
       const rows = await fetchMyParticipationsWithProgram();
       // 확정 A절: 목록은 아직 완료되지 않은 내 참여만. 완료 건은 아카이브의 몫이다.
-      setItems(rows.filter((r) => r.status !== 'completed'));
+      const active = rows.filter((r) => r.status !== 'completed');
+
+      // 기간제 항목만 오늘 액션 판정에 출석 기록이 필요하다(participation.status만으론 "오늘" 상태를 모른다).
+      // 데모 규모(참여 몇 건)라 항목당 왕복 1회씩이 무해하다 — 실패해도 목록 자체는 살린다.
+      const periodItems = active.filter((r) => r.program?.end_date);
+      const sessionLists = await Promise.all(
+        periodItems.map((r) =>
+          fetchAttendanceSessions(r.id).catch((err) => {
+            console.warn('[QrCenterModal] 출석 기록 조회 실패 — 오늘 상태 없이 표시합니다:', err);
+            return [];
+          })
+        )
+      );
+      setSessionsByParticipation(new Map(periodItems.map((r, i) => [r.id, sessionLists[i]])));
+      setItems(active);
       setState('ready');
     } catch (err) {
       // 마이그레이션 미적용/네트워크 오류에도 모달이 죽지 않게 한다.
@@ -94,19 +145,24 @@ export default function QrCenterModal({ onClose }) {
     })();
   }, [load]);
 
-  async function openQr(participation, type) {
-    if (busyId) return;
+  // period=true면 기간제 발급 함수(issueAttendanceQr)를, 아니면 기존 issueQr을 부른다.
+  // type이 null인 호출은 없다 — periodActionOf가 disabled인 액션에는 type을 null로 주고,
+  // 아래 렌더의 버튼도 그 경우 disabled라 클릭 자체가 발생하지 않는다.
+  async function openQr(participation, type, period = false) {
+    if (busyId || !type) return;
     setBusyId(participation.id);
     setNotice('');
     try {
-      const res = await issueQr({ participationId: participation.id, type });
+      const res = period
+        ? await issueAttendanceQr({ participationId: participation.id, type })
+        : await issueQr({ participationId: participation.id, type });
       if (!res.ok) {
         // 화면 상태가 서버와 어긋난 것이므로 목록을 새로고침한다 (ADR 0005 구현 가이드 2번).
         setNotice(issueRejectText(res.reason));
         await load();
         return;
       }
-      setActive({ participation, type, issued: res });
+      setActive({ participation, type, issued: res, period });
     } catch (err) {
       console.error('[QrCenterModal] QR 발급 실패:', err);
       setNotice('QR을 발급하지 못했습니다. 잠시 후 다시 시도해 주세요.');
@@ -128,6 +184,7 @@ export default function QrCenterModal({ onClose }) {
           participation={active.participation}
           type={active.type}
           issued={active.issued}
+          period={active.period}
           onBack={backToList}
           onClose={onClose}
         />
@@ -165,7 +222,11 @@ export default function QrCenterModal({ onClose }) {
               <div className="qrlist">
                 {items.map((it) => {
                   const v = programView(it.program);
-                  const isEntry = it.status === 'applied';
+                  // 기간제면 periodActionOf가 "오늘" 액션을 결정한다. null이면 단일 일자 — 기존 분기 그대로.
+                  const period = periodActionOf(it, sessionsByParticipation.get(it.id));
+                  const isEntry = period ? period.type === 'entry' : it.status === 'applied';
+                  const statusText = period ? period.label : STATUS_LABEL[it.status] ?? it.status;
+                  const disabled = busyId === it.id || (period ? period.disabled : false);
                   return (
                     <div className="qi" key={it.id}>
                       <div className="ic" style={{ background: v.soft }}>
@@ -173,18 +234,23 @@ export default function QrCenterModal({ onClose }) {
                       </div>
                       <div className="info">
                         <h5>{v.title}</h5>
-                        <div className="m">
-                          {[...v.meta, STATUS_LABEL[it.status] ?? it.status].join(' · ')}
-                        </div>
+                        <div className="m">{[...v.meta, statusText].join(' · ')}</div>
                       </div>
-                      {/* 입장 인증 전에는 퇴장 QR 버튼이 아예 뜨지 않는다. 우회해도 서버가 wrong_order 로 막는다. */}
+                      {/* 입장 인증 전에는 퇴장 QR 버튼이 아예 뜨지 않는다. 우회해도 서버가 wrong_order 로 막는다.
+                          기간제는 periodActionOf가 이미 "오늘 할 수 있는 것" 하나로 좁혀서 같은 규칙이 유지된다. */}
                       <button
                         type="button"
                         className={isEntry ? 'scanbtn enter' : 'scanbtn exit'}
-                        onClick={() => openQr(it, isEntry ? 'entry' : 'exit')}
-                        disabled={busyId === it.id}
+                        onClick={() => openQr(it, period ? period.type : isEntry ? 'entry' : 'exit', Boolean(period))}
+                        disabled={disabled}
                       >
-                        {busyId === it.id ? '발급 중…' : isEntry ? '입장 QR' : '퇴장 QR'}
+                        {busyId === it.id
+                          ? '발급 중…'
+                          : period
+                            ? period.label
+                            : isEntry
+                              ? '입장 QR'
+                              : '퇴장 QR'}
                       </button>
                     </div>
                   );
@@ -206,12 +272,16 @@ function mmss(ms) {
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 
-function QrView({ participation, type, issued: initialIssued, onBack, onClose }) {
+function QrView({ participation, type, issued: initialIssued, period, onBack, onClose }) {
   const isEntry = type === 'entry';
   const v = programView(participation.program);
 
   const { refreshProfile } = useAuth();
   const [issued, setIssued] = useState(initialIssued);
+  // [기간제 — 마지막 날인가] 이 QR이 "오늘"(issued.session_date) 것이고, 그 날짜가 종료일과 같으면
+  // 서버(verify_attendance_qr)가 퇴장 시 참여 전체를 completed로 전이시키고 포인트를 지급한다.
+  // 그 전 날짜의 퇴장은 그날 출석만 기록한다 — 화면도 그 차이를 반영해야 "포인트 지급"을 거짓 약속하지 않는다.
+  const isFinalDay = Boolean(period) && issued.session_date === participation.program?.end_date;
   const [now, setNow] = useState(() => Date.now());
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -219,7 +289,9 @@ function QrView({ participation, type, issued: initialIssued, onBack, onClose })
   const doneRef = useRef(false);
   // 퇴장 완료 화면의 만족도 평가 (CLAUDE.md 6장 3번). 'open' = 자동 노출 상태.
   // [QR 상태와 섞지 않는다] 이 값은 done/issued/폴링에 아무 영향을 주지 않는다 — 평가는 QR 흐름의 곁가지다.
+  // [기간제] 마지막 날 퇴장에서만 연다 — 중간 날 퇴장은 참여가 아직 안 끝났으니 평가를 물을 시점이 아니다.
   const [reviewState, setReviewState] = useState('open'); // 'open' | 'saved' | 'skipped'
+  const showCompletion = !isEntry && (!period || isFinalDay); // "참여 완료" UX(포인트·평가)를 보일지
 
   const payload = useMemo(() => buildQrPayload(issued), [issued]);
   const expiresMs = Date.parse(issued.expires_at);
@@ -241,6 +313,25 @@ function QrView({ participation, type, issued: initialIssued, onBack, onClose })
     if (doneRef.current) return;
     const target = isEntry ? 'entered' : 'completed';
     try {
+      if (period) {
+        // [기간제] 참여 전체(status)가 아니라 "이 QR이 발급된 그날"의 세션 상태를 본다 —
+        //   participation.status 는 첫날 입장~마지막날 퇴장까지 내내 'entered' 그대로라 오늘 상태를 못 말해준다.
+        const sessions = await fetchAttendanceSessions(participation.id);
+        const mine = sessions.find((s) => s.session_date === issued.session_date);
+        if (!mine || doneRef.current) return;
+        if (mine.status === target) {
+          doneRef.current = true;
+          setDone(true);
+          // 잔액은 "마지막 날 퇴장"일 때만 실제로 바뀐다 — 그 외엔 재조회해도 값이 그대로다.
+          if (!isEntry && isFinalDay) {
+            refreshProfile?.().catch((err) =>
+              console.warn('[QrCenterModal] 잔액 갱신 실패(표시만 지연됨):', err)
+            );
+          }
+        }
+        return;
+      }
+
       const rows = await fetchParticipationStatuses();
       const mine = rows.find((r) => r.id === participation.id);
       if (!mine || doneRef.current) return;
@@ -260,7 +351,7 @@ function QrView({ participation, type, issued: initialIssued, onBack, onClose })
       // 폴링 실패는 조용히 넘어간다 — 다음 주기에 다시 시도한다. QR 자체는 여전히 유효하다.
       console.warn('[QrCenterModal] 상태 폴링 실패:', err);
     }
-  }, [isEntry, participation.id, refreshProfile]);
+  }, [isEntry, participation.id, refreshProfile, period, issued.session_date, isFinalDay]);
 
   // 폴링 — 관리자가 스캔하면 화면이 자동으로 완료 상태로 넘어간다.
   // setInterval 이 아니라 자기 자신을 다시 예약하는 setTimeout 이다: 주기가 도중에 바뀌고(2초 -> 10초),
@@ -296,8 +387,11 @@ function QrView({ participation, type, issued: initialIssued, onBack, onClose })
     setBusy(true);
     setNotice('');
     try {
-      // 재발급 = 같은 issueQr() 재호출. 서버가 새 토큰으로 덮어쓰고 이전 토큰은 즉시 무효가 된다.
-      const res = await issueQr({ participationId: participation.id, type });
+      // 재발급 = 같은 발급 함수 재호출(기간제는 issueAttendanceQr). 서버가 새 토큰으로 덮어쓰고
+      // 이전 토큰은 즉시 무효가 된다. 날짜는 여전히 서버가 "오늘"로 계산하므로 인자로 넘기지 않는다.
+      const res = period
+        ? await issueAttendanceQr({ participationId: participation.id, type })
+        : await issueQr({ participationId: participation.id, type });
       if (!res.ok) {
         setNotice(issueRejectText(res.reason));
         return;
@@ -319,21 +413,31 @@ function QrView({ participation, type, issued: initialIssued, onBack, onClose })
           <div className="check">
             <Icon name="ic-check" size={38} />
           </div>
-          {/* [원칙 4] 큰 문구는 언제나 포트폴리오 서사다. 포인트는 아래 한 줄 보조로만 놓는다. */}
-          <h3 id="qr-title">{isEntry ? '입장이 확인되었습니다' : '참여가 기록되었습니다'}</h3>
+          {/* [원칙 4] 큰 문구는 언제나 포트폴리오 서사다. 포인트는 아래 한 줄 보조로만 놓는다.
+              [기간제 — 마지막 날이 아닌 퇴장] "참여가 기록되었습니다"(완료를 암시)를 쓰지 않는다.
+              그날 출석만 기록됐을 뿐 참여 전체는 아직 끝나지 않았다 — showCompletion 이 그 경계다. */}
+          <h3 id="qr-title">
+            {isEntry ? '입장이 확인되었습니다' : showCompletion ? '참여가 기록되었습니다' : '오늘 출석이 기록되었습니다'}
+          </h3>
           <div className="desc">
-            {isEntry ? `${v.title} · 퇴장 시 한 번 더 인증해 주세요` : v.title}
+            {isEntry
+              ? `${v.title} · ${period ? '오늘 ' : ''}퇴장 시 한 번 더 인증해 주세요`
+              : showCompletion
+                ? v.title
+                : `${v.title} · 종료일까지 계속 인증해 주세요`}
           </div>
           {/* 지급 포인트는 클라이언트가 이미 들고 있는 programs.points 로 그린다(폴링은 금액을 돌려주지 않는다).
-              amber·작게. 숫자 카운트업/컨페티/사운드 금지 (원칙 1·4). */}
-          {!isEntry && v.points != null && <div className="done-pts">+{v.points}P 적립</div>}
+              amber·작게. 숫자 카운트업/컨페티/사운드 금지 (원칙 1·4).
+              [기간제] 마지막 날 퇴장에서만 보인다 — 중간 날 퇴장은 지급이 없으므로 약속하지 않는다. */}
+          {showCompletion && v.points != null && <div className="done-pts">+{v.points}P 적립</div>}
 
           {/* [CLAUDE.md 6장 3번 — 퇴장 인증 완료 시 만족도 평가 자동 노출]
               별도 모달을 겹치지 않는다. 이미 모달 안이므로 같은 mbody 에서 이어서 보여준다(스펙 결정 D-1).
-              [입장 완료에는 노출하지 않는다] 아직 활동이 끝나지 않았다 — isEntry 가드가 그것이다.
+              [입장 완료·기간제 중간 날에는 노출하지 않는다] 아직 활동(전체)이 끝나지 않았다 —
+              showCompletion 가드가 그것이다(입장 여부 + 기간제 마지막 날 여부를 함께 본다).
               [건너뛰기 필수] 평가를 강제하면 현장에서 모달을 못 닫는 상황이 생기고, 그건 QR 2회 인증
               (원칙 5)의 신뢰를 깎는다. 건너뛴 활동은 아카이브에서 "평가 미작성"으로 남는다. */}
-          {!isEntry && reviewState === 'open' && (
+          {showCompletion && reviewState === 'open' && (
             <div className="qr-review">
               <ReviewForm
                 participationId={participation.id}
@@ -342,10 +446,10 @@ function QrView({ participation, type, issued: initialIssued, onBack, onClose })
               />
             </div>
           )}
-          {!isEntry && reviewState === 'saved' && (
+          {showCompletion && reviewState === 'saved' && (
             <div className="qr-reviewdone">평가가 저장되었어요 · 아카이브에 함께 기록됩니다</div>
           )}
-          {!isEntry && reviewState === 'skipped' && (
+          {showCompletion && reviewState === 'skipped' && (
             <div className="qr-reviewdone muted">평가는 아카이브에서 언제든 남길 수 있어요</div>
           )}
 
@@ -353,9 +457,9 @@ function QrView({ participation, type, issued: initialIssued, onBack, onClose })
             type="button"
             className="mbtn"
             style={{ marginTop: 22 }}
-            onClick={isEntry ? onBack : onClose}
+            onClick={showCompletion ? onClose : onBack}
           >
-            {isEntry ? '목록으로' : '확인'}
+            {showCompletion ? '확인' : '목록으로'}
           </button>
         </div>
       </div>
@@ -365,7 +469,10 @@ function QrView({ participation, type, issued: initialIssued, onBack, onClose })
   return (
     <div className="mbody">
       <div className="qrbox">
-        <span className={isEntry ? 'qtag' : 'qtag exit'}>{isEntry ? '입장' : '퇴장'} 인증</span>
+        <span className={isEntry ? 'qtag' : 'qtag exit'}>
+          {period ? '오늘 ' : ''}
+          {isEntry ? '입장' : '퇴장'} 인증
+        </span>
 
         {/* [level M -> Q] payload 가 토큰 10자(영숫자)로 줄어 QR 버전 1(21×21)에 들어간다.
             버전 1 영숫자 용량은 Q 에서 16자라 10자는 여유가 있다 — 즉 격자를 더 키우지 않고

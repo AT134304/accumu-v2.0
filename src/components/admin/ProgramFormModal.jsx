@@ -37,6 +37,7 @@ function toFormValues(program) {
       description: '',
       // 캘린더/날짜 기본값은 하드코딩이 아니라 실행 시점의 실제 오늘 (CLAUDE.md 9장, toISOString() 금지)
       date: todayISO(),
+      end_date: '', // 기간제 프로그램의 종료일. "기간제 프로그램" 체크가 꺼져 있으면 저장 시 null로 보낸다.
       time: '',
       career_track: '',
       points: '',
@@ -50,6 +51,7 @@ function toFormValues(program) {
     org: program.org ?? '',
     description: program.description ?? '',
     date: program.date ?? '',
+    end_date: program.end_date ?? '',
     time: program.time ?? '',
     career_track: program.career_track ?? '',
     points: program.points == null ? '' : String(program.points),
@@ -61,6 +63,9 @@ function toFormValues(program) {
 export default function ProgramFormModal({ mode, program = null, adminId, onClose, onSaved }) {
   const isEdit = mode === 'edit';
   const [v, setV] = useState(() => toFormValues(program));
+  // [기간제 — 20260809140000 마이그레이션] 체크가 꺼지면 저장 시 end_date를 null로 보낸다(단일 일자로 되돌림).
+  // 켜졌을 때만 종료일 입력이 뜨고 필수가 된다. program.end_date 유무로 초기값을 정한다(수정 모드).
+  const [isPeriod, setIsPeriod] = useState(() => Boolean(program?.end_date));
   const [touched, setTouched] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -90,11 +95,12 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
     if (!v.org.trim()) e.org = '주최를 입력해 주세요.';
     if (!v.description.trim()) e.description = '설명을 입력해 주세요.';
     if (!v.date) e.date = '날짜를 선택해 주세요.';
+    if (isPeriod && !v.end_date) e.end_date = '종료일을 선택해 주세요.';
     if (!v.time.trim()) e.time = '시간을 입력해 주세요.';
     if (!v.career_track) e.career_track = '진로 계열을 선택해 주세요.';
     if (!String(v.points).trim()) e.points = '지급 포인트를 입력해 주세요.';
     return e;
-  }, [v]);
+  }, [v, isPeriod]);
 
   // "값은 들어 있는데 규칙 위반" — 확정 G. 서버를 왕복시키지 않고 저장 버튼을 잠근다.
   // (DB CHECK 도 그대로 살아 있다. 프런트 검증은 개발자도구로 우회 가능하므로 23514 처리는 describeSaveError 가 맡는다.)
@@ -110,8 +116,12 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
       const n = Number(c);
       if (!Number.isInteger(n) || n < 1) e.capacity = CAPACITY_RULE_MSG;
     }
+    // [기간제 — DB 제약 programs_end_date_after_start 를 프런트에서 먼저 막는다]
+    if (isPeriod && v.date && v.end_date && v.end_date < v.date) {
+      e.end_date = '종료일은 시작일보다 빠를 수 없습니다.';
+    }
     return e;
-  }, [v.points, v.capacity]);
+  }, [v.points, v.capacity, v.date, v.end_date, isPeriod]);
 
   // 규칙 위반 값이 있으면 저장 버튼을 잠근다. 빈 필수값은 잠그지 않고 제출 시 사유를 드러낸다
   // (처음부터 잠가두면 왜 못 누르는지 알 수 없는 버튼이 된다).
@@ -147,6 +157,9 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
       org: v.org.trim(),
       description: v.description.trim(),
       date: v.date,
+      // 체크가 꺼져 있으면 v.end_date에 남은 값이 있어도(예: 껐다 켰다) 무시하고 null을 보낸다 —
+      // "기간제 프로그램" 체크박스가 유일한 소유자다.
+      end_date: isPeriod ? v.end_date : null,
       time: v.time.trim(),
       career_track: v.career_track,
       points: Number(v.points),
@@ -285,6 +298,45 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
               />
             </Field>
           </div>
+
+          {/* [기간제 프로그램 — 20260809140000 마이그레이션] 공유학교·온라인학교처럼 하루가 아니라
+              여러 날에 걸쳐 진행되는 프로그램. 켜면 종료일이 필수가 되고, 학생은 그 기간 동안 매일
+              QR 센터에서 그날의 입·퇴장을 따로 인증한다(원칙 5 — QR 단순화 금지를 매일 단위로 적용). */}
+          <label className="pf-check">
+            <input
+              type="checkbox"
+              checked={isPeriod}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setIsPeriod(checked);
+                if (!checked) {
+                  // 체크를 끄면 종료일을 비운다 — payload는 이미 isPeriod로 null을 보내지만,
+                  // 다시 켰을 때 지난 값이 남아있는 것도 혼란스러우므로 화면 값도 함께 지운다.
+                  setV((prev) => ({ ...prev, end_date: '' }));
+                }
+              }}
+            />
+            <span>기간제 프로그램 (공유학교·온라인학교처럼 여러 날에 걸쳐 진행)</span>
+          </label>
+
+          {isPeriod && (
+            <Field
+              label="종료일"
+              htmlFor="pf-enddate"
+              required
+              error={errorOf('end_date')}
+              hint="학생은 시작일~종료일 동안 매일 입·퇴장 QR을 인증합니다. 포인트는 종료일 퇴장 인증 시 지급됩니다."
+            >
+              <input
+                id="pf-enddate"
+                type="date"
+                value={v.end_date}
+                onChange={set('end_date')}
+                onBlur={blur('end_date')}
+                min={v.date || undefined}
+              />
+            </Field>
+          )}
 
           <div className="pf-2col">
             <Field label="진로 계열" htmlFor="pf-track" required error={errorOf('career_track')}>

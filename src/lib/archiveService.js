@@ -15,13 +15,15 @@
 //   4. 새 RLS 정책/마이그레이션이 필요한 조회를 하지 않는다. 여기 있는 쿼리는 전부 기존 권한으로 성립한다.
 import { supabase } from './supabaseClient';
 import { CAT, TRACK, catOf } from './taxonomy';
-import { fmtDate, localDateOf, monthKey, monthLabel } from './date';
+import { fmtDateRange, localDateOf, monthKey, monthLabel } from './date';
 
 /**
  * 아카이브 문서에 필요한 프로그램 필드.
  * [points 를 가져오지 않는다] 위 경계 3번. 필드를 늘리기 전에 그 값의 소유자가 정말 programs 인지 확인할 것.
+ * [end_date — 기간제 프로그램, 20260809140000] NULL이면 단일 일자. 있으면 dateLabel이 범위로 찍히고
+ *   summarizeActivities()의 monthSpan/periodLabel이 시작월~종료월 전체를 센다(아래 monthsBetween 참고).
  */
-export const ARCHIVE_PROGRAM_FIELDS = 'id, category, title, org, date, time, career_track';
+export const ARCHIVE_PROGRAM_FIELDS = 'id, category, title, org, date, end_date, time, career_track';
 
 /** 참여 행 필드. 상태 전이·토큰 컬럼은 화면이 쓰지 않으므로 가져오지 않는다. */
 const PARTICIPATION_FIELDS = 'id, program_id, status, entry_at, exit_at';
@@ -219,10 +221,32 @@ export function describeActivity(activity) {
     catLabel: known ? cat.name : '분류 없음',
     org: p?.org ?? '',
     dateISO,
-    dateLabel: dateISO ? fmtDate(dateISO) : '',
+    // 기간제(p.end_date 있음)는 "7월 16일 (목) ~ 8월 20일 (목)"로 찍힌다. 게시중단으로 p 를 모르면
+    // end_date 도 알 수 없어 fmtDateRange(dateISO, undefined) = fmtDate(dateISO)와 같다(자동 축약).
+    dateLabel: dateISO ? fmtDateRange(dateISO, p?.end_date) : '',
     time: p?.time ?? '',
     careerTrack: p?.career_track ?? null,
   };
+}
+
+/**
+ * date~end_date(둘 다 'YYYY-MM-DD') 사이 모든 달의 대표일('YYYY-MM-01')을 만든다.
+ * summarizeActivities()의 monthSpan/periodLabel 전용 — 실제 날짜가 아니라 "그 달에 걸쳐 있었다"는
+ * 사실만 필요하므로 1일로 고정한다(monthKey()가 앞 7자만 쓰므로 일자 값 자체는 버려진다).
+ */
+function monthsBetween(startIso, endIso) {
+  const out = [];
+  let [y, m] = startIso.split('-').map(Number);
+  const [ey, em] = endIso.split('-').map(Number);
+  while (y < ey || (y === ey && m <= em)) {
+    out.push(`${y}-${String(m).padStart(2, '0')}-01`);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return out;
 }
 
 /**
@@ -257,7 +281,11 @@ export function summarizeActivities(activities = []) {
       unknown += 1;
     }
     const d = a?.program?.date;
-    if (d) months.push(d);
+    const endD = a?.program?.end_date;
+    // [기간제 — 시작월만 세지 않는다] 5개월짜리 공유학교를 3월 하루로만 세면 monthSpan/periodLabel이
+    //   실제보다 짧게 나온다. 시작월~종료월 사이 모든 달의 대표일을 넣어 "그 달에 걸쳐 있었다"를 반영한다.
+    if (d && endD && endD > d) months.push(...monthsBetween(d, endD));
+    else if (d) months.push(d);
   }
 
   // CAT 선언 순서를 유지해 화면마다 순서가 달라지지 않게 한다.

@@ -32,6 +32,17 @@ export function fmtDate(iso) {
   return `${m}월 ${d}일 (${DOW[dt.getDay()]})`;
 }
 
+/**
+ * 'YYYY-MM-DD' 시작 + 'YYYY-MM-DD'|null|undefined 종료 -> 단일 일자면 fmtDate 그대로,
+ * 기간제(끝나는 날짜가 있고 시작일과 다름)면 '7월 16일 (목) ~ 8월 20일 (목)'.
+ * 카드/참여 팝업/아카이브/QR 센터가 공유하는 날짜 표시 조립 지점 — 기간제 프로그램(programs.end_date)의
+ * 표시 형식을 여기 한 곳에서만 정의한다. 컴포넌트가 각자 '~'로 이어붙이지 않는다.
+ */
+export function fmtDateRange(startIso, endIso) {
+  if (!endIso || endIso === startIso) return fmtDate(startIso);
+  return `${fmtDate(startIso)} ~ ${fmtDate(endIso)}`;
+}
+
 /** '2026년 7월' — 캘린더 팝업 헤더용. 기준일은 항상 실제 오늘(하드코딩 금지). */
 export function monthTitle(base = new Date()) {
   return `${base.getFullYear()}년 ${base.getMonth() + 1}월`;

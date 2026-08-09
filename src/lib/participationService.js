@@ -11,8 +11,9 @@
 //      만료 판정은 서버가 DB 컬럼(*_token_expires_at)으로만 한다 (ADR 0005 결정 1-3).
 import { supabase } from './supabaseClient';
 
-/** QR 목록/스택 렌더에 필요한 프로그램 필드. 학생 RLS(programs_select_published)로 조회된다. */
-const PROGRAM_FIELDS = 'id, category, title, date, time, points';
+/** QR 목록/스택 렌더에 필요한 프로그램 필드. 학생 RLS(programs_select_published)로 조회된다.
+ *  end_date — 기간제 프로그램 판별(not null)과 QR 센터의 "오늘 세션" 범위 계산에 쓴다. */
+const PROGRAM_FIELDS = 'id, category, title, date, end_date, time, points';
 
 /* ==========================================================================
    조회
@@ -122,6 +123,44 @@ export function buildQrPayload(issued) {
 }
 
 /* ==========================================================================
+   기간제 프로그램 — 일별 출석 (attendance_sessions, 20260809140000 마이그레이션)
+   ========================================================================== */
+
+/**
+ * 기간제 프로그램의 "오늘" 세션 입장/퇴장 토큰 발급. issueQr()의 기간제 버전 — 서버가 날짜를 정한다
+ * (클라이언트는 어떤 날짜인지 고를 수 없다).
+ *
+ * @param {{participationId: string, type: 'entry'|'exit'}} args
+ * @returns {Promise<{ok:true, participation_id, session_date, type, token, expires_at} |
+ *                    {ok:false, reason:'already_completed'|'wrong_order'|'out_of_range'|'not_period_program'}>}
+ */
+export async function issueAttendanceQr({ participationId, type }) {
+  const { data, error } = await supabase.rpc('issue_attendance_qr', {
+    p_participation_id: participationId,
+    p_type: type,
+  });
+  if (error) throw error;
+  return data ?? { ok: false, reason: 'unknown' };
+}
+
+/**
+ * 참여 1건의 날짜별 출석 기록(오래된 날짜부터). 단일 일자 프로그램은 항상 빈 배열이다.
+ * RLS(attendance_sessions_select_own)가 본인 참여 건만 내려준다.
+ *
+ * @param {string} participationId
+ * @returns {Promise<Array<{id, session_date, status, entry_at, exit_at}>>}
+ */
+export async function fetchAttendanceSessions(participationId) {
+  const { data, error } = await supabase
+    .from('attendance_sessions')
+    .select('id, session_date, status, entry_at, exit_at')
+    .eq('participation_id', participationId)
+    .order('session_date', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/* ==========================================================================
    QR 검증 (관리자)
    ========================================================================== */
 
@@ -163,10 +202,17 @@ export const VERIFY = {
 /**
  * 관리자 QR 검증. 카메라 스캔과 수동 코드 입력이 모두 이 함수 하나를 호출한다.
  *
+ * [단일 일자 + 기간제를 여기서 함께 흡수한다 — AdminScanPage 는 두 종류를 몰라도 된다]
+ *   verify_participation_qr(단일 일자) 을 먼저 시도하고, 그 사유가 'not_found'일 때만
+ *   verify_attendance_qr(기간제) 을 시도한다. 토큰은 두 테이블을 합쳐 전역적으로 유일하므로
+ *   (issue_attendance_qr 이 발급 시 양쪽 테이블을 모두 확인한다) 한 토큰이 두 함수 모두에서
+ *   not_found 가 아닌 경우는 없다 — 순서를 뒤집어도 안전하지만, 단일 일자가 절대다수이므로
+ *   이 순서가 왕복을 최소화한다.
+ *
  * @param {string} rawScanned QR 원문(JSON payload) 또는 사람이 친 토큰 문자열
  * @returns {Promise<{outcome:'success'|'rejected'|'error', reason?:string, errorKind?:'permission'|'network',
  *                    type?:'entry'|'exit', student_name?:string, program_title?:string,
- *                    points_awarded?:number, at?:string}>}
+ *                    points_awarded?:number, at?:string, final?:boolean, session_date?:string}>}
  */
 export async function verifyQr(rawScanned) {
   const token = extractToken(rawScanned);
@@ -175,13 +221,22 @@ export async function verifyQr(rawScanned) {
     return { outcome: VERIFY.REJECTED, reason: 'not_found' };
   }
 
-  const { data, error } = await supabase.rpc('verify_participation_qr', { p_token: token });
+  const first = await callVerifyRpc('verify_participation_qr', token);
+  if (first.outcome !== VERIFY.REJECTED || first.reason !== 'not_found') {
+    return first;
+  }
+  // 단일 일자 테이블에 없는 토큰 — 기간제 출석 세션에서 다시 찾는다.
+  return callVerifyRpc('verify_attendance_qr', token);
+}
+
+async function callVerifyRpc(fnName, token) {
+  const { data, error } = await supabase.rpc(fnName, { p_token: token });
 
   if (error) {
     // 42501 = 학생이 호출했거나 비로그인. 정상 사용에서는 발생하지 않는다(발생하면 버그).
     // 인증 거부와 혼동시키지 않기 위해 별도 분류로 올린다 (ADR 0005 결정 4).
     const kind = error.code === '42501' ? 'permission' : 'network';
-    console.error('[participationService] QR 검증 호출 실패:', error);
+    console.error(`[participationService] QR 검증 호출 실패(${fnName}):`, error);
     return { outcome: VERIFY.ERROR, errorKind: kind, reason: error.message };
   }
 
@@ -222,5 +277,8 @@ export function rejectText(reason) {
 export function issueRejectText(reason) {
   if (reason === 'already_completed') return '이미 참여가 완료된 활동입니다.';
   if (reason === 'wrong_order') return '입장 인증을 먼저 완료해 주세요.';
+  // 기간제 프로그램(issueAttendanceQr) 전용 사유 — CLAUDE.md 6장/ADR 신규.
+  if (reason === 'out_of_range') return '아직 참여 기간이 아니거나 이미 끝났습니다.';
+  if (reason === 'not_period_program') return '기간제 프로그램이 아닙니다. 새로고침 후 다시 시도해 주세요.';
   return 'QR을 발급하지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }

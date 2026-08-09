@@ -13,7 +13,7 @@ import { useState } from 'react';
 import Modal from '../Modal';
 import Icon from '../Icon';
 import { STATUS, catOf, statusOf } from '../../lib/taxonomy';
-import { fmtDate, todayISO } from '../../lib/date';
+import { fmtDateRange, todayISO } from '../../lib/date';
 
 /**
  * @param {object}   program   프로그램 행 (description 포함)
@@ -29,7 +29,9 @@ export default function JoinModal({ program, joined, full = false, onClose, onAp
   const [failed, setFailed] = useState(false);
 
   // todayISO()는 로컬(KST) 기준. toISOString()은 KST 오전 9시 이전에 하루 밀린다 (ADR 0003 6번).
-  const isPast = program.date < todayISO();
+  // [기간제] 종료일이 지나야 "끝난 활동"이다 — 시작한 뒤에도 기간 중에는 계속 신청 가능해야 한다.
+  const isPast = (program.end_date ?? program.date) < todayISO();
+  const isPeriod = Boolean(program.end_date);
 
   // CTA 상태 5종 (스펙 B절 표 + ADR 0006). 우선순위: 신청됨 > 지난 날짜 > 정원 마감 > status > 신청 가능.
   //   - joined를 맨 앞에 두는 이유: 이미 신청한 활동에는 마감/종료 사유보다 "내가 신청했다"가 더 정확한 정보다.
@@ -95,7 +97,7 @@ export default function JoinModal({ program, joined, full = false, onClose, onAp
             <div className="k">
               <Icon name="ic-calendar" size={14} /> 날짜
             </div>
-            <div className="v">{fmtDate(program.date)}</div>
+            <div className="v">{fmtDateRange(program.date, program.end_date)}</div>
           </div>
           <div className="it">
             <div className="k">
@@ -116,6 +118,16 @@ export default function JoinModal({ program, joined, full = false, onClose, onAp
             </div>
           </div>
         </div>
+
+        {/* 기간제 프로그램 안내 — 신청 후 QR 센터에서 "오늘 입장/퇴장" 흐름이 하루짜리와 다르다는 것을
+            미리 말해준다. 카피에서 QR을 약속하지 않는 기존 규율(확정 F-1)과 달리 여기는 신청 여부를
+            결정하는 정보라 언급이 필요하다 — "매일 인증해야 한다"를 모르고 신청하면 놀란다. */}
+        {isPeriod && (
+          <p className="join-period-note">
+            시작일부터 종료일까지 <b>매일</b> 입·퇴장 QR 인증이 필요합니다. 포인트는 종료일 퇴장 인증 때
+            한 번에 지급됩니다.
+          </p>
+        )}
 
         <button type="button" className="mbtn" disabled={disabled || pending} onClick={handleApply}>
           {pending ? '신청 중…' : label}

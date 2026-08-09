@@ -9,6 +9,7 @@
 /** CLAUDE.md 7장 = DB CHECK(programs_points_rule)와 같은 규칙. 프런트 검증과 서버 거부가 같은 문구를 쓴다. */
 export const POINTS_RULE_MSG = '포인트는 150~3,000P 사이의 10원 단위여야 합니다.';
 export const CAPACITY_RULE_MSG = '정원은 1명 이상이거나 비워두세요.';
+export const END_DATE_RULE_MSG = '종료일은 시작일보다 빠를 수 없습니다.';
 
 /**
  * @param {any} err supabase-js 에러 또는 ProgramNotAffectedError
@@ -23,6 +24,8 @@ export function describeSaveError(err) {
   if (code === '23514') {
     if (raw.includes('programs_points_rule')) return { field: 'points', message: POINTS_RULE_MSG };
     if (raw.includes('programs_capacity_positive')) return { field: 'capacity', message: CAPACITY_RULE_MSG };
+    // 기간제 프로그램(20260809140000) — 프런트가 이미 막지만, 개발자도구 우회 시 여기서 잡힌다.
+    if (raw.includes('programs_end_date_after_start')) return { field: 'end_date', message: END_DATE_RULE_MSG };
     return { message: '입력값이 저장 규칙에 맞지 않습니다. 값을 다시 확인해 주세요.' };
   }
 

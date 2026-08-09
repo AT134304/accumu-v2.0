@@ -109,8 +109,10 @@ export default function StudentProgramsPage() {
         // 프로그램이 0개인 카테고리 행은 렌더하지 않는다
         .filter((row) => row.list.length > 0);
 
-    const nextUpcomingRows = buildRows(visible.filter((p) => p.date >= today));
-    const nextPastRows = buildRows(visible.filter((p) => p.date < today));
+    // [기간제] "지난"의 기준은 종료일이다 — 시작일이 지났어도 기간 중이면 여전히 참여할 수 있는 쪽이다.
+    const endOf = (p) => p.end_date ?? p.date;
+    const nextUpcomingRows = buildRows(visible.filter((p) => endOf(p) >= today));
+    const nextPastRows = buildRows(visible.filter((p) => endOf(p) < today));
 
     const count =
       nextUpcomingRows.reduce((m, r) => m + r.list.length, 0) +

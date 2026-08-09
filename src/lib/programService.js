@@ -4,7 +4,9 @@ import { supabase } from './supabaseClient';
 import { todayISO } from './date';
 
 // ADR 0003 6번의 select 목록 그대로. 홈 카드가 그리는 필드만 가져온다.
-const CARD_FIELDS = 'id, category, title, org, date, time, points, career_track, status';
+// [end_date — 기간제 프로그램] NULL이면 단일 일자(date 하루), 아니면 date~end_date 기간이다.
+//   카드/팝업은 이 값의 유무로 날짜를 하루로 찍을지 범위로 찍을지 고른다 (date.js fmtDateRange).
+const CARD_FIELDS = 'id, category, title, org, date, end_date, time, points, career_track, status';
 
 // 프로그램 선택 화면용. 카드 필드 + 팝업(description) + 클라이언트 정렬 입력(popularity/created_at).
 //
@@ -118,7 +120,7 @@ export async function applyToProgram({ studentId, programId }) {
 
 // 관리자 홈이 그리는 필드 + created_by(본인 필터용). is_published 는 상태 표시가 아니라
 // "왜 이 행이 보이는가"를 코드에서 설명하기 위해 함께 가져온다.
-const ADMIN_FIELDS = 'id, category, title, org, date, time, points, is_published, created_by';
+const ADMIN_FIELDS = 'id, category, title, org, date, end_date, time, points, is_published, created_by';
 
 /**
  * 관리자 홈용 프로그램 조회 — "오늘 진행" + "예정".
@@ -141,10 +143,14 @@ export async function fetchAdminHomePrograms(adminId) {
   const iso = todayISO();
   const mine = (data ?? []).filter((p) => p.created_by && p.created_by === adminId);
 
+  // [기간제 — end_date 가 있으면 "오늘"은 date~end_date 범위로 판정한다]
+  //   공유학교처럼 여러 날 진행되는 프로그램은 시작일이 지난 뒤에도 기간 내내 "오늘 진행"에 남아야
+  //   관리자가 그날의 QR 스캔을 준비할 수 있다. 단일 일자 프로그램은 기존과 동일하게 date === 오늘.
+  const isToday = (p) => (p.end_date ? iso >= p.date && iso <= p.end_date : p.date === iso);
   const byDateAsc = (a, b) => String(a.date).localeCompare(String(b.date));
   return {
-    today: mine.filter((p) => p.date === iso).sort(byDateAsc),
-    upcoming: mine.filter((p) => String(p.date) > iso).sort(byDateAsc).slice(0, 5),
+    today: mine.filter(isToday).sort(byDateAsc),
+    upcoming: mine.filter((p) => !isToday(p) && String(p.date) > iso).sort(byDateAsc).slice(0, 5),
   };
 }
 
@@ -160,7 +166,7 @@ export async function fetchAdminHomePrograms(adminId) {
 // [popularity 를 가져오지 않는다] 화면에 쓰지 않는 값을 페이로드에 싣지 않는다 — 원칙 가드를 코드로 표현한 것이다
 //   (표시도 편집도 하지 않는다: 컬럼 주석 / 스펙 이슈 3).
 const ADMIN_MANAGE_FIELDS =
-  'id, category, title, org, description, date, time, capacity, points, career_track, status, is_published, created_by, created_at';
+  'id, category, title, org, description, date, end_date, time, capacity, points, career_track, status, is_published, created_by, created_at';
 
 // 폼이 소유하는 컬럼 화이트리스트. insert/update 페이로드는 반드시 이 목록을 통과한다.
 //
@@ -175,6 +181,7 @@ const FORM_COLUMNS = [
   'org',
   'description',
   'date',
+  'end_date', // 기간제 프로그램의 종료일. 단일 일자면 null (ProgramFormModal 이 그 분기를 만든다).
   'time',
   'career_track',
   'points',
@@ -314,6 +321,7 @@ export async function fetchProgramBrief(programId) {
  * @returns {Promise<Array<object & {isMatched: boolean}>>} isMatched = "내 관심 계열" 배지 판단용
  */
 export async function fetchRecommendedPrograms(profile, limit = 8) {
+  const iso = todayISO();
   // ADR 0004 5번: 조인 뷰/PostgREST embed 대신 병렬 2쿼리 + 클라이언트 Set 필터.
   //   (뷰는 기본이 정의자 권한이라 participations_select_own 경계를 우회해 남의 신청 내역이 샌다.)
   const [{ data, error }, appliedIds] = await Promise.all([
@@ -324,7 +332,9 @@ export async function fetchRecommendedPrograms(profile, limit = 8) {
       .eq('is_published', true)
       // 지난 날짜 제외. todayISO()는 로컬(KST) 기준 — toISOString()을 쓰면 KST 오전 9시 이전에 하루 밀린다.
       // `date >= 오늘`이라 "오늘 이미 끝난 프로그램"은 노출된다 — 프로토타입과 동일한 의도적 동작(ADR 0003 6번).
-      .gte('date', todayISO())
+      // [기간제 — or 조건] date >= 오늘(아직 시작 안 함) 이거나 end_date >= 오늘(진행 중 또는 끝나지 않음).
+      //   단일 일자 프로그램은 end_date 가 NULL 이라 뒷 조건이 항상 거짓이 되어 기존 동작과 같다.
+      .or(`date.gte.${iso},end_date.gte.${iso}`)
       .order('created_at', { ascending: false })
       .limit(50), // 안전 상한. 데모 실제 행 수는 16~20.
     fetchAppliedProgramIds(),

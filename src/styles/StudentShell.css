@@ -186,6 +186,12 @@ h2.sec { font-size: clamp(20px, 3.4vw, 23px); font-weight: 800; letter-spacing: 
   margin-top: 10px; padding: 9px 12px; border-radius: 10px; background: #EEF1F6;
   font-size: 13px; font-weight: 700; color: var(--ink2); text-align: center;
 }
+/* 기간제 프로그램 안내(JoinModal) — 경고가 아니라 사실 고지라 join-full과 같은 중립 톤을 쓴다. */
+.join-period-note {
+  margin: 10px 0 0; padding: 9px 12px; border-radius: 10px; background: var(--brand-soft);
+  font-size: 12.5px; line-height: 1.55; color: var(--ink2); text-align: center;
+}
+.join-period-note b { color: var(--brand-dk); }
 
 /* ---------- placeholder 화면 ---------- */
 .ph-panel {

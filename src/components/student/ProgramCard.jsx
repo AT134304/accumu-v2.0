@@ -5,7 +5,7 @@
 //   쓰이며, 신청자 수·순위 라벨도 만들지 않는다 (CLAUDE.md 2장 1번).
 import Icon from '../Icon';
 import { catOf, statusOf } from '../../lib/taxonomy';
-import { fmtDate } from '../../lib/date';
+import { fmtDateRange } from '../../lib/date';
 
 export default function ProgramCard({ program, onOpen, joined = false, past = false, full = false }) {
   const c = catOf(program.category);
@@ -58,8 +58,9 @@ export default function ProgramCard({ program, onOpen, joined = false, past = fa
         </div>
         <div className="meta">
           <Icon name="ic-calendar" size={13} />
-          {/* date는 프런트에서 "7월 16일 (목)"으로 포맷. time은 자유 텍스트라 파싱 없이 그대로 출력. */}
-          {fmtDate(program.date)} · {program.time}
+          {/* date는 프런트에서 "7월 16일 (목)"으로 포맷. 기간제(end_date 있음)는 범위로 찍힌다(fmtDateRange).
+              time은 자유 텍스트라 파싱 없이 그대로 출력. */}
+          {fmtDateRange(program.date, program.end_date)} · {program.time}
         </div>
         <div className="foot">
           {/* 포인트 amber는 카드의 이 뱃지에서만 (절대 원칙 4) */}

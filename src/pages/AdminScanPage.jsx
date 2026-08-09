@@ -396,20 +396,31 @@ function ResultPanel({ result, verifying }) {
 
   // 성공
   const isEntry = result.type === 'entry';
+  // [기간제 — verify_attendance_qr 전용 필드] result.final === false 는 "종료일이 아닌 날의 퇴장" —
+  //   그날 출석만 기록됐을 뿐 참여 전체는 끝나지 않았다. verify_participation_qr(단일 일자)은 이 필드를
+  //   아예 안 주므로 undefined이고, 그 경우와 final:true(기간제 마지막 날)는 기존 "참여 완료" 문구를 쓴다.
+  const isInterimExit = !isEntry && result.final === false;
   return (
     <div className={isEntry ? 'rpanel ok entry' : 'rpanel ok exit'}>
       <div className="tag">
         <Icon name="ic-check" size={15} />
-        {isEntry ? '입장 확인' : '퇴장 확인'}
+        {isEntry ? '입장 확인' : isInterimExit ? '오늘 출석 확인' : '퇴장 확인'}
       </div>
       {/* [원칙 4] 퇴장에서도 가장 큰 문구는 "참여가 기록되었습니다"(활동 기록)다.
           지급 포인트는 그 아래 한 줄 보조로만 놓는다 — 포인트를 가장 큰 요소로 만들지 않는다. */}
-      <div className="t">{isEntry ? '입장이 확인되었습니다' : '참여가 기록되었습니다'}</div>
+      <div className="t">
+        {isEntry ? '입장이 확인되었습니다' : isInterimExit ? '오늘 출석이 기록되었습니다' : '참여가 기록되었습니다'}
+      </div>
       <div className="who">{[result.student_name, result.program_title].filter(Boolean).join(' · ')}</div>
       <div className="d">
-        {isEntry ? '퇴장 시 한 번 더 인증해야 참여가 완료됩니다.' : '참여 완료'} · {fmtTime(result.at)}
+        {isEntry
+          ? '퇴장 시 한 번 더 인증해야 참여가 완료됩니다.'
+          : isInterimExit
+            ? '기간제 프로그램 · 종료일 퇴장 인증까지 진행됩니다.'
+            : '참여 완료'}{' '}
+        · {fmtTime(result.at)}
       </div>
-      {!isEntry && result.points_awarded != null && (
+      {!isEntry && !isInterimExit && result.points_awarded != null && (
         <div className="pts">{result.points_awarded.toLocaleString()}P 지급</div>
       )}
     </div>
