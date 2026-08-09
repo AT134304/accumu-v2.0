@@ -131,7 +131,7 @@ declare
   v_rows          integer;
   v_points        integer;
   v_now           timestamptz := now();
-  v_mode          attendance_payout_mode;
+  v_mode          public.attendance_payout_mode;
   v_is_final      boolean;
   v_completed_days integer;
 begin
