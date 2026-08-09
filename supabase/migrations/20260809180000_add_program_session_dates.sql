@@ -39,6 +39,34 @@ alter table public.programs
 alter table public.programs
   add constraint programs_period_requires_session_dates
     check (end_date is null or (session_dates is not null and array_length(session_dates, 1) > 0));
+
+-- [CHECK 제약은 서브쿼리를 못 쓴다 — 자기 행의 컬럼만 참조해도 마찬가지다(0A000)]
+--   `(select min(d) from unnest(session_dates) d)`를 제약식에 직접 쓰면 파서가 거부한다. IMMUTABLE
+--   함수로 감싸면 제약 파서 입장에서는 "함수 호출 하나"라 통과한다 — 서브쿼리는 함수 몸통 안으로 숨는다.
+create or replace function public.array_date_min(arr date[])
+returns date
+language sql
+immutable
+set search_path = ''
+as $$
+  select min(d) from unnest(arr) d;
+$$;
+
+create or replace function public.array_date_max(arr date[])
+returns date
+language sql
+immutable
+set search_path = ''
+as $$
+  select max(d) from unnest(arr) d;
+$$;
+
+comment on function public.array_date_min(date[]) is
+  'CHECK 제약(programs_session_dates_bounds)에서만 쓰는 보조 함수. Postgres CHECK는 서브쿼리를 허용하지
+   않아 unnest+min을 직접 못 쓰므로 함수로 감쌌다.';
+comment on function public.array_date_max(date[]) is
+  'array_date_min과 짝. 용도·이유 동일.';
+
 -- [범위 일치] date/end_date가 계속 "표시용 요약"으로 정확하려면 배열의 최소·최댓값과 같아야 한다.
 --   이 제약이 곧 "session_dates의 모든 원소가 [date, end_date] 안에 있다"도 함께 보장한다
 --   (최소·최댓값이 그 구간과 같다면 나머지 원소는 자동으로 그 사이다).
@@ -47,8 +75,8 @@ alter table public.programs
     check (
       session_dates is null
       or (
-        date = (select min(d) from unnest(session_dates) d)
-        and end_date = (select max(d) from unnest(session_dates) d)
+        date = public.array_date_min(session_dates)
+        and end_date = public.array_date_max(session_dates)
       )
     );
 
