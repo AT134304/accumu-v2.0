@@ -27,7 +27,10 @@ import '../../styles/Archive.css';
 /* ---------- 기하 상수 ----------
    viewBox 고정 + width:100% 라 반응형은 "축소"로 해결된다. 라벨 위치가 폭에 따라 재계산되지 않으므로
    980/768/600/430 어디서도 라벨이 서로 겹치지 않는다(비율이 그대로다). display:none 으로 숨기지 않는다. */
-const N = 5;
+// [N=7 — ADR 0014] 진로 계열이 5종 -> 7종으로 늘면서 오각형이 칠각형이 됐다. TRACK(taxonomy.js)의
+// 선언 개수와 반드시 같아야 한다 — 어긋나면 LABEL[i]가 undefined가 되어 destructure가 그대로 터진다
+// (실제로 이 파일이 ADR 0014 적용 대상에서 빠졌던 회귀 — N/LABEL을 5축 그대로 두고 TRACK만 7종이 됐었다).
+const N = 7;
 const VB_W = 400;
 const VB_H = 244;
 const CX = 200;
@@ -37,22 +40,25 @@ const R = 88;
 /** 눈금 링 최대 개수. 이 값 때문에 step 이 정수로 올림되어 "0.5건" 같은 눈금이 나올 수 없다. */
 const MAX_RINGS = 4;
 
-/** 0건 축의 꼭짓점 반지름(px). 0을 원점에 몰면 마커 5개가 한 점에 겹치고 도형이 면적을 잃는다.
+/** 0건 축의 꼭짓점 반지름(px). 0을 원점에 몰면 마커 7개가 한 점에 겹치고 도형이 면적을 잃는다.
     라벨에 실제 건수(0건)가 그대로 적히므로 이 오프셋이 값을 왜곡해 읽히지 않는다.
-    (2*10*sin36° ≈ 11.8px 라 인접 0 마커끼리도 붙지 않는다) */
+    (2*10*sin(360/14°) ≈ 8.7px 라 인접 0 마커끼리도 붙지 않는다) */
 const ZERO_R = 10;
 
 const angleOf = (i) => ((-90 + (i * 360) / N) * Math.PI) / 180;
 const pointAt = (i, r) => [CX + r * Math.cos(angleOf(i)), CY + r * Math.sin(angleOf(i))];
 const fmt = (n) => Number(n.toFixed(1));
 
-/** 축 라벨 배치 — 5축 각도가 -90/-18/54/126/198°로 고정이라 표로 못박는다(계산보다 읽기 쉽다). */
+/** 축 라벨 배치 — 7축 각도가 -90/-38.57/12.86/64.29/115.71/167.14/218.57°로 고정이라 표로 못박는다
+    (계산보다 읽기 쉽다). 위/아래 쌍은 대칭이라 dy가 같고, anchor만 cos 부호를 따라 좌우로 갈린다. */
 const LABEL = [
-  { anchor: 'middle', dx: 0, dy: -26 }, // 위: 두 줄이 위로 쌓인다(도형 꼭대기 y=44와 18px 간격)
-  { anchor: 'start', dx: 9, dy: -2 }, // 우상
-  { anchor: 'start', dx: 9, dy: 8 }, // 우하
-  { anchor: 'end', dx: -9, dy: 8 }, // 좌하
-  { anchor: 'end', dx: -9, dy: -2 }, // 좌상
+  { anchor: 'middle', dx: 0, dy: -26 }, // 위(-90°): 두 줄이 위로 쌓인다(도형 꼭대기와 18px 간격)
+  { anchor: 'start', dx: 9, dy: -2 }, // 우상(-38.57°)
+  { anchor: 'start', dx: 9, dy: -2 }, // 우(12.86°, 거의 수평)
+  { anchor: 'start', dx: 9, dy: 8 }, // 우하(64.29°)
+  { anchor: 'end', dx: -9, dy: 8 }, // 좌하(115.71°)
+  { anchor: 'end', dx: -9, dy: -2 }, // 좌(167.14°, 거의 수평)
+  { anchor: 'end', dx: -9, dy: -2 }, // 좌상(218.57°)
 ];
 const LABEL_R = R + 6;
 const COUNT_DY = 14;
