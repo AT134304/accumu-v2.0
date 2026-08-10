@@ -33,6 +33,10 @@ export default function AdminMyPage() {
   const [state, setState] = useState('loading'); // 'loading' | 'ready' | 'error'
   const [programCounts, setProgramCounts] = useState(null); // { published, draft } — 실패하면 null(줄 생략)
   const [inviteCode, setInviteCode] = useState(null); // 내 학교 초대코드 — 실패하면 null(줄 생략)
+  // 초대코드 유출 완화(2026-08-11, 케빈 요청) — 화면에 상시 노출되면 옆에서 보거나 화면 공유 중에
+  // 새는 경로가 된다. 기본은 가려진 채로 시작한다(false) — "복사"는 가린 채로도 그대로 동작한다
+  // (실제 값을 아는 사람이 스스로 쓰는 동작이지 "보여주기"가 아니라서).
+  const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -154,11 +158,25 @@ export default function AdminMyPage() {
           {/* 내 학교 초대코드 (docs/specs/auth-signup.md D / 확정 C — **표시 전용**)
               [생성·재발급·만료·회수 버튼을 만들지 않는다] 만드는 순간 관리자 기능이 4번째가 되고
               (원칙 6), 관리자가 자기 담당 학생을 늘리는 관리 도구가 된다(ADR 0005 결정 7-2).
-              코드의 소유자는 시딩/마이그레이션이고 이 화면은 그것을 읽어 보여줄 뿐이다. */}
+              코드의 소유자는 시딩/마이그레이션이고 이 화면은 그것을 읽어 보여줄 뿐이다.
+              [기본 가림 — ADR 0017(2026-08-11)] 화면 공유·옆에서 보기로 새는 걸 막으려고 기본은
+              마스킹, 눈 아이콘으로 토글한다. 이건 UI 열화일 뿐 권한 경계가 아니다 — 진짜 경계는
+              여전히 RLS(invite_codes_select_own_as_admin, 본인 것만 select)다. */}
           {inviteCode && (
             <div className="inviteline">
               <span className="k">내 학교 초대코드</span>
-              <b className="code">{inviteCode}</b>
+              {/* [기본은 가려짐] 길이는 실제 코드와 같게 유지한다 — 자릿수 자체가 힌트가 되지 않게
+                  고정 길이 마스크를 쓰지 않는다(고정 길이는 "짧은 코드다/긴 코드다"를 그대로 노출한다). */}
+              <b className="code">{revealed ? inviteCode : '•'.repeat(inviteCode.length)}</b>
+              <button
+                type="button"
+                className="eyebtn"
+                onClick={() => setRevealed((v) => !v)}
+                aria-pressed={revealed}
+                aria-label={revealed ? '초대코드 가리기' : '초대코드 보기'}
+              >
+                <Icon name={revealed ? 'ic-eye-off' : 'ic-eye'} size={15} />
+              </button>
               <button type="button" className="copybtn" onClick={handleCopy}>
                 {copied ? '복사됨' : '복사'}
               </button>

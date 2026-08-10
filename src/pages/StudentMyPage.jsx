@@ -171,6 +171,14 @@ export default function StudentMyPage() {
         setLinkError('이미 학교 계정으로 연동되어 있어요.');
         return;
       }
+      if (res.reason === 'rate_limited') {
+        // [ADR 0017] 무차별 대입 완화. 정답을 넣었어도 잠금 중엔 여기로 온다 — "코드가 틀렸다"고
+        // 말하면 거짓이 되므로 다른 문구를 쓴다. 분 단위로만 보여준다(초 단위 카운트다운은 굳이
+        // 필요 없는 정밀도이고, 이 값을 서버 판정 대신 쓰지 않는다 — 재시도하면 서버가 다시 막는다).
+        const mins = Math.max(1, Math.ceil((new Date(res.retry_after).getTime() - Date.now()) / 60000));
+        setLinkError(`너무 여러 번 시도했어요. ${mins}분 후 다시 시도해 주세요.`);
+        return;
+      }
       setLinkError('초대코드를 확인해주세요. 담당 선생님께 받은 코드를 그대로 입력해주세요.');
     } catch (err) {
       // 조용히 삼키지 않는다 — 입력값은 그대로 두고 다시 시도할 수 있게 한다.

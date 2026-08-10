@@ -33,8 +33,15 @@ export async function setCareerInterest(track) {
  * [한 방향뿐이다] 해제(school → personal)는 만들지 않는다 — mentor_students delete 경로가 필요하고,
  *   그건 학생이 자기 기록을 관리자 시야에서 지울 수 있게 만드는 일이다.
  * [학생 id 를 인자로 받지 않는다] 대상은 언제나 auth.uid() 본인이라 남을 남의 담당에 넣을 수 없다.
+ * [무차별 대입 완화 — ADR 0017] 연속 5회 오답이면 15분간 'rate_limited'만 돌아온다(정답 코드를
+ *   넣어도 잠금 중엔 통과하지 않는다). 학생 화면이 이 RPC를 코드 존재 여부 확인용 oracle로 무제한
+ *   쓰지 못하게 서버가 속도를 늦춘다 — 프런트 쿨다운 표시는 UX일 뿐 진짜 경계는 이 함수 안에 있다.
  *
- * @returns {Promise<{ok:true, account_type:'school'} | {ok:false, reason:'already_linked'|'invalid_invite'}>}
+ * @returns {Promise<
+ *   {ok:true, account_type:'school'} |
+ *   {ok:false, reason:'already_linked'|'invalid_invite'} |
+ *   {ok:false, reason:'rate_limited', retry_after: string}
+ * >}
  * @throws 권한(42501)·네트워크 오류는 그대로 던진다 — 호출부가 입력값을 보존한 채 사유를 띄운다.
  */
 export async function linkSchoolAccount(invite) {

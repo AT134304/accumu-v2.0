@@ -558,6 +558,12 @@ h2.sec.sm { display: flex; align-items: center; gap: 8px; }
   font-size: 15px; font-weight: 800; letter-spacing: .6px; color: var(--ink);
   background: var(--bg); border: 1px solid var(--line); border-radius: 9px; padding: 5px 11px;
 }
+/* 가림/보기 토글 — 2026-08-11 유출 완화. copybtn과 같은 높이·톤이지만 아이콘 전용이라 정사각형. */
+.adm-account .eyebtn {
+  width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px;
+  border: 1px solid var(--line); background: #fff; color: var(--ink2); transition: .14s; flex: none;
+}
+.adm-account .eyebtn:hover { border-color: var(--brand); color: var(--brand-dk); background: var(--brand-soft); }
 .adm-account .copybtn {
   height: 30px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--line);
   background: #fff; font-size: 12px; font-weight: 700; color: var(--ink2); transition: .14s;
