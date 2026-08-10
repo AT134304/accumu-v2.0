@@ -33,14 +33,18 @@
 /* 포인트 — 나브 우측 구석에 작게/절제 (절대 원칙 4) */
 .nav .me .pts { display: flex; align-items: center; gap: 5px; font-weight: 800; color: var(--amber); font-size: 13.5px; }
 .nav .me .pts em { color: var(--muted); font-weight: 600; font-style: normal; }
-/* 아바타 — 정적 이니셜. 레벨/성장 요소 아님 */
+/* 아바타 — 정적 이니셜. 레벨/성장 요소 아님. 학생 셸에서는 마이페이지로 가는 버튼이라
+   커서·hover 피드백을 준다(관리자 셸은 아직 클릭 동작이 없어 이 규칙의 영향을 받지 않는다). */
 .nav .me .av {
   width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--ink); color: #fff; font-weight: 700; font-size: 13px;
+  background: var(--ink); color: #fff; font-weight: 700; font-size: 13px; transition: .15s;
 }
+.nav .me .av:hover { background: var(--brand-dk); }
 
 .bell { position: relative; width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; color: var(--ink2); transition: .15s; }
 .bell:hover { background: var(--bg2); }
+/* 로그아웃 버튼 — 나브 맨 끝. 학생·관리자 셸이 공유한다(원래 AdminShell.css에만 있었다). */
+.logoutbtn { margin-left: 2px; }
 
 .wrap { max-width: var(--maxw); margin: 0 auto; padding: clamp(22px, 4vw, 34px) clamp(16px, 4vw, 30px) 80px; }
 

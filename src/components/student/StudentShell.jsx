@@ -28,7 +28,7 @@ const TABS = [
 const navClass = ({ isActive }) => (isActive ? 'on' : undefined);
 
 export default function StudentShell({ children }) {
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   // 'notif' | 'calendar' | null
   const [popup, setPopup] = useState(null);
@@ -106,15 +106,31 @@ export default function StudentShell({ children }) {
         </button>
 
         {/* 포인트는 나브 우측 구석에 작게/절제해서만 (절대 원칙 4 — 홈에 큰 잔액 배너 금지).
-            아바타는 정적 이니셜이며 레벨/성장 요소가 아니다 (게임화 금지). */}
+            아바타는 정적 이니셜이며 레벨/성장 요소가 아니다 (게임화 금지).
+            [아바타 = 마이페이지 진입점] 관리자 셸에는 없던 동작이지만 학생 셸엔 원래 마이페이지로
+            가는 경로가 상단 메뉴(MENU)에 이미 있다 — 아바타는 그 지름길이다(새 목적지 아님). */}
         <div className="me">
           <div className="pts" title="사용 가능한 포인트">
             <Icon name="ic-coin" size={18} color="var(--amber)" />
             <span>{points.toLocaleString()}</span>
             <em>P</em>
           </div>
-          <div className="av" aria-hidden="true">{initial}</div>
+          <button
+            type="button"
+            className="av"
+            onClick={() => navigate('/student/mypage')}
+            aria-label="마이페이지"
+            title="마이페이지"
+          >
+            {initial}
+          </button>
         </div>
+
+        {/* [로그아웃 — 관리자 셸과 같은 자리·같은 모양] AdminShell.jsx 의 .bell.logoutbtn 을 그대로
+            따른다 — 1인 시연에서 학생/관리자 계정을 오가는 필수 경로가 관리자 쪽에만 있었다. */}
+        <button type="button" className="bell logoutbtn" onClick={signOut} aria-label="로그아웃" title="로그아웃">
+          <Icon name="ic-logout" size={20} />
+        </button>
       </nav>
 
       <div className="wrap">{children}</div>
