@@ -30,6 +30,9 @@
   display: flex; align-items: center; gap: 9px; padding: 5px 7px 5px 13px;
   border: 1px solid var(--line); border-radius: 30px; background: #fff;
 }
+/* 관리자 셸은 .me 전체가 버튼(마이페이지로 이동)이다 — 학생 셸은 .me 자체가 아니라 안의 .av만
+   버튼이라 이 규칙의 영향을 받지 않는다(선택자가 button.me로 한정된다). */
+.nav button.me:hover { border-color: var(--brand); }
 /* 포인트 — 나브 우측 구석에 작게/절제 (절대 원칙 4) */
 .nav .me .pts { display: flex; align-items: center; gap: 5px; font-weight: 800; color: var(--amber); font-size: 13.5px; }
 .nav .me .pts em { color: var(--muted); font-weight: 600; font-style: normal; }

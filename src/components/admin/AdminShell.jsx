@@ -133,13 +133,21 @@ export default function AdminShell({ children }) {
           {unread > 0 && <span className="ndot">{unread > 9 ? '9+' : unread}</span>}
         </button>
 
-        <div className="me">
+        {/* [아바타 = 마이페이지 진입점] 학생 셸과 같은 지름길(StudentShell.jsx) — 상단 메뉴에 이미
+            있는 목적지로 가는 버튼일 뿐 새 기능이 아니다. */}
+        <button
+          type="button"
+          className="me"
+          onClick={() => navigate('/admin/mypage')}
+          aria-label="마이페이지"
+          title="마이페이지"
+        >
           <div className="adminname">
             {profile?.name}
             <em>{profile?.code}</em>
           </div>
           <div className="av" aria-hidden="true">{initial}</div>
-        </div>
+        </button>
 
         <button type="button" className="bell logoutbtn" onClick={signOut} aria-label="로그아웃" title="로그아웃">
           <Icon name="ic-logout" size={20} />
