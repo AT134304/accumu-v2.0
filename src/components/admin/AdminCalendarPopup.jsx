@@ -52,12 +52,16 @@ export default function AdminCalendarPopup({ adminId, onClose }) {
     };
   }, [adminId]);
 
+  /** [기간제 — 20260810] session_dates 가 있으면 시작일 하루가 아니라 실제 진행일마다 꽂는다.
+   *  아래 kindOf(iso, today)는 날짜 하나를 인자로 받으므로 날짜별로 종료/오늘 진행/예정이 정확히 갈린다. */
   const byDate = useMemo(() => {
     const map = new Map();
     (rows ?? []).forEach((p) => {
-      if (!p.date) return;
-      if (!map.has(p.date)) map.set(p.date, []);
-      map.get(p.date).push(p);
+      const dates = p.session_dates?.length ? p.session_dates : [p.date].filter(Boolean);
+      dates.forEach((iso) => {
+        if (!map.has(iso)) map.set(iso, []);
+        map.get(iso).push(p);
+      });
     });
     return map;
   }, [rows]);

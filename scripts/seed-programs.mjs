@@ -6,7 +6,7 @@
  * (ADR 0003 "시드 설계" 그대로 구현, docs/adr/0003-programs-schema-and-career-track-taxonomy.md 참고)
  *
  * 목적: 학생 홈(docs/specs/student-home.md)의 추천 프로그램 카드가 실제로 렌더되도록
- *   public.programs 에 데모 프로그램 17건을 넣는다. created_by 는 데모 관리자(ADM-0001)로 채운다.
+ *   public.programs 에 데모 프로그램 19건을 넣는다. created_by 는 데모 관리자(ADM-0001)로 채운다.
  *
  * 전제 조건
  *   - supabase/migrations/*.sql 이 대상 Supabase 프로젝트에 이미 적용되어 있어야 함
@@ -29,7 +29,7 @@
  * 재실행 안전성(idempotency)
  *   seed-accounts.mjs 와 동일하게 "신규 프로젝트에 1회 실행" 전제이며, 재실행 시 즉시 중단된다.
  *   다만 중단 방식이 다르다: 계정 시딩은 이메일 unique 제약이 재실행을 자연히 막아주지만,
- *   programs 에는 unique 제약이 없어 그냥 두면 재실행이 "조용히 17건 더 쌓기"가 된다(홈에 중복 카드).
+ *   programs 에는 unique 제약이 없어 그냥 두면 재실행이 "조용히 19건 더 쌓기"가 된다(홈에 중복 카드).
  *   그래서 insert 전에 기존 행 수를 확인하고 0이 아니면 중단한다 — 같은 fail-fast 정책을
  *   unique 제약이 없는 테이블에 옮긴 것이다. 다시 시딩하려면 아래를 먼저 실행할 것:
  *     delete from public.programs;
@@ -105,7 +105,29 @@ function dateFromToday(offsetDays) {
 }
 
 // ---------------------------------------------------------------------------
-// 데모 프로그램 17건 (ADR 0014 로 방과후 3건 삭제 — 이전 20건)
+// 기간제 프로그램 시드용 — 진행일(dayOffset 배열) 조립 (20260810)
+//
+// [고정 오프셋을 못 쓰는 이유] "화·목마다"는 실행 시점의 요일에 따라 어느 오프셋이 화/목인지 매번
+//   달라진다(dayOffset 리터럴은 프로토타입 시절부터 금지 — 위 dateFromToday() 주석과 같은 이유).
+//   그래서 날짜를 먼저 만든 뒤 요일로 걸러낸다. weekdayOf()는 ProgramFormModal.jsx의 동명 함수와
+//   같은 규칙(getUTCDay, 'YYYY-MM-DD' 파싱)을 쓴다 — 시딩 스크립트가 프런트와 다른 요일 판정을 쓰면
+//   관리자가 폼에서 보는 요일과 시드가 심어놓은 요일이 어긋나는 사고가 난다.
+// ---------------------------------------------------------------------------
+function weekdayOf(iso) {
+  return new Date(iso).getUTCDay(); // 0=일 ~ 6=토
+}
+
+/** startOffset~endOffset(포함) 사이에서 요일이 allowedWeekdays 인 dayOffset만 추린다. */
+function weekdayOffsets(startOffset, endOffset, allowedWeekdays) {
+  const out = [];
+  for (let off = startOffset; off <= endOffset; off += 1) {
+    if (allowedWeekdays.includes(weekdayOf(dateFromToday(off)))) out.push(off);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// 데모 프로그램 19건 (ADR 0014 로 방과후 3건 삭제해 17건 → 20260810 기간제 2건 추가로 19건)
 //
 // 출처: Accumu_prototype.html PROGRAMS(720~761줄). 제목/주최/설명/시간/포인트/계열/인기/상태를
 //   그대로 가져왔고, 날짜만 상대값(dayOffset)으로 바꿨다.
@@ -136,13 +158,25 @@ function dateFromToday(offsetDays) {
 //     관리자 홈의 "오늘 진행 프로그램" 이 비지 않게 하는 fixture 다.
 //     [교내 1 + 교외 1 이라는 조건은 사라졌다 — ADR 0014] 그 축이 폐지돼 요구는 "1건 이상"뿐이다.
 //     [행을 추가하지 않고 기존 2건의 날짜를 옮긴 것이다] 아래 assertSeedInvariants() 가 매 실행마다 검증한다.
+//   - "경기도 공유학교…"/"OO대학교 의학계열…" = 기간제 프로그램 2건(20260810 추가, 확정 F 17→19건).
+//     지급 방식 3종 중 아직 시드에 없던 per_session/threshold를 각각 보여준다(1건짜리 first-batch 프로그램
+//     "삼성 주니어 SW 아카데미" 등은 애초에 기간제가 아니다 — full 모드는 관리자가 폼에서 만들어보면 된다).
+//     의학계열 프로그램은 career_track='med'도 겸한다 — ADR 0014가 "시드 0건"으로 남겨뒀던 축을 채운다.
 // ---------------------------------------------------------------------------
+
+// 화·목요일 4주(공유학교) / 토·일요일 3주(의학계열 캠프). 고정 dayOffset을 못 쓰는 이유는 위 주석 참고.
+const SHARED_SCHOOL_OFFSETS = weekdayOffsets(5, 32, [2, 4]); // 2=화, 4=목
+const MED_CAMP_OFFSETS = weekdayOffsets(12, 33, [0, 6]); // 0=일, 6=토
+// 임계값은 실제 회차 수에 연동한다 — 요일 계산 결과 회차가 며칠 실행일마다 ±1 흔들려도
+// programs_min_days_range(min_attendance_days <= 실제 진행일수)를 항상 만족해야 한다.
+const MED_CAMP_MIN_DAYS = Math.max(1, MED_CAMP_OFFSETS.length - 2);
+
 const DEMO_PROGRAMS = [
   // [방과후 3건 삭제 — 2026-08-09, ADR 0014]
   //   "파이썬 코딩 기초 방과후" / "AI·데이터 기초 방과후" / "수학 심화 탐구반" 을 뺐다.
   //   - 방과후는 참여에 비용이 든다. 유료 활동을 포인트로 보상하면 "돈 내고 포인트 사는" 구조가 된다.
   //   - "수학 심화 탐구반" 은 그와 별개로 절대 원칙 2 위반이었다(학업이지 진로·커리어 활동이 아니다).
-  //   그 자리를 채우려고 새 행을 만들지 않았다 — 17건은 확정 F(16~20) 안이다.
+  //   그 자리를 채우려고 새 행을 만들지 않았다 — 17건(당시)도 확정 F(16~20) 안이었다.
   //   >>> 유료 활동을 시드에 다시 넣지 말 것.
 
   // --- 교내 활동 (school) ---
@@ -390,6 +424,41 @@ const DEMO_PROGRAMS = [
     is_published: true,
     description: '100여 개 직업 부스를 둘러보는 대규모 진로 박람회.',
   },
+
+  // --- 진로 체험 (career) — 기간제 프로그램 2건 (20260810 추가) ---
+  {
+    // [기간제 · per_session] 회차마다 지급 — 출석할 때마다 지급 포인트만큼 매번 적립된다.
+    category: 'career',
+    title: '경기도 공유학교: 데이터사이언스 실습반',
+    org: '경기도교육청 공유학교',
+    sessionOffsets: SHARED_SCHOOL_OFFSETS,
+    attendancePayoutMode: 'per_session',
+    time: '16:00–18:00',
+    points: 200,
+    status: 'open',
+    career_track: 'eng',
+    popularity: 70,
+    is_published: true,
+    description:
+      '데이터 수집부터 시각화까지 실습 중심으로 배우는 공유학교 강좌. 매주 화·목 진행되며, 참여할 때마다 포인트가 지급됩니다.',
+  },
+  {
+    // [기간제 · threshold] 최소 참여일수 도달 시 1회 지급 — 종료일 전에 끝날 수 있다.
+    category: 'career',
+    title: 'OO대학교 의학계열 진로체험 캠프',
+    org: 'OO대학교 의과대학',
+    sessionOffsets: MED_CAMP_OFFSETS,
+    attendancePayoutMode: 'threshold',
+    minAttendanceDays: MED_CAMP_MIN_DAYS,
+    time: '09:00–13:00',
+    points: 800,
+    status: 'open',
+    career_track: 'med',
+    popularity: 60,
+    is_published: true,
+    description:
+      '의학 계열 진로를 탐색하는 대학 연계 주말 체험 프로그램. 전체 일정 중 일부만 채워도 포인트를 받을 수 있습니다.',
+  },
 ];
 
 // 값 집합 — 마이그레이션의 enum 3종과 동일해야 한다. 아래 검증에서 오타를 잡는 용도.
@@ -401,6 +470,30 @@ const STATUSES = ['open', 'ing', 'wait', 'full', 'over'];
 // 주 데모 계정(10718 신지훈)의 관심 계열. seed-accounts.mjs 의 DEMO_ACCOUNTS 와 맞춰야 한다.
 // it -> eng (ADR 0014: IT·소프트웨어가 공학·IT 에 흡수됐다). seed-accounts.mjs 도 함께 바뀌었다.
 const PRIMARY_DEMO_TRACK = 'eng';
+
+/**
+ * DEMO_PROGRAMS 항목 하나 -> 날짜/기간제 필드. 단일 일자(dayOffset)와 기간제(sessionOffsets)를
+ * 한 곳에서 갈라 buildRows()와 assertSeedInvariants()가 같은 계산을 두 번 하지 않게 한다.
+ */
+function dateFieldsOf(p) {
+  if (p.sessionOffsets) {
+    const sessionDates = [...p.sessionOffsets].sort((a, b) => a - b).map(dateFromToday);
+    return {
+      date: sessionDates[0],
+      end_date: sessionDates[sessionDates.length - 1],
+      session_dates: sessionDates,
+      attendance_payout_mode: p.attendancePayoutMode,
+      min_attendance_days: p.minAttendanceDays ?? null,
+    };
+  }
+  return {
+    date: dateFromToday(p.dayOffset),
+    end_date: null,
+    session_dates: null,
+    attendance_payout_mode: null,
+    min_attendance_days: null,
+  };
+}
 
 /**
  * insert 할 행 생성.
@@ -419,7 +512,7 @@ function buildRows(adminId) {
     title: p.title,
     description: p.description,
     org: p.org,
-    date: dateFromToday(p.dayOffset),
+    ...dateFieldsOf(p),
     time: p.time,
     // capacity: 프로토타입에 데이터가 없어 넣지 않는다 (NULL = 정원 미정).
     points: p.points,
@@ -439,7 +532,7 @@ function buildRows(adminId) {
  */
 function assertSeedInvariants() {
   const today = dateFromToday(0);
-  const rows = DEMO_PROGRAMS.map((p) => ({ ...p, date: dateFromToday(p.dayOffset) }));
+  const rows = DEMO_PROGRAMS.map((p) => ({ ...p, ...dateFieldsOf(p) }));
 
   const publishedFuture = rows.filter((p) => p.is_published && p.date >= today);
   const unpublished = rows.filter((p) => !p.is_published);

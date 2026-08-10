@@ -7,12 +7,13 @@
 //
 // [방어적 렌더] 게시중단된 프로그램은 학생이 select 할 수 없다. 이 모달은 그 경우에도 열리고,
 //   "참여 기록 자체는 유지된다"는 사실을 문구로 알린다 (ADR 0005 결정 7-4).
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Modal from '../Modal';
 import Icon from '../Icon';
 import ReviewForm, { StarsMini } from './ReviewForm';
 import { describeActivity } from '../../lib/archiveService';
-import { fmtDateTime } from '../../lib/date';
+import { fetchAttendanceSessions } from '../../lib/participationService';
+import { fmtDate, fmtDateTime } from '../../lib/date';
 import { TRACK } from '../../lib/taxonomy';
 import '../../styles/Review.css';
 
@@ -27,6 +28,26 @@ export default function ActivityDetailModal({ activity, review = null, onReviewS
   // 폼을 열기 전에는 카드(읽기)만 보여준다 — 상세를 열 때마다 입력창이 튀어나오면 "읽는 화면"이 아니게 된다.
   // 퇴장 직후의 자동 노출은 QrCenterModal 이 담당한다(CLAUDE.md 6장 3번).
   const [editing, setEditing] = useState(false);
+
+  // [기간제 출석 기록 — 20260810] program.end_date 가 있으면 기간제다. 아카이브에 뜨는 활동은
+  // 이미 status='completed'(참여 전체 완료)라 attendance_sessions 의 모든 행이 종료 상태다 —
+  // 'completed'만 골라 보여주면 그게 곧 "실제로 참여한 날짜들"이다(별도 필터링 로직 불필요).
+  const isPeriod = Boolean(activity?.program?.end_date);
+  const [sessions, setSessions] = useState(null); // null=조회 중
+
+  useEffect(() => {
+    if (!isPeriod || !activity?.id) return undefined;
+    let alive = true;
+    fetchAttendanceSessions(activity.id)
+      .then((rows) => alive && setSessions(rows))
+      .catch((err) => {
+        console.warn('[ActivityDetailModal] 출석 기록 조회 실패:', err);
+        if (alive) setSessions([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [isPeriod, activity?.id]);
 
   return (
     <Modal onClose={onClose} labelledBy="act-title" className="act-modal">
@@ -89,6 +110,38 @@ export default function ActivityDetailModal({ activity, review = null, onReviewS
             <div className="v">{fmtDateTime(activity?.exit_at) || '기록 없음'}</div>
           </div>
         </div>
+
+        {/* [기간제 출석 기록] 단일 일자 활동은 위 infogrid의 "참여 확인 일시" 한 줄로 충분하다.
+            기간제는 여러 날 걸쳐 있으므로 실제로 인증한 날짜들을 목록으로 보여준다.
+            [원칙 1 가드] "6/8일 참여(75%)" 같은 비율을 만들지 않는다 — 날짜와 시각만 나열한다. */}
+        {isPeriod && (
+          <div className="act-attendance">
+            <div className="k">
+              <Icon name="ic-calendar" size={13} />
+              출석 기록
+            </div>
+            {sessions === null && <p className="revtext muted">불러오는 중…</p>}
+            {sessions !== null && sessions.filter((s) => s.status === 'completed').length === 0 && (
+              <p className="revtext muted">출석 기록을 불러오지 못했어요.</p>
+            )}
+            {sessions !== null && sessions.some((s) => s.status === 'completed') && (
+              <ul className="act-attendlist">
+                {sessions
+                  .filter((s) => s.status === 'completed')
+                  .map((s) => (
+                    <li key={s.id}>
+                      <span className="ad">{fmtDate(s.session_date)}</span>
+                      <span className="at">
+                        {/* fmtDateTime()은 "7월 16일 (목) 15:42"를 만든다 — 마지막 공백 뒤가 항상 시:분이다. */}
+                        입장 {fmtDateTime(s.entry_at).split(' ').pop()} · 퇴장{' '}
+                        {fmtDateTime(s.exit_at).split(' ').pop()}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         {/* 나의 만족도 · 한 줄 평 (결정 D-4: 작성·수정 가능, 삭제 없음, 참여 1건 = 리뷰 1행).
             [게시중단 건에도 평가할 수 있다] 리뷰의 경계는 participations 이지 programs 가 아니다

@@ -53,6 +53,21 @@
 }
 .act-modal .infogrid { margin-bottom: 2px; }
 
+/* 기간제 출석 기록 (ActivityDetailModal, 20260810) — .infogrid .it 와 같은 톤(연한 배경 카드)이지만
+   개수가 가변이라 그리드가 아니라 세로 목록으로 쌓는다. */
+.act-attendance { margin: 14px 0; }
+.act-attendance > .k {
+  font-size: 11.5px; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 5px;
+  margin-bottom: 7px;
+}
+.act-attendlist { display: flex; flex-direction: column; gap: 6px; }
+.act-attendlist li {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
+}
+.act-attendlist .ad { font-size: 13px; font-weight: 700; color: var(--ink); flex: none; }
+.act-attendlist .at { font-size: 12px; color: var(--muted); text-align: right; }
+
 /* ============ RESPONSIVE (CLAUDE.md 8장: 980/768/600/430) ============ */
 @media (max-width: 768px) {
   /* 헤더가 좁아지면 버튼이 제목 아래로 내려온다(.sec-head 가 flex-wrap) */

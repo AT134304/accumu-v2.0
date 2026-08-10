@@ -50,14 +50,17 @@ export default function CalendarPopup({ onClose }) {
     };
   }, []);
 
-  /** ISO 날짜 -> 그 날의 활동들. 게시중단된 프로그램은 program 이 null 이라 건너뛴다(ADR 0005 결정 7-4). */
+  /** ISO 날짜 -> 그 날의 활동들. 게시중단된 프로그램은 program 이 null 이라 건너뛴다(ADR 0005 결정 7-4).
+   *  [기간제 — 20260810] program.session_dates 가 있으면 시작일 하루가 아니라 그 배열 전체(실제 진행일마다)에
+   *  꽂는다. 같은 참여가 여러 날짜에 나타나는 게 정상이다 — "이 활동이 그날에도 있었다"는 사실 그대로다. */
   const byDate = useMemo(() => {
     const map = new Map();
     (rows ?? []).forEach((p) => {
-      const iso = p.program?.date;
-      if (!iso) return;
-      if (!map.has(iso)) map.set(iso, []);
-      map.get(iso).push(p);
+      const dates = p.program?.session_dates?.length ? p.program.session_dates : [p.program?.date].filter(Boolean);
+      dates.forEach((iso) => {
+        if (!map.has(iso)) map.set(iso, []);
+        map.get(iso).push(p);
+      });
     });
     return map;
   }, [rows]);
