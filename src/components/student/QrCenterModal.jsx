@@ -73,25 +73,47 @@ function programView(program) {
 }
 
 /**
+ * session_dates 중 today보다 뒤인 가장 이른 날짜. 정렬돼 있다는 보장이 없으므로(관리자 폼은 정렬해
+ * 보내지만 이 함수 자체는 그 전제에 기대지 않는다) 매번 최솟값을 계산한다.
+ */
+function nextSessionAfter(sessionDates, today) {
+  const future = (sessionDates ?? []).filter((d) => d > today);
+  if (future.length === 0) return null;
+  return future.reduce((min, d) => (d < min ? d : min));
+}
+
+/**
  * 기간제 프로그램(program.end_date 있음)의 "오늘" 액션을 결정한다. 단일 일자면 null을 돌려주고
  * 호출부가 기존(participation.status 기반) 분기를 그대로 쓴다.
  *
- * [원칙 1 가드] "N일차/M일 중 N일 출석" 같은 진행률 라벨을 만들지 않는다 — 오늘 할 수 있는 행동 하나만 말한다.
+ * [원칙 1 가드] "N일차/M일 중 N일 출석" 같은 진행률 라벨을 만들지 않는다 — 오늘 할 수 있는 행동 하나만
+ *   말한다. "다음 진행일이 언제인가"는 진행률이 아니라 사실 하나(날짜)라 note로 곁들인다 — 비율·잔여
+ *   일수·퍼센트를 계산하지 않는다.
  *
  * @param {object} item fetchMyParticipationsWithProgram() 행 (program 포함)
  * @param {Array<{session_date:string, status:string}>} sessions fetchAttendanceSessions() 결과
- * @returns {{disabled:boolean, label:string, type:'entry'|'exit'|null}|null}
+ * @returns {{disabled:boolean, label:string, type:'entry'|'exit'|null, note?:string}|null}
  */
 function periodActionOf(item, sessions) {
   const prog = item.program;
   if (!prog?.end_date) return null;
 
   const today = todayISO();
-  if (today < prog.date) return { disabled: true, label: '기간 시작 전', type: null };
-  if (today > prog.end_date) return { disabled: true, label: '기간이 끝났어요', type: null };
+  const sessionDates = Array.isArray(prog.session_dates) ? prog.session_dates : [];
+  const nextNote = (day) => {
+    const next = nextSessionAfter(sessionDates, day);
+    return next ? `다음 진행일 ${fmtDateRange(next)}` : null;
+  };
+
+  if (today < prog.date) {
+    return { disabled: true, label: '기간 시작 전', type: null, note: nextNote(today) };
+  }
+  if (today > prog.end_date) {
+    return { disabled: true, label: '기간이 끝났어요', type: null };
+  }
   // [진행일 — 20260809180000] 범위 안이라도 관리자가 고른 진행일이 아니면(주말만/특정요일 등) 오늘은 쉬는 날이다.
-  if (Array.isArray(prog.session_dates) && !prog.session_dates.includes(today)) {
-    return { disabled: true, label: '오늘은 진행일이 아니에요', type: null };
+  if (sessionDates.length > 0 && !sessionDates.includes(today)) {
+    return { disabled: true, label: '오늘은 진행일이 아니에요', type: null, note: nextNote(today) };
   }
 
   const todaySession = (sessions ?? []).find((s) => s.session_date === today) ?? null;
@@ -101,7 +123,8 @@ function periodActionOf(item, sessions) {
   if (todaySession.status === 'entered') {
     return { disabled: false, label: '오늘 퇴장 QR', type: 'exit' };
   }
-  return { disabled: true, label: '오늘 출석 완료', type: null }; // completed
+  // completed — 오늘 몫은 끝났다. 다음 진행일이 있으면 그것도 사실이니 함께 보여준다.
+  return { disabled: true, label: '오늘 출석 완료', type: null, note: nextNote(today) };
 }
 
 export default function QrCenterModal({ onClose }) {
@@ -229,7 +252,11 @@ export default function QrCenterModal({ onClose }) {
                   // 기간제면 periodActionOf가 "오늘" 액션을 결정한다. null이면 단일 일자 — 기존 분기 그대로.
                   const period = periodActionOf(it, sessionsByParticipation.get(it.id));
                   const isEntry = period ? period.type === 'entry' : it.status === 'applied';
-                  const statusText = period ? period.label : STATUS_LABEL[it.status] ?? it.status;
+                  // [다음 진행일 안내] 오늘 할 일이 없는 기간제 항목(period.note)에만 붙는다 — 오늘
+                  // 입/퇴장이 가능한 날에는 note가 없다(할 일이 이미 명확하므로 덧붙일 사실이 없다).
+                  const statusText = period
+                    ? [period.label, period.note].filter(Boolean).join(' · ')
+                    : STATUS_LABEL[it.status] ?? it.status;
                   const disabled = busyId === it.id || (period ? period.disabled : false);
                   return (
                     <div className="qi" key={it.id}>
