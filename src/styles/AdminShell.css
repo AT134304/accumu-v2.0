@@ -520,8 +520,22 @@ h2.sec.sm { display: flex; align-items: center; gap: 8px; }
   background: var(--brand); color: #fff; font-weight: 800; font-size: 20px;
 }
 .adm-studenthead .who h3 { font-size: 19px; font-weight: 800; letter-spacing: -.4px; }
-/* 포인트·지역화폐가 들어갈 자리가 없다 — 조회조차 하지 않는다(결정 D / 이슈 4) */
 .adm-studenthead .who .m { font-size: 13px; color: var(--muted); font-weight: 600; margin-top: 3px; }
+/* [ADR 0015] 학생 1명 헤더에만 붙는 포인트 한 줄 — 목록 행(.adm-row.student)에는 여전히 안 넣는다
+   (결정 B는 살아있다). amber는 값 표시에만, 카드/타일로 키우지 않는다(원칙 4 톤 유지). */
+.adm-studenthead .who .pts {
+  display: flex; align-items: center; gap: 5px; margin-top: 6px;
+  font-size: 13px; font-weight: 800; color: var(--amber);
+}
+.adm-studenthead .who .pts em { color: var(--muted); font-weight: 600; font-style: normal; margin-left: 2px; }
+
+/* 담당 해제 버튼 — .adm-back과 같은 자리(우측)에, 위험한 동작이라 rose 톤으로 구분한다. */
+.adm-removebtn {
+  display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px;
+  border-radius: 10px; border: 1px solid var(--rose-soft); background: #fff;
+  font-size: 13.5px; font-weight: 700; color: var(--rose); transition: .14s;
+}
+.adm-removebtn:hover { background: var(--rose-soft); }
 
 .adm-backlink { display: inline-block; margin-top: 12px; font-size: 13.5px; font-weight: 700; color: var(--brand-dk); }
 .adm-backlink:hover { text-decoration: underline; }

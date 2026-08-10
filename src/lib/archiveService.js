@@ -88,15 +88,29 @@ export async function fetchMyCompletedActivities() {
    ========================================================================== */
 
 /**
- * 담당 학생 조회 시 가져오는 컬럼.
+ * 담당 학생 "목록"(5명 나란히) 조회 시 가져오는 컬럼.
  *
- * [★ points_balance / points_total / currency_balance 를 넣지 말 것 — 확정 K-1 / 이슈 4]
- *   RLS 는 담당 학생 행의 **모든 컬럼**을 열어준다. 열려 있다는 것과 보여준다는 것은 다르다.
- *   컬럼을 싣는 순간 화면 어딘가에 "이왕 온 김에" 표시하고 싶어지고, 그건 관리자 화면이
- *   "누가 얼마 벌었나"를 읽는 순간이다(원칙 4). 이 목록은 보안 경계가 아니라 **선언**이다.
+ * [★ points_balance / points_total 을 여기 넣지 말 것 — 결정 B, ADR 0015 이후에도 유효]
+ *   5명이 나란히 놓이는 이 화면에 숫자가 붙는 순간 비교표가 된다(원칙 1). 포인트를 보여주기로
+ *   한 결정(ADR 0015)은 "학생 1명" 상세 화면에만 적용된다 — 아래 MENTORED_STUDENT_DETAIL_FIELDS가
+ *   그 경계다. 이 상수에 옮겨 담지 말 것.
  * [role / created_at 도 제외] 쓸 곳이 없다. admin-programs 가 popularity 를 뺀 것과 같은 규율.
  */
 const MENTORED_STUDENT_FIELDS = 'id, code, name, career_interest';
+
+/**
+ * 담당 학생 "상세"(1명) 조회 시 가져오는 컬럼 — 목록과 다르다.
+ *
+ * [ADR 0015 — 2026-08-10, 케빈 요청으로 원칙 4 개정] points_balance/points_total을 연다.
+ *   RLS(profiles_select_mentored_students_as_admin, 20260723120000)는 애초에 담당 학생 행의
+ *   모든 컬럼을 열어줬다 — 지금까지 안 보여준 건 이 select 목록(프런트 선택)이었지 권한 경계가 아니었다.
+ * [currency_balance는 여전히 제외] 요청받은 것은 포인트뿐이다. 지역화폐까지 넓히는 것은 별도 결정이
+ *   필요하다 — 넣지 않은 게 실수가 아니라는 것을 밝혀 둔다.
+ * [화면 쪽 가드는 여전히 산다] 이 필드가 담당 학생 "목록"으로 새면 결정 B가 깨진다 — 그래서 목록 조회
+ *   (fetchMentoredStudents)는 여전히 MENTORED_STUDENT_FIELDS만 쓴다. 상세(fetchMentoredStudent)만
+ *   이 확장판을 쓴다.
+ */
+const MENTORED_STUDENT_DETAIL_FIELDS = `${MENTORED_STUDENT_FIELDS}, points_balance, points_total`;
 
 /**
  * 담당 학생 5명 + "완료 활동이 있는가" 여부.
@@ -153,15 +167,44 @@ export async function fetchMentoredStudents() {
  *
  * [0행 = 담당이 아니거나 없는 학생] 에러가 아니라 null 을 돌려준다. 화면은 안내 + 돌아가기 버튼을 띄운다
  *   — 404 로 뭉개지 말 것(스펙 에러 처리 표). 담당 경계 판정은 여기가 아니라 RLS 가 한다.
+ * [ADR 0015] MENTORED_STUDENT_DETAIL_FIELDS 를 쓴다 — 목록 조회와 다른 필드 집합이다(위 주석 참고).
  */
 export async function fetchMentoredStudent(studentId) {
   const { data, error } = await supabase
     .from('profiles')
-    .select(MENTORED_STUDENT_FIELDS)
+    .select(MENTORED_STUDENT_DETAIL_FIELDS)
     .eq('id', studentId)
     .limit(1);
   if (error) throw error;
   return data?.[0] ?? null;
+}
+
+/**
+ * 담당 해제("추방") — mentor_students 매핑 1행을 지운다 (ADR 0015).
+ *
+ * [원칙 6 개정 — 이 함수가 그 4번째 동작이다] 관리자 기능이 프로그램 관리·담당 학생 조회·QR 스캔
+ *   3종에서 4종으로 늘었다. mentor_students_delete_own_as_admin(20260810120000)이 유일한 경계다 —
+ *   admin_id = auth.uid() 인 행만 지워진다. student_id 로만 필터해도 RLS 가 "내 담당" 밖의 매핑에는
+ *   아예 도달하지 못한다(0행 영향으로 조용히 끝난다 — 아래에서 그 경우를 감지한다).
+ * [학생 기록은 지워지지 않는다] 지우는 것은 관계 1행뿐이다. participations/point_transactions/profiles는
+ *   이 테이블을 참조하지 않는다 — 해제해도 학생의 활동 기록·포인트는 그대로다.
+ * [되돌릴 수 있다] link_school_account()가 이제 "mentor_students 존재 여부"로 이미 연동됨을 판정하므로
+ *   (ADR 0015), 해제된 학생은 초대코드를 다시 입력해 (같은/다른 관리자에게) 재연동될 수 있다.
+ *
+ * @param {string} studentId
+ * @throws {Error} 이미 담당이 아니거나(레이스) 권한이 없어 0행 영향으로 끝난 경우
+ */
+export async function removeMentee(studentId) {
+  const { error, count } = await supabase
+    .from('mentor_students')
+    .delete({ count: 'exact' })
+    .eq('student_id', studentId);
+  if (error) throw error;
+  // 0행 = RLS 가 막았거나(내 담당이 아님) 이미 지워진 경우. update 계열이 흔히 겪는 "성공했다는데
+  // 아무 일도 안 일어난" 함정과 같다(programService.js ProgramNotAffectedError 와 같은 패턴).
+  if (!count) {
+    throw new Error('이미 담당 학생 목록에 없거나 해제할 권한이 없습니다.');
+  }
 }
 
 /**
