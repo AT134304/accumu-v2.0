@@ -8,9 +8,14 @@
 // [삭제가 없다] delete 정책 0개. "내리기"는 is_published=false 토글이다. 삭제 UI를 만들지 않는다.
 //
 // [원칙 1·6 가드 — 이 화면에 없는 것]
-//   참여자 수 / 정원 대비 신청 수(N/20명) / 신청자 명단 / 출석률 / 랭킹 / popularity / "남은 자리 N석".
-//   UI 규율일 뿐 아니라 데이터를 얻을 수조차 없다(관리자에게 열린 participations 는 담당 학생 5명의
-//   completed 뿐 — ADR 0005 결정 7-2(d)). 그래서 게시중단 고지 문구도 참여자 유무로 분기하지 않는다.
+//   신청자 명단 / 학번·이름 / 출석률 / 랭킹 / popularity / "남은 자리 N석"(비율·게이지).
+//   [ADR 0016로 예외가 하나 생겼다 — 신청자 수] 케빈이 학생 화면에 신청자 수를 열면서 관리자 목록에도
+//   보여주기로 확정했다(2026-08-10). program_applicant_counts() RPC가 이제 authenticated 전체에
+//   grant돼 있어 "데이터를 얻을 수조차 없다"는 더 이상 사실이 아니다 — 명단(누가)은 여전히 닫혀 있고
+//   (ADR 0005 결정 7-2(d)), 숫자(몇 명)만 열렸다. N/20명처럼 정원과 나란히 적어도 게이지·퍼센트를
+//   그리지 않는 한 비율 표시가 아니다(ADR 0016).
+//   그래서 게시중단 고지 문구는 여전히 참여자 유무로 분기하지 않는다 — 그건 데이터가 없어서가 아니라
+//   "내려도 참여 기록은 유지된다"는 사실이 신청자 수와 무관하게 항상 같기 때문이다.
 // [원칙 4] 시각 위계는 제목·카테고리·날짜(brand blue)가 먼저, 포인트는 우측 끝 작은 amber 한 칸.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -20,7 +25,7 @@ import Modal from '../components/Modal';
 import ProgramFormModal from '../components/admin/ProgramFormModal';
 import { catOf, statusOf } from '../lib/taxonomy';
 import { fmtDateRange, todayISO } from '../lib/date';
-import { fetchAdminPrograms, setProgramPublished } from '../lib/programService';
+import { fetchAdminPrograms, fetchApplicantCounts, setProgramPublished } from '../lib/programService';
 import { describeSaveError } from '../lib/programErrors';
 import '../styles/AdminShell.css';
 
@@ -29,6 +34,8 @@ export default function AdminProgramsPage() {
   const adminId = profile?.id;
 
   const [rows, setRows] = useState([]);
+  // program_id -> 신청자 수(applied+entered+completed). ADR 0016 예외 — 관리자에게도 "몇 명"은 연다.
+  const [applicantCounts, setApplicantCounts] = useState(() => new Map());
   const [state, setState] = useState('loading'); // 'loading' | 'ready' | 'error'
   const [form, setForm] = useState(null); // { mode: 'create'|'edit', program }
   const [confirmRow, setConfirmRow] = useState(null); // 내리기 확인 대상 (확정 J)
@@ -48,9 +55,12 @@ export default function AdminProgramsPage() {
     (async () => {
       setState('loading');
       try {
-        const data = await fetchAdminPrograms(adminId);
+        // 신청자 수 조회 실패는 목록 자체를 죽일 이유가 아니다 — fetchApplicantCounts()가 이미
+        // 실패를 빈 Map으로 축약해 준다(programService.js).
+        const [data, counts] = await Promise.all([fetchAdminPrograms(adminId), fetchApplicantCounts()]);
         if (cancelled) return;
         setRows(data);
+        setApplicantCounts(counts);
         setState('ready');
       } catch (err) {
         if (cancelled) return;
@@ -148,6 +158,7 @@ export default function AdminProgramsPage() {
     <ProgramRow
       key={p.id}
       program={p}
+      applicantCount={applicantCounts.get(p.id) ?? 0}
       busy={busyId === p.id}
       highlighted={highlight?.id === p.id}
       rowRef={(el) => {
@@ -256,7 +267,7 @@ export default function AdminProgramsPage() {
 }
 
 /* ---------- 목록 행 (관리자 홈의 .adm-row 를 확장) ---------- */
-function ProgramRow({ program, busy, highlighted, rowRef, onEdit, onPublish, onUnpublish }) {
+function ProgramRow({ program, applicantCount = 0, busy, highlighted, rowRef, onEdit, onPublish, onUnpublish }) {
   const cat = catOf(program.category);
   const st = statusOf(program.status);
   const published = program.is_published;
@@ -275,8 +286,16 @@ function ProgramRow({ program, busy, highlighted, rowRef, onEdit, onPublish, onU
         <h5>{program.title}</h5>
         <div className="m">
           {/* group(교내/교외)이 사라져 유형 이름 하나다 — ADR 0014.
-              기간제(end_date 있음)는 범위로 찍힌다 — fmtDateRange가 단일 일자면 fmtDate와 같다. */}
-          {[cat.name, program.org, fmtDateRange(program.date, program.end_date), program.time]
+              기간제(end_date 있음)는 범위로 찍힌다 — fmtDateRange가 단일 일자면 fmtDate와 같다.
+              [신청 N명 — ADR 0016 예외] 명단(누가)은 여전히 안 보이지만 숫자(몇 명)는 이제 보인다.
+              정원이 있으면 나란히 적는다 — 게이지·퍼센트가 아니라 두 사실의 병기다. */}
+          {[
+            cat.name,
+            program.org,
+            fmtDateRange(program.date, program.end_date),
+            program.time,
+            `신청 ${applicantCount}명${program.capacity != null ? ` · 정원 ${program.capacity}명` : ''}`,
+          ]
             .filter(Boolean)
             .join(' · ')}
         </div>
@@ -323,8 +342,9 @@ function UnpublishConfirm({ program, busy, onCancel, onConfirm }) {
       <div className="mbody">
         <h3 id="unpub-title">게시를 중단할까요?</h3>
         <p className="confirm-target">{program.title}</p>
-        {/* [문구를 참여자 유무로 분기하지 않는다] 관리자는 이 프로그램에 신청자가 있는지 알 권한이 없다
-            (결정 7-2(d)). 항상 같은 문구다. */}
+        {/* [문구를 참여자 유무로 분기하지 않는다] ADR 0016 이후로 관리자가 신청자 "수"는 알 수 있지만,
+            이 문구가 갈릴 이유는 원래 데이터 유무가 아니었다 — "내려도 참여 기록은 유지된다"는 사실이
+            신청자가 0명이든 20명이든 항상 같아서다. 그래서 여기서 applicantCount를 참조하지 않는다. */}
         <p className="confirm-desc">
           학생에게 더 이상 보이지 않게 됩니다. <b>이미 신청한 학생의 참여 기록과 QR 인증은 그대로
           유지</b>되지만, 학생 화면에서 이 프로그램의 제목·날짜가 정상적으로 표시되지 않을 수 있습니다.

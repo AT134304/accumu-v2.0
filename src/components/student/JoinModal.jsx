@@ -1,5 +1,5 @@
 // Accumu v2 — 참여 신청 팝업 (Accumu_prototype.html openJoin() 953~975줄 구조 그대로)
-// docs/specs/student-programs.md B절 / ADR 0004 구현 가이드 3번.
+// docs/specs/student-programs.md B절 / ADR 0004 구현 가이드 3번 / ADR 0016(취소·대기열·신청자 수).
 //
 // 구조: .mthumb(카테고리 그라데이션 + 아이콘 + 닫기) / .mbody(태그·제목·주최+상태 배지·설명·infogrid·CTA)
 //
@@ -9,49 +9,64 @@
 //    지금 QR을 약속하는 카피를 쓰면 없는 기능을 약속하는 셈이 된다.)
 //  - 확정 H-1: 지난 날짜(`date < 오늘`) 프로그램은 신청 불가. 프로토타입 openJoin은 status만 봐서
 //    과거 프로그램도 status='open'이면 버튼이 활성인 버그가 있다 — 재현하지 않는다.
+//  - ADR 0016: 정원이 차도 신청을 거부하지 않는다 — 'waitlisted'로 등록된다. 그래서 예전의 '마감'
+//    분기(버튼 비활성)가 사라지고 "신청하면 대기로 등록된다"는 사전 안내로 바뀌었다.
 import { useState } from 'react';
 import Modal from '../Modal';
 import Icon from '../Icon';
-import { STATUS, catOf, statusOf } from '../../lib/taxonomy';
+import { catOf, statusOf } from '../../lib/taxonomy';
 import { fmtDateRange, todayISO } from '../../lib/date';
 
 /**
- * @param {object}   program   프로그램 행 (description 포함)
- * @param {boolean}  joined    이미 신청한 프로그램인가 (participations 행의 존재 여부로만 판정)
- * @param {boolean}  full      이번 세션에서 정원 마감으로 거부당했는가 (ADR 0006 — 조회로는 알 수 없다)
- * @param {Function} onClose   팝업 닫기
- * @param {Function} onApply   async (program) => 'created' | 'duplicate' | 'full'. 실패 시 throw.
+ * @param {object}   program         프로그램 행 (description 포함)
+ * @param {{id: string, status: string}|undefined} participation
+ *   본인의 참여 행(있으면). status는 applied/waitlisted/entered/completed 중 하나.
+ *   존재 자체가 "신청됨"의 증거다(ADR 0004 구현 가이드 4번) — 값이 없으면 신청 이력이 없다는 뜻.
+ * @param {number}   applicantCount  이 프로그램에 자리를 확보한 인원(applied+entered+completed).
+ *   케빈 요청(2026-08-10) "신청자 수를 보이게 해" — program_applicant_counts() RPC (ADR 0016).
+ * @param {Function} onClose         팝업 닫기
+ * @param {Function} onApply         async (program) => 'created' | 'waitlisted' | 'duplicate'. 실패 시 throw.
+ * @param {Function} onCancel        async (participationId) => {ok:true,promoted:boolean} | {ok:false,reason}.
+ *   실패(네트워크 등)만 throw — "취소 가능 시점이 지났다"는 throw가 아니라 ok:false로 온다.
  */
-export default function JoinModal({ program, joined, full = false, onClose, onApply }) {
+export default function JoinModal({ program, participation, applicantCount = 0, onClose, onApply, onCancel }) {
   const c = catOf(program.category);
   const st = statusOf(program.status);
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [cancelMsg, setCancelMsg] = useState(null);
 
   // todayISO()는 로컬(KST) 기준. toISOString()은 KST 오전 9시 이전에 하루 밀린다 (ADR 0003 6번).
   // [기간제] 종료일이 지나야 "끝난 활동"이다 — 시작한 뒤에도 기간 중에는 계속 신청 가능해야 한다.
-  const isPast = (program.end_date ?? program.date) < todayISO();
+  const today = todayISO();
+  const isPast = (program.end_date ?? program.date) < today;
   const isPeriod = Boolean(program.end_date);
 
-  // CTA 상태 5종 (스펙 B절 표 + ADR 0006). 우선순위: 신청됨 > 지난 날짜 > 정원 마감 > status > 신청 가능.
-  //   - joined를 맨 앞에 두는 이유: 이미 신청한 활동에는 마감/종료 사유보다 "내가 신청했다"가 더 정확한 정보다.
-  //     (그리고 결정 5-2 — 이미 자리를 가진 사람에게 "마감"은 거짓말이다. 'duplicate'는 마감으로 표시하지 않는다.)
-  //   - isPast를 status보다 앞에 두는 이유: 끝난 활동에 "참석 중 — 신청할 수 없습니다"는 어색하다.
-  // [버튼 비활성 규칙은 프런트가 소유한다] DB with check는 date/status를 검사하지 않는다
-  //   (권한 경계는 DB, 신청 가능 여부는 프런트 — ADR 0004). 정원만은 예외로 DB가 사후에 알려준다.
+  const status = participation?.status; // undefined | applied | waitlisted | entered | completed
+  const joined = Boolean(status);
+  // 정원이 찼다는 사실은 "신청하면 대기 등록된다"는 사전 안내일 뿐 버튼을 잠그지 않는다(ADR 0016) —
+  // 예전 결정 5-1의 hint='capacity_full' 거부가 사라졌으니 여기서도 막을 이유가 없다.
+  const capacityFull = !joined && program.capacity != null && applicantCount >= program.capacity;
+  // 취소 가능 조건 — 서버 cancel_my_participation()의 진짜 경계(today_kst() < programs.date)와 같다.
+  // entered/completed는 이미 시작했으므로 취소 대상이 아니다. 여기서 막아도 서버가 다시 확인한다
+  //   (프런트 날짜 조작으로는 우회되지 않는다 — 이 판정은 UX일 뿐 권한 경계가 아니다).
+  const canCancel = (status === 'applied' || status === 'waitlisted') && today < program.date;
+
+  // CTA 상태 (스펙 B절 표 + ADR 0016). 우선순위: 대기중 > 신청됨(입장/퇴장 포함) > 지난 날짜 > 대기 신청 안내 > status > 신청 가능.
   let label = '참석 신청하기';
   let disabled = false;
-  if (joined) {
+  if (status === 'waitlisted') {
+    label = '대기 중이에요';
+    disabled = true;
+  } else if (joined) {
     label = '이미 신청했습니다';
     disabled = true;
   } else if (isPast) {
     label = '이미 종료된 활동입니다';
     disabled = true;
-  } else if (full) {
-    // 사유 문구("정원이 모두 찼습니다")는 아래 .join-full 한 줄이 소유한다. 버튼은 status='full' 로
-    // 마감된 경우와 같은 형태를 쓴다 — 학생 입장에서 결과(닫힌 버튼)가 같아야 화면이 일관된다.
-    label = `${STATUS.full.label} — 신청할 수 없습니다`;
-    disabled = true;
+  } else if (capacityFull) {
+    // 마감이 아니라 대기 등록으로 이어지는 신청이다 — 버튼을 잠그지 않는다.
+    label = '대기 신청하기';
   } else if (!st.join) {
     label = `${st.label} — 신청할 수 없습니다`;
     disabled = true;
@@ -62,14 +77,35 @@ export default function JoinModal({ program, joined, full = false, onClose, onAp
     setPending(true);
     setFailed(false);
     try {
-      const result = await onApply(program);
-      // 성공(created)/중복(duplicate) 처리와 팝업 닫기는 호출부(페이지)가 한다.
-      // 정원 마감('full')은 팝업이 열린 채로 남으므로 여기서 대기 상태를 직접 푼다
-      //   (그 사이 부모가 full=true 로 갱신해 버튼이 '정원이 모두 찼습니다'로 잠긴다).
-      if (result === 'full') setPending(false);
+      await onApply(program);
+      // 성공(created)/대기(waitlisted)/중복(duplicate) 셋 다 페이지가 팝업을 닫는다 — 여기서 더 할 일이 없다.
     } catch {
       // 조용히 넘어가지 않는다 (스펙 기능 요구사항). 팝업을 열어둔 채 사유를 보여주고 재시도할 수 있게 한다.
       // 원본 에러 콘솔 로그는 호출부에서 남긴다.
+      setFailed(true);
+      setPending(false);
+    }
+  }
+
+  async function handleCancel() {
+    if (!canCancel || !participation || pending) return;
+    setPending(true);
+    setCancelMsg(null);
+    try {
+      const result = await onCancel(participation.id);
+      if (!result.ok) {
+        // 너무 늦었거나(too_late) 이미 시작한(already_started) 경우 — 새로고침·다른 탭 등으로
+        // 화면과 서버 날짜가 어긋났을 때 생긴다. 팝업을 열어둔 채 사유를 보여준다.
+        setCancelMsg(
+          result.reason === 'too_late'
+            ? '프로그램 시작 전날까지만 취소할 수 있어요'
+            : '이미 시작된 참여는 취소할 수 없어요'
+        );
+        setPending(false);
+        return;
+      }
+      // 성공 시 페이지가 상태를 다시 읽고 팝업을 닫는다.
+    } catch {
       setFailed(true);
       setPending(false);
     }
@@ -117,6 +153,17 @@ export default function JoinModal({ program, joined, full = false, onClose, onAp
               +{program.points} P <span className="sub">· 지역화폐 전환 가능</span>
             </div>
           </div>
+          {/* 신청 현황 — 케빈 요청(2026-08-10) "신청자 수를 보이게 해" (ADR 0016).
+              비율/게이지가 아니라 두 숫자를 나란히 적을 뿐이다 — 정렬·경쟁 요소가 아니다(원칙 1). */}
+          <div className="it wide">
+            <div className="k">
+              <Icon name="ic-users" size={14} /> 신청 현황
+            </div>
+            <div className="v">
+              {applicantCount}명 신청
+              {program.capacity != null && <span className="sub"> · 정원 {program.capacity}명</span>}
+            </div>
+          </div>
         </div>
 
         {/* 기간제 프로그램 안내 — 신청 후 QR 센터에서 "오늘 입장/퇴장" 흐름이 하루짜리와 다르다는 것을
@@ -137,20 +184,37 @@ export default function JoinModal({ program, joined, full = false, onClose, onAp
           </p>
         )}
 
+        {/* 대기/마감 안내 — "실패"가 아니라 상태다. rose(오류)와 다른 중립 톤(join-hint). */}
+        {status === 'waitlisted' && (
+          <div className="join-hint" role="status">
+            대기 순번이 앞당겨지면 자동으로 자리가 확정돼요. 확정 전까지는 QR이 발급되지 않아요.
+          </div>
+        )}
+        {capacityFull && !joined && (
+          <div className="join-hint" role="status">
+            정원이 가득 찼어요 — 지금 신청하면 대기 명단에 등록돼요
+          </div>
+        )}
+
         <button type="button" className="mbtn" disabled={disabled || pending} onClick={handleApply}>
-          {pending ? '신청 중…' : label}
+          {pending ? '처리 중…' : label}
         </button>
-        {/* 정원 마감 사유 (ADR 0006 결정 6-4). 문구는 이 한 줄로 고정한다 —
-            숫자를 붙이지 않는다("남은 자리 N석"/"N/20명"/"마감 임박" 금지. 서버가 숫자를 주지도 않는다).
-            실패(권한/네트워크)와 다른 색·다른 문구여야 학생이 "내 잘못이 아니다"를 알 수 있다. */}
-        {full && !joined && (
-          <div className="join-full" role="status">
-            정원이 모두 찼습니다
+
+        {/* 신청 취소 — 프로그램 시작 전날까지만(ADR 0016). 케빈 요청(2026-08-10). */}
+        {canCancel && (
+          <button type="button" className="join-cancel" disabled={pending} onClick={handleCancel}>
+            {pending ? '처리 중…' : '신청 취소하기'}
+          </button>
+        )}
+
+        {cancelMsg && (
+          <div className="join-err" role="alert">
+            {cancelMsg}
           </div>
         )}
         {failed && (
           <div className="join-err" role="alert">
-            신청에 실패했어요. 잠시 후 다시 시도해 주세요.
+            처리에 실패했어요. 잠시 후 다시 시도해 주세요.
           </div>
         )}
       </div>

@@ -9,7 +9,7 @@
 //   기본 표시 달도 오늘의 달이다.
 //
 // [원칙 1 — 게임화 금지] 연속 참여일·달성률·월간 목표를 그리지 않는다. 날짜의 점은 계열 색이고,
-//   배지는 예정/참석 중/완료 3종 사실 표시다. 숫자를 세는 규칙이 이 파일에 없다.
+//   배지는 대기중/예정/참석 중/완료 4종 사실 표시다(ADR 0016 — waitlisted 추가). 숫자를 세는 규칙이 이 파일에 없다.
 import { useEffect, useMemo, useState } from 'react';
 import Modal from '../Modal';
 import Icon from '../Icon';
@@ -21,13 +21,16 @@ import '../../styles/Notifications.css';
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
 const pad2 = (n) => String(n).padStart(2, '0');
 
-/** 참여 1건 -> 캘린더 상태. exit_at 이 있으면 완료, entry_at 만 있으면 참석 중, 그 외 예정. */
+/** 참여 1건 -> 캘린더 상태. waitlisted(ADR 0016)가 최우선 — 자리가 확정되지 않았으므로 entry_at/exit_at이
+ *  둘 다 null인 게 당연하고, 그 상태를 "참여 예정"으로 보여주면 자리가 있다는 거짓 정보가 된다.
+ *  그 외엔 기존 그대로: exit_at 있으면 완료, entry_at만 있으면 참석 중, 둘 다 없으면 예정. */
 function kindOf(p) {
+  if (p.status === 'waitlisted') return 'wait';
   if (p.exit_at) return 'done';
   if (p.entry_at) return 'ing';
   return 'up';
 }
-const KIND_LABEL = { done: '참여 완료', ing: '참석 중', up: '참여 예정' };
+const KIND_LABEL = { wait: '대기중', done: '참여 완료', ing: '참석 중', up: '참여 예정' };
 
 export default function CalendarPopup({ onClose }) {
   const today = todayISO();

@@ -1,28 +1,50 @@
 // Accumu v2 — 프로그램 카드 (Accumu_prototype.html pcardHTML() 815줄 재현)
 // 표시 필드: category(그룹·표시명 태그) / title / org / date / time / points / status / isMatched
-//           + joined(신청됨) / past(날짜 지남) — 버튼 라벨·비활성에만 쓴다.
+//           + participation(신청 상태) / past(날짜 지남) / applicantCount(신청자 수, ADR 0016)
 // [원칙 가드] popularity는 화면에 절대 표시하지 않는다 — 프로그램 선택 화면에서 "인기순" 정렬의 입력으로만
-//   쓰이며, 신청자 수·순위 라벨도 만들지 않는다 (CLAUDE.md 2장 1번).
+//   쓰이며, 순위 라벨은 만들지 않는다 (CLAUDE.md 2장 1번). 신청자 수는 순위가 아니라 단순 카운트라
+//   ADR 0016으로 예외를 열었다(케빈 요청 "신청자 수를 보이게 해").
 import Icon from '../Icon';
 import { catOf, statusOf } from '../../lib/taxonomy';
 import { fmtDateRange } from '../../lib/date';
 
-export default function ProgramCard({ program, onOpen, joined = false, past = false, full = false }) {
+/**
+ * @param {{id: string, status: string}|undefined} participation
+ *   본인의 참여 행(있으면). status는 applied/waitlisted/entered/completed 중 하나 — 존재 자체가
+ *   "신청됨"의 증거다(ADR 0004 구현 가이드 4번).
+ * @param {number|null} applicantCount 이 프로그램의 신청자 수(applied+entered+completed). ADR 0016.
+ *   [기본값이 0이 아니라 null인 이유] 홈(StudentHomePage)은 이 값을 아예 넘기지 않는다 — 0을 기본값으로
+ *   두면 실제로는 신청자가 있는데도 "조회 안 함"과 "정말 0명"을 구분 못 해 홈 카드마다 거짓으로
+ *   "0명 신청"이 뜬다. null이면 그 줄 자체를 렌더하지 않는다(모르는 것을 안다고 말하지 않는다).
+ */
+export default function ProgramCard({ program, onOpen, participation, past = false, applicantCount = null }) {
   const c = catOf(program.category);
   const st = statusOf(program.status);
 
-  // 라벨 우선순위: 신청됨 > 종료됨 > 정원 마감 > status 라벨. (프로토타입의 '참여 완료'는 QR 퇴장 인증이 생긴 뒤 몫이라
-  // 이번 스코프에 등장하지 않는다 — "신청됨" 판정은 participations 행의 존재 여부로만 한다. ADR 0004 구현 가이드 4번)
+  const status = participation?.status;
+  const joined = Boolean(status);
+  // 정원이 찼다는 사실은 더 이상 신청을 막지 않는다(ADR 0016) — 눌러도 대기로 등록될 뿐이라
+  // 라벨만 "대기 신청"으로 바꾸고 버튼은 계속 눌린다. 예전의 '마감'(사후 거부 표시)은 사라졌다.
+  // applicantCount가 null(미조회)이면 정원 찬 여부를 판단할 수 없으니 capacityFull은 항상 false다.
+  const capacityFull = !joined && applicantCount != null && program.capacity != null && applicantCount >= program.capacity;
+
+  // 라벨 우선순위: 대기중 > 신청됨(입장/퇴장 포함) > 종료됨 > 대기 신청 > status 라벨.
   // past는 확정 H-1(지난 날짜 신청 차단)을 카드 버튼에도 반영한 것이다. 프로토타입은 날짜를 보지 않아
   // 과거 프로그램에도 '참여' 버튼이 활성으로 남는 버그가 있다 — 재현하지 않는다.
   // 카드 본체 클릭은 계속 팝업을 열 수 있다(지난 활동도 상세는 볼 수 있어야 한다). 버튼만 잠근다.
-  //
-  // [full 은 조회로 알 수 없는 값이다] 이번 세션에서 신청을 눌러 DB에 거부당했을 때만 true 가 된다
-  //   (ADR 0006 / 확정 K-1 사후 거부). joined 를 앞에 두는 이유는 결정 5-2와 같다 —
-  //   이미 신청한 사람에게 "마감"은 거짓말이다.
-  // [원칙 1 가드] 숫자를 붙이지 않는다. "남은 자리 N석"/"N/20명"/"마감 임박"/게이지 금지 — 데이터도 없다.
-  const label = joined ? '신청됨' : past ? '종료됨' : full ? '마감' : st.join ? '참여' : st.label;
-  const disabled = joined || past || full || !st.join;
+  const label =
+    status === 'waitlisted'
+      ? '대기중'
+      : joined
+        ? '신청됨'
+        : past
+          ? '종료됨'
+          : capacityFull
+            ? '대기 신청'
+            : st.join
+              ? '참여'
+              : st.label;
+  const disabled = joined || past || !st.join;
 
   return (
     <div
@@ -62,6 +84,15 @@ export default function ProgramCard({ program, onOpen, joined = false, past = fa
               time은 자유 텍스트라 파싱 없이 그대로 출력. */}
           {fmtDateRange(program.date, program.end_date)} · {program.time}
         </div>
+        {/* 신청자 수 — 케빈 요청(2026-08-10) "신청자 수를 보이게 해" (ADR 0016). 순위·비교가 아니라
+            그 카드 하나의 사실이다. applicantCount가 null(홈 추천 카드 등, 아직 조회 안 함)이면
+            줄 자체를 숨긴다 — "0명 신청"을 거짓으로 보여주지 않는다. */}
+        {applicantCount != null && (
+          <div className="meta">
+            <Icon name="ic-users" size={13} />
+            {applicantCount}명 신청
+          </div>
+        )}
         <div className="foot">
           {/* 포인트 amber는 카드의 이 뱃지에서만 (절대 원칙 4) */}
           <div className="pt">

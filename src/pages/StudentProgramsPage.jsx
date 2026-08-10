@@ -3,7 +3,10 @@
 //
 // [홈과 다른 점] `date >= 오늘`로 거르지 않는다. 지난 프로그램도 조회해서 "날짜 지난 프로그램" 그룹으로
 //   따로 보여준다 (fetchAllPrograms).
-// [원칙 1 가드] popularity는 "인기순" 정렬의 입력으로만 쓴다. 숫자·순위 라벨·신청자 수를 화면에 내지 않는다.
+// [원칙 1 가드] popularity는 "인기순" 정렬의 입력으로만 쓴다. 숫자·순위 라벨을 화면에 내지 않는다.
+//   [ADR 0016 예외] 신청자 수(applicantCounts)는 다르다 — 순위/비교가 아니라 그 프로그램 하나의
+//   사실이고, 케빈이 명시적으로 요청해서 열었다("신청자 수를 보이게 해"). "N명 신청"만 적고,
+//   "TOP 인기"/"마감 임박"/게이지·퍼센트를 붙이지 않는다.
 // [원칙 4 가드] 포인트순은 정렬 선택지 중 하나일 뿐 기본값이 아니다(기본값 인기순 — 확정 B-1).
 //   포인트 amber는 카드 뱃지와 팝업 infogrid 1칸에서만. 큰 포인트 배너/"포인트 많이 주는 활동" 섹션 없음.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -14,7 +17,13 @@ import ProgramCard from '../components/student/ProgramCard';
 import JoinModal from '../components/student/JoinModal';
 import { CAT, TRACK, catOf } from '../lib/taxonomy';
 import { todayISO } from '../lib/date';
-import { applyToProgram, fetchAllPrograms, fetchAppliedProgramIds } from '../lib/programService';
+import {
+  applyToProgram,
+  cancelMyParticipation,
+  fetchAllPrograms,
+  fetchApplicantCounts,
+  fetchMyParticipationsByProgram,
+} from '../lib/programService';
 import '../styles/StudentPrograms.css';
 
 // [카테고리 그룹이 사라졌다 — ADR 0014]
@@ -43,10 +52,11 @@ export default function StudentProgramsPage() {
   const studentId = session?.user?.id ?? null;
 
   const [programs, setPrograms] = useState([]);
-  const [appliedIds, setAppliedIds] = useState(() => new Set());
-  // 정원 마감으로 거부당한 프로그램 (ADR 0006). **조회로 채우지 않는다** — 신청을 눌러 거부당한 것만 담긴다.
-  // 확정 K-1(사후 거부): 신청자 수를 셀 권한이 없어 사전 마감 표시는 만들 수 없다.
-  const [fullIds, setFullIds] = useState(() => new Set());
+  // program_id -> {id, status}. ADR 0016 이전에는 존재 여부만 봤지만(Set), 이제 대기중/신청됨을
+  // 구분해야 하고 취소 버튼에 participation id 가 필요해 Map으로 바꿨다.
+  const [participationByProgram, setParticipationByProgram] = useState(() => new Map());
+  // program_id -> 신청자 수(applied+entered+completed). ADR 0016 — program_applicant_counts() RPC.
+  const [applicantCounts, setApplicantCounts] = useState(() => new Map());
   const [state, setState] = useState('loading'); // 'loading' | 'ready' | 'error'
 
   const [query, setQuery] = useState('');
@@ -63,13 +73,18 @@ export default function StudentProgramsPage() {
     (async () => {
       setState('loading');
       try {
-        // 병렬 2쿼리 (ADR 0004 5번 — 조인 뷰/embed 기각).
-        // fetchAppliedProgramIds는 participations 조회 실패를 빈 Set으로 축약하므로,
+        // 병렬 3쿼리 (ADR 0004 5번 — 조인 뷰/embed 기각).
+        // fetchMyParticipationsByProgram/fetchApplicantCounts는 조회 실패를 빈 Map으로 축약하므로,
         // 마이그레이션 미적용 환경에서도 목록 자체는 뜬다.
-        const [rows, applied] = await Promise.all([fetchAllPrograms(), fetchAppliedProgramIds()]);
+        const [rows, participation, counts] = await Promise.all([
+          fetchAllPrograms(),
+          fetchMyParticipationsByProgram(),
+          fetchApplicantCounts(),
+        ]);
         if (cancelled) return;
         setPrograms(rows);
-        setAppliedIds(applied);
+        setParticipationByProgram(participation);
+        setApplicantCounts(counts);
         setState('ready');
       } catch (err) {
         if (cancelled) return;
@@ -133,30 +148,34 @@ export default function StudentProgramsPage() {
   // 안정된 참조로 넘겨야 Toast 내부의 자동 닫힘 타이머가 부모 리렌더마다 초기화되지 않는다.
   const dismissToast = useCallback(() => setToast(null), []);
 
+  // 신청/취소 후 참여 상태 + 신청자 수를 다시 읽어 화면을 서버와 맞춘다. 낙관적 패치를 하지 않는 이유는
+  // 둘 다 같다 — waitlisted로 등록될지 applied로 확정될지, 취소가 누군가를 승격시킬지는 서버만 안다.
+  const refreshParticipation = useCallback(async () => {
+    const [participation, counts] = await Promise.all([fetchMyParticipationsByProgram(), fetchApplicantCounts()]);
+    setParticipationByProgram(participation);
+    setApplicantCounts(counts);
+  }, []);
+
   const handleApply = useCallback(
     async (program) => {
       if (!studentId) throw new Error('로그인 세션이 없어 신청할 수 없습니다.');
       try {
-        // 낙관적 업데이트를 하지 않는다 — 성공한 뒤에만 "신청됨"으로 바꾸므로 롤백이 필요 없고,
-        // 새로고침해도 화면과 DB가 어긋나지 않는다 (인수 조건).
         const result = await applyToProgram({ studentId, programId: program.id });
 
-        // 정원 마감(ADR 0006) — 신청되지 않았으므로 appliedIds 를 건드리지 않는다.
-        // 그 카드/팝업만 즉시 마감 상태로 로컬 갱신한다(목록 전체 리로드 없음. 재조회해도 정원 정보는 오지 않는다).
-        // 팝업은 닫지 않는다 — 버튼이 '마감'으로 바뀌는 것과 사유 문구를 같은 자리에서 보여준다.
-        if (result === 'full') {
-          setFullIds((prev) => new Set(prev).add(program.id));
-          return result;
-        }
+        // duplicate는 참여 행이 새로 생기지 않았으므로 재조회할 게 없다.
+        if (result !== 'duplicate') await refreshParticipation();
 
-        setAppliedIds((prev) => new Set(prev).add(program.id));
+        // ADR 0016: waitlisted도 이제 "거부"가 아니라 행이 실제로 생긴 성공 케이스다 — created와
+        // 같은 흐름(팝업 닫힘 + 토스트)을 타고, 메시지만 갈린다.
         setOpenProgram(null);
         setToast({
           id: Date.now(),
-          // 중복(23505/409)은 에러 팝업 없이 "이미 신청됨"으로 화면을 맞추는 상황이다 (ADR 0004 구현 가이드 2번).
-          // [마감과 다르게 취급한다] 정원 1짜리를 본인이 채운 학생의 재신청이 여기로 온다 —
-          //   "마감"으로 표시하면 거짓말이 된다 (ADR 0006 결정 5-2).
-          message: result === 'duplicate' ? '이미 신청한 프로그램이에요' : '신청이 완료되었어요',
+          message:
+            result === 'duplicate'
+              ? '이미 신청한 프로그램이에요' // ADR 0004 구현 가이드 2번 — 에러 팝업 없이 상태만 맞춘다.
+              : result === 'waitlisted'
+                ? '정원이 가득 차 대기 명단에 등록됐어요'
+                : '신청이 완료되었어요',
         });
         return result;
       } catch (err) {
@@ -166,7 +185,32 @@ export default function StudentProgramsPage() {
         throw err;
       }
     },
-    [studentId]
+    [studentId, refreshParticipation]
+  );
+
+  // 신청 취소 (ADR 0016). too_late/already_started는 throw가 아니라 {ok:false} 로 오므로 팝업이
+  // 열린 채 사유를 보여줄 수 있다 — 여기서는 그 경우 조용히 결과만 돌려주고 토스트를 띄우지 않는다.
+  const handleCancel = useCallback(
+    async (participationId) => {
+      try {
+        const result = await cancelMyParticipation(participationId);
+        if (!result.ok) return result;
+
+        await refreshParticipation();
+        setOpenProgram(null);
+        setToast({
+          id: Date.now(),
+          message: result.promoted
+            ? '신청을 취소했어요 · 대기 중이던 학생이 자리를 이어받았어요'
+            : '신청을 취소했어요',
+        });
+        return result;
+      } catch (err) {
+        console.error('[StudentPrograms] 취소 실패:', err);
+        throw err;
+      }
+    },
+    [refreshParticipation]
   );
 
   return (
@@ -244,8 +288,8 @@ export default function StudentProgramsPage() {
             <CatRow
               key={row.catKey}
               row={row}
-              appliedIds={appliedIds}
-              fullIds={fullIds}
+              participationByProgram={participationByProgram}
+              applicantCounts={applicantCounts}
               onOpen={setOpenProgram}
               past={false}
             />
@@ -263,8 +307,8 @@ export default function StudentProgramsPage() {
             <CatRow
               key={row.catKey}
               row={row}
-              appliedIds={appliedIds}
-              fullIds={fullIds}
+              participationByProgram={participationByProgram}
+              applicantCounts={applicantCounts}
               onOpen={setOpenProgram}
               past
             />
@@ -275,10 +319,11 @@ export default function StudentProgramsPage() {
       {openProgram && (
         <JoinModal
           program={openProgram}
-          joined={appliedIds.has(openProgram.id)}
-          full={fullIds.has(openProgram.id)}
+          participation={participationByProgram.get(openProgram.id)}
+          applicantCount={applicantCounts.get(openProgram.id) ?? 0}
           onClose={() => setOpenProgram(null)}
           onApply={handleApply}
+          onCancel={handleCancel}
         />
       )}
 
@@ -372,7 +417,7 @@ function FilterGroup({ icon, label, value, onChange, options }) {
 }
 
 /* ---------- 카테고리 행: 헤더 + 가로 스크롤 스트립 (프로토타입 catRow 891줄) ---------- */
-function CatRow({ row, appliedIds, fullIds, onOpen, past }) {
+function CatRow({ row, participationByProgram, applicantCounts, onOpen, past }) {
   const c = CAT[row.catKey];
   return (
     <div className="catrow">
@@ -381,7 +426,7 @@ function CatRow({ row, appliedIds, fullIds, onOpen, past }) {
           <span className="dot" style={{ background: c.color }} />
           {row.label}
         </div>
-        {/* 카테고리에 담긴 프로그램 수. 신청자 수/순위가 아니다 (원칙 1) */}
+        {/* 카테고리에 담긴 프로그램 수. 순위가 아니다 (원칙 1) */}
         <div className="cnt">{row.list.length}개 프로그램</div>
       </div>
       <Strip>
@@ -389,8 +434,8 @@ function CatRow({ row, appliedIds, fullIds, onOpen, past }) {
           <ProgramCard
             key={p.id}
             program={p}
-            joined={appliedIds.has(p.id)}
-            full={fullIds.has(p.id)}
+            participation={participationByProgram.get(p.id)}
+            applicantCount={applicantCounts.get(p.id) ?? 0}
             past={past}
             onOpen={() => onOpen(p)}
           />

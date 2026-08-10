@@ -11,17 +11,22 @@ import { todayISO } from './date';
 //   QrCenterModal의 완료 판정이 이 값을 쓴다.
 // [session_dates — 실제 진행일 목록, 20260809180000] 기간제일 때만 값이 있다. JoinModal의 "총 N일 진행"
 //   안내에 쓴다. 카드 자체에는 표시하지 않는다(칩 하나에 다 못 담긴다 — 팝업에서 자세히 보여준다).
+// [capacity — ADR 0016] 이전에는 "정원은 조회하지 않는다"가 원칙이었다(ADR 0006 결정 6-1 — 응답에
+//   숫자가 없다). 취소·대기열이 생기며 그 결정의 "재검토 시점"이 왔고, 케빈이 "신청자 수를 보이게 해"로
+//   명시적으로 뒤집었다. JoinModal이 신청자 수와 나란히 보여준다 — 카드에는 여전히 안 찍는다.
 const CARD_FIELDS =
-  'id, category, title, org, date, end_date, time, points, career_track, status, attendance_payout_mode, min_attendance_days, session_dates';
+  'id, category, title, org, date, end_date, time, points, capacity, career_track, status, attendance_payout_mode, min_attendance_days, session_dates';
 
 // 프로그램 선택 화면용. 카드 필드 + 팝업(description) + 클라이언트 정렬 입력(popularity/created_at).
 //
 // [정렬을 클라이언트에서 하므로 popularity/created_at을 페이로드에 실어야 한다]
 //   서버 .order()로 처리하면 정렬을 바꿀 때마다 재조회가 된다(20행 규모에 불필요한 왕복).
 // [원칙 가드 — popularity] 이 값은 "인기순" 정렬의 입력으로만 쓴다.
-//   숫자를 화면에 렌더하지 않는다. "TOP 3"/"인기 1위"/"N명 신청" 같은 순위·과열 라벨도 만들지 않는다
+//   숫자를 화면에 렌더하지 않는다. "TOP 3"/"인기 1위" 같은 순위·과열 라벨도 만들지 않는다
 //   (docs/specs/student-programs.md "절대 원칙 체크", CLAUDE.md 2장 1번).
-//   홈(fetchRecommendedPrograms)은 이 필드를 계속 가져오지 않는다 — 거기선 정렬 기준이 아니다.
+//   [popularity와 헷갈리지 말 것] "N명 신청"은 이 필드가 아니라 applicantCounts(program_applicant_counts
+//   RPC)에서 온다 — ADR 0016으로 예외가 열린 건 신청자 수뿐이고, popularity 숫자 노출 금지는 그대로다.
+//   홈(fetchRecommendedPrograms)은 popularity 를 계속 가져오지 않는다 — 거기선 정렬 기준이 아니다.
 const LIST_FIELDS = `${CARD_FIELDS}, description, popularity, created_at`;
 
 /**
@@ -48,8 +53,9 @@ export async function fetchAllPrograms() {
  *
  * [student_id 필터를 클라이언트에서 걸지 않는다] RLS(participations_select_own)가 본인 행만 내려준다.
  *   걸어도 무해하지만 경계의 소유자는 RLS라는 점을 코드에서 흐리지 않는다 (ADR 0004 구현 가이드).
- * [status를 화면 로직에 쓰지 않는다] 이번 스코프에서 값은 항상 'applied'이고, 이 컬럼의 의미는 QR 스펙에서
- *   확정된다. "신청됨" 판정은 오로지 행의 존재 여부로만 한다 (ADR 0004 구현 가이드 4번).
+ * [status — ADR 0016 이후로 화면 로직에 쓴다] applied/waitlisted/entered/completed 4종.
+ *   "신청됨"과 "대기중"을 구분해야 해서 더 이상 존재 여부만으로 충분하지 않다 — 아래
+ *   fetchMyParticipationsByProgram() 이 이 구분을 쓴다.
  */
 export async function fetchMyParticipations() {
   const { data, error } = await supabase.from('participations').select('id, program_id, status');
@@ -76,48 +82,101 @@ export async function fetchAppliedProgramIds() {
 }
 
 /**
+ * program_id -> {id, status} 맵. JoinModal/ProgramCard 가 "신청됨(applied)"과 "대기중(waitlisted)"을
+ * 구분하고, 취소 버튼에 넘길 participation id 를 얻는 데 쓴다(ADR 0016).
+ * [실패를 삼킨다] fetchAppliedProgramIds() 와 같은 이유 — 이 줄이 실패해도 목록 자체는 떠야 한다.
+ */
+export async function fetchMyParticipationsByProgram() {
+  try {
+    const rows = await fetchMyParticipations();
+    return new Map(rows.map((r) => [r.program_id, { id: r.id, status: r.status }]));
+  } catch (err) {
+    console.warn('[programService] 신청 상태 조회 실패 — 상태 표시 없이 진행합니다:', err);
+    return new Map();
+  }
+}
+
+/**
  * 참여 신청.
  *
  * [보내는 컬럼은 student_id / program_id 둘뿐이다 — 다른 컬럼을 추가하지 말 것]
- *   RLS participations_insert_own 의 with check 가 status='applied', entry_at/exit_at/entry_token/exit_token
- *   is null 을 요구한다. status 는 DB default('applied')가 채우고, created_at 도 DB default 에 맡긴다.
+ *   RLS participations_insert_own 의 with check 가 status in ('applied','waitlisted')(ADR 0016),
+ *   entry_at/exit_at/entry_token/exit_token is null 을 요구한다. status 는 DB default('applied')가
+ *   채우거나 정원 게이트 트리거가 'waitlisted'로 바꾼다 — 학생은 어느 쪽도 직접 고를 수 없다.
  *   여기에 컬럼을 하나 더 실으면 원인 불명의 403(42501)이 난다 (ADR 0004 "알려진 틈" / 구현 가이드 1번).
  * [포인트를 건드리지 않는다] 신청만으로는 1P도 지급되지 않는다. 지급 시점은 QR 퇴장 인증
  *   (CLAUDE.md 2장 3번 / 6장 3번). 이 함수에 points_balance/point_transactions 경로를 만들지 말 것.
  *
  * @param {{studentId: string, programId: string}} args studentId 는 AuthContext 의 본인 id (= auth.uid())
- * @returns {Promise<'created'|'duplicate'|'full'>}
- *   'duplicate' = DB unique 제약(23505/409). 에러가 아니라 상태 동기화 신호로 다룬다.
- *   'full'      = 정원 게이트 트리거 거부(P0001 / hint='capacity_full' / 400). ADR 0006 결정 5.
+ * @returns {Promise<'created'|'waitlisted'|'duplicate'>}
+ *   'created'    = status='applied'로 확정 — 자리를 확보했다.
+ *   'waitlisted' = 정원이 차 있어 status='waitlisted'로 등록됐다(ADR 0016 — 예전에는 여기가 'full' 거부였다).
+ *   'duplicate'  = DB unique 제약(23505/409). 에러가 아니라 상태 동기화 신호로 다룬다.
  * @throws 그 외 실패(RLS 42501 / 네트워크 등)는 그대로 던진다 — 호출부가 사용자에게 알린다.
  */
 export async function applyToProgram({ studentId, programId }) {
-  const { error } = await supabase
+  // [.select() 가 필요한 이유] 정원 게이트가 더 이상 거부하지 않으므로(ADR 0016), 결과가 applied인지
+  // waitlisted인지는 서버가 실제로 채운 값을 봐야 안다 — 클라이언트가 보낸 값(무엇도 안 보냄)으로는 알 수 없다.
+  const { data, error } = await supabase
     .from('participations')
-    .insert({ student_id: studentId, program_id: programId });
+    .insert({ student_id: studentId, program_id: programId })
+    .select('status')
+    .single();
 
-  if (!error) return 'created';
-
-  // 정원 마감: before insert 트리거 participations_capacity_guard 의 거부 (ADR 0006).
-  //
-  // [판별은 code 가 아니라 hint 로 한다] P0001 은 plpgsql `raise exception` 의 범용 코드라 앞으로 다른
-  //   도메인 예외가 생기면 구분되지 않는다. `hint = 'capacity_full'` 이 backend 와의 명시적 계약이다
-  //   (ADR 0006 결정 5-1). 한국어 message 를 파싱하지 않는다.
-  // [응답에 숫자가 없다] 신청자 수·남은 자리는 서버가 내보내지 않는다(결정 6-1). 화면에서 파생 계산도 금지 —
-  //   "남은 자리 N석"/"N/20명"/"마감 임박"/게이지를 만들 데이터 자체가 존재하지 않는다.
-  if (error.hint === 'capacity_full') return 'full';
+  if (!error) return data.status === 'waitlisted' ? 'waitlisted' : 'created';
 
   // 중복 신청: 클라이언트 방어(버튼 비활성)를 새로고침·두 탭·개발자도구로 우회해도 DB가 막는다.
   // 사용자에게 실패 팝업을 띄울 상황이 아니라 "이미 신청됨"으로 화면을 맞추면 되는 상황이다.
-  //
-  // [정원이 찬 프로그램에 이미 신청한 학생도 여기로 온다] 트리거가 with check·unique 보다 먼저 실행되지만,
-  //   트리거 4단계(같은 학생의 기존 행이면 통과 — 결정 5-2)가 duplicate 사유를 보존한다.
-  //   'full' 로 나온다면 backend 가 그 단계를 빠뜨린 것이다.
   if (error.code === '23505') return 'duplicate';
 
-  // 42501(RLS 거부)을 'full' 로 뭉개지 말 것. 권한 오류는 정상 사용에서 발생하지 않는다 = 버그 신호이고,
-  // 마감으로 표시하면 진짜 버그가 영원히 숨는다 (ADR 0005 결정 4 / ADR 0006 결정 5-4).
+  // [ADR 0016] 'capacity_full'(hint) 분기는 더 이상 없다 — 정원 게이트가 거부 대신 waitlisted를
+  // 반환하도록 바뀌었다(participations_capacity_guard). 이 에러가 여전히 나온다면 마이그레이션
+  // 20260810180000 이 적용되지 않은 것이다 — throw 로 떨어져 "권한 오류"로 잘못 보이는 게 오히려
+  // 그 사실을 드러낸다.
+  // 42501(RLS 거부) 등은 정상 사용에서 발생하지 않는다 = 버그 신호(ADR 0005 결정 4).
   throw error;
+}
+
+/**
+ * 신청 취소 (ADR 0016).
+ *
+ * [왜 RPC 인가 — update/delete 정책이 아니라] 취소는 "내 행을 지운다"에서 끝나지 않는다.
+ *   내가 'applied'였다면 정원 한 자리가 비고, 그 자리를 가장 먼저 신청한 'waitlisted' 행이 있으면
+ *   그 행을 'applied'로 승격해야 한다 — 두 행에 걸친 원자적 연산이라 RLS 정책 하나로 표현할 수 없다
+ *   (ADR 0006 "재검토 시점"이 예고한 바로 그 상황). security definer + for update 잠금으로 서버가 처리한다.
+ * [날짜 판정은 서버가 한다] "시작 전날까지만" 을 클라이언트에서 막아도 새로고침·다른 탭으로 우회되므로
+ *   진짜 경계는 함수 안 today_kst() >= programs.date 체크다. 프런트의 버튼 비활성은 UX일 뿐이다.
+ *
+ * @param {string} participationId
+ * @returns {Promise<{ok: true, promoted: boolean} | {ok: false, reason: 'not_found'|'already_started'|'too_late'}>}
+ *   reason 은 사용자에게 보여줄 문구를 호출부가 고르기 위한 것이다 — 이 함수는 에러를 던지지 않는다
+ *   (실패가 "잘못된 상태"가 아니라 "이미 늦었다/이미 시작했다"처럼 정상적으로 발생하는 흐름이라서다).
+ * @throws 로그인 안 됨(42501)·네트워크 등 진짜 예외만 던진다.
+ */
+export async function cancelMyParticipation(participationId) {
+  const { data, error } = await supabase.rpc('cancel_my_participation', {
+    p_participation_id: participationId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * 프로그램별 신청자 수 (ADR 0016).
+ *
+ * [applied/entered/completed 만 센다 — waitlisted 는 빼고] "신청자 수"는 자리를 차지한 사람 수다.
+ *   대기 인원까지 더하면 정원(capacity)과 비교했을 때 숫자가 어긋나 보인다 — 서버 RPC
+ *   program_applicant_counts() 가 이미 이 규칙으로 집계해 보낸다(원칙 1 — 등수·비율이 아니라 단순 카운트).
+ *
+ * @returns {Promise<Map<string, number>>} program_id -> 신청자 수. 조회 실패 시 빈 Map(열화 표시).
+ */
+export async function fetchApplicantCounts() {
+  const { data, error } = await supabase.rpc('program_applicant_counts');
+  if (error) {
+    console.warn('[programService] 신청자 수 조회 실패 — 표시 없이 진행합니다:', error);
+    return new Map();
+  }
+  return new Map((data ?? []).map((row) => [row.program_id, row.applicant_count]));
 }
 
 /* ==========================================================================
@@ -136,8 +195,9 @@ const ADMIN_FIELDS = 'id, category, title, org, date, end_date, time, points, is
  *   목록에 띄우면 "누르면 반드시 실패하는 버튼"이 된다 (ADR 0005 결정 7-5).
  * [날짜는 todayISO()(로컬/KST)로 거른다] DB 의 current_date 로 거르지 않는다 — 그러면 "오늘"의 소스가
  *   프런트와 DB 로 갈린다 (ADR 0003 6번 / ADR 0004 타임존 판단 유지).
- * [원칙 1·6 가드] 참여자 수·신청자 명단·출석률·랭킹을 조회하지 않는다. 관리자에게 그 데이터를 주는
- *   RLS 정책 자체가 없다 (ADR 0005 결정 7-2(d)).
+ * [원칙 1·6 가드] 신청자 명단·출석률·랭킹을 조회하지 않는다. [ADR 0016] 신청자 수는 program_applicant_counts()
+ *   RPC로 관리자도 이제 조회할 수 있지만, 이 홈 요약 카드에는 일부러 싣지 않는다 — "프로그램 관리"
+ *   목록(AdminProgramsPage)에서만 보여주기로 케빈이 확정한 범위다(2026-08-10). 홈까지 넓히려면 그때 다시 정한다.
  *
  * @param {string} adminId 로그인한 관리자의 profile id (= auth.uid())
  * @returns {Promise<{today: object[], upcoming: object[]}>}
@@ -226,8 +286,9 @@ export class ProgramNotAffectedError extends Error {
  *   목록에 나와야 "올리기"가 가능하다(programs_select_own_as_admin).
  * [created_by 필터를 프런트가 거는 이유] 조회 결과에는 남의 게시 프로그램과 created_by IS NULL 행이 섞여 온다.
  *   축 A 때문에 그 행들은 수정도 스캔도 항상 실패한다 → 띄우면 "누르면 반드시 실패하는 버튼"이 된다.
- * [원칙 1·6 가드] 참여자 수·신청자 명단·출석률·랭킹을 조회하지 않는다. 애초에 관리자에게 그 데이터를 주는
- *   정책이 없다(ADR 0005 결정 7-2(d)).
+ * [원칙 1·6 가드] 신청자 명단·출석률·랭킹을 조회하지 않는다. [ADR 0016 예외] 신청자 수는 이 함수가 아니라
+ *   fetchApplicantCounts()(program_applicant_counts RPC)로 별도 조회한다 — "몇 명"은 이제 관리자에게도
+ *   열렸지만 "누가"(명단)는 여전히 ADR 0005 결정 7-2(d)로 닫혀 있다.
  *
  * @param {string} adminId 로그인한 관리자의 profile id (= auth.uid())
  * @returns {Promise<object[]>} 정렬·그룹은 화면이 한다(20행 규모. 페이징·검색·서버 정렬 없음 — ADR 0003 6번)

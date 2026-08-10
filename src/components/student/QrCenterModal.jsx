@@ -142,7 +142,10 @@ export default function QrCenterModal({ onClose }) {
     try {
       const rows = await fetchMyParticipationsWithProgram();
       // 확정 A절: 목록은 아직 완료되지 않은 내 참여만. 완료 건은 아카이브의 몫이다.
-      const active = rows.filter((r) => r.status !== 'completed');
+      // [ADR 0016] waitlisted도 제외한다 — 자리가 확정되지 않아 QR을 받을 자격이 없다(issue_participation_qr/
+      // issue_attendance_qr 둘 다 서버에서도 wrong_order로 거부한다 — 이 필터는 UX일 뿐 권한 경계가 아니다).
+      // 대기 중이라는 사실 자체는 JoinModal(프로그램 선택 화면)에서 이미 보여준다.
+      const active = rows.filter((r) => r.status !== 'completed' && r.status !== 'waitlisted');
 
       // 기간제 항목만 오늘 액션 판정에 출석 기록이 필요하다(participation.status만으론 "오늘" 상태를 모른다).
       // 데모 규모(참여 몇 건)라 항목당 왕복 1회씩이 무해하다 — 실패해도 목록 자체는 살린다.
