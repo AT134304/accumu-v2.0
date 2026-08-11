@@ -579,7 +579,16 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
               />
             </Field>
 
-            <Field label="정원" htmlFor="pf-capacity" error={errorOf('capacity')}>
+            {/* [hint를 쓰는 이유 — ADR 0018] placeholder는 값이 있으면(수정 모드처럼 이미 숫자가
+                채워진 경우) 아예 안 보인다 — "지우면 무제한이 된다"는 사실을 수정 화면에서는 영원히
+                알 수 없었다. hint는 값과 무관하게 항상 떠 있어 새 프로그램/수정 화면 모두에서 같은
+                정보를 준다. */}
+            <Field
+              label="정원"
+              htmlFor="pf-capacity"
+              error={errorOf('capacity')}
+              hint="비워두면 정원 제한 없음"
+            >
               <input
                 id="pf-capacity"
                 type="number"
@@ -588,7 +597,7 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
                 value={v.capacity}
                 onChange={set('capacity')}
                 onBlur={blur('capacity')}
-                placeholder="비워두면 제한 없음"
+                placeholder="예) 20"
               />
             </Field>
           </div>

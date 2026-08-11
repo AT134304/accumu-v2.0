@@ -23,6 +23,7 @@ import {
   fetchAllPrograms,
   fetchApplicantCounts,
   fetchMyParticipationsByProgram,
+  fetchMyWaitlistPositions,
 } from '../lib/programService';
 import '../styles/StudentPrograms.css';
 
@@ -57,6 +58,8 @@ export default function StudentProgramsPage() {
   const [participationByProgram, setParticipationByProgram] = useState(() => new Map());
   // program_id -> 신청자 수(applied+entered+completed). ADR 0016 — program_applicant_counts() RPC.
   const [applicantCounts, setApplicantCounts] = useState(() => new Map());
+  // program_id -> 내 대기 순번(1부터). ADR 0018 — my_waitlist_positions() RPC.
+  const [waitlistPositions, setWaitlistPositions] = useState(() => new Map());
   const [state, setState] = useState('loading'); // 'loading' | 'ready' | 'error'
 
   const [query, setQuery] = useState('');
@@ -73,18 +76,20 @@ export default function StudentProgramsPage() {
     (async () => {
       setState('loading');
       try {
-        // 병렬 3쿼리 (ADR 0004 5번 — 조인 뷰/embed 기각).
-        // fetchMyParticipationsByProgram/fetchApplicantCounts는 조회 실패를 빈 Map으로 축약하므로,
-        // 마이그레이션 미적용 환경에서도 목록 자체는 뜬다.
-        const [rows, participation, counts] = await Promise.all([
+        // 병렬 4쿼리 (ADR 0004 5번 — 조인 뷰/embed 기각).
+        // fetchMyParticipationsByProgram/fetchApplicantCounts/fetchMyWaitlistPositions는 조회 실패를
+        // 빈 Map으로 축약하므로, 마이그레이션 미적용 환경에서도 목록 자체는 뜬다.
+        const [rows, participation, counts, positions] = await Promise.all([
           fetchAllPrograms(),
           fetchMyParticipationsByProgram(),
           fetchApplicantCounts(),
+          fetchMyWaitlistPositions(),
         ]);
         if (cancelled) return;
         setPrograms(rows);
         setParticipationByProgram(participation);
         setApplicantCounts(counts);
+        setWaitlistPositions(positions);
         setState('ready');
       } catch (err) {
         if (cancelled) return;
@@ -151,10 +156,27 @@ export default function StudentProgramsPage() {
   // 신청/취소 후 참여 상태 + 신청자 수를 다시 읽어 화면을 서버와 맞춘다. 낙관적 패치를 하지 않는 이유는
   // 둘 다 같다 — waitlisted로 등록될지 applied로 확정될지, 취소가 누군가를 승격시킬지는 서버만 안다.
   const refreshParticipation = useCallback(async () => {
-    const [participation, counts] = await Promise.all([fetchMyParticipationsByProgram(), fetchApplicantCounts()]);
+    const [participation, counts, positions] = await Promise.all([
+      fetchMyParticipationsByProgram(),
+      fetchApplicantCounts(),
+      fetchMyWaitlistPositions(),
+    ]);
     setParticipationByProgram(participation);
     setApplicantCounts(counts);
+    setWaitlistPositions(positions);
   }, []);
+
+  // [신청자 수 신선도 — ADR 0018, 2026-08-11] 목록 로드 시점 스냅샷이라 페이지를 오래 열어 두면 다른 학생의
+  // 신청·취소가 반영되지 않는다. 팝업을 열 때마다(가장 관심 있게 보는 순간) 조용히 다시 읽는다 —
+  // 팝업 자체는 즉시 뜨고, 숫자만 몇백ms 뒤에 최신값으로 갱신된다. 실패해도 무시한다(기존 값 유지 —
+  // fetchApplicantCounts/fetchMyParticipationsByProgram가 이미 실패를 삼키므로 여기선 던질 일이 없다).
+  const handleOpenProgram = useCallback(
+    (program) => {
+      setOpenProgram(program);
+      refreshParticipation();
+    },
+    [refreshParticipation]
+  );
 
   const handleApply = useCallback(
     async (program) => {
@@ -175,7 +197,9 @@ export default function StudentProgramsPage() {
               ? '이미 신청한 프로그램이에요' // ADR 0004 구현 가이드 2번 — 에러 팝업 없이 상태만 맞춘다.
               : result === 'waitlisted'
                 ? '정원이 가득 차 대기 명단에 등록됐어요'
-                : '신청이 완료되었어요',
+                // [ADR 0018, 2026-08-11] "신청됐다"만 알리면 그다음 뭘 해야 하는지 몰라 QR 인증을 놓치는
+                // 학생이 생긴다 — JoinModal의 안내문과 같은 이유로 QR 위치를 짧게 덧붙인다.
+                : '신청이 완료되었어요 · 마이페이지에서 QR을 확인하세요',
         });
         return result;
       } catch (err) {
@@ -290,7 +314,8 @@ export default function StudentProgramsPage() {
               row={row}
               participationByProgram={participationByProgram}
               applicantCounts={applicantCounts}
-              onOpen={setOpenProgram}
+              waitlistPositions={waitlistPositions}
+              onOpen={handleOpenProgram}
               past={false}
             />
           ))}
@@ -309,7 +334,8 @@ export default function StudentProgramsPage() {
               row={row}
               participationByProgram={participationByProgram}
               applicantCounts={applicantCounts}
-              onOpen={setOpenProgram}
+              waitlistPositions={waitlistPositions}
+              onOpen={handleOpenProgram}
               past
             />
           ))}
@@ -321,6 +347,7 @@ export default function StudentProgramsPage() {
           program={openProgram}
           participation={participationByProgram.get(openProgram.id)}
           applicantCount={applicantCounts.get(openProgram.id) ?? 0}
+          waitlistPosition={waitlistPositions.get(openProgram.id) ?? null}
           onClose={() => setOpenProgram(null)}
           onApply={handleApply}
           onCancel={handleCancel}
@@ -417,7 +444,7 @@ function FilterGroup({ icon, label, value, onChange, options }) {
 }
 
 /* ---------- 카테고리 행: 헤더 + 가로 스크롤 스트립 (프로토타입 catRow 891줄) ---------- */
-function CatRow({ row, participationByProgram, applicantCounts, onOpen, past }) {
+function CatRow({ row, participationByProgram, applicantCounts, waitlistPositions, onOpen, past }) {
   const c = CAT[row.catKey];
   return (
     <div className="catrow">
@@ -436,6 +463,7 @@ function CatRow({ row, participationByProgram, applicantCounts, onOpen, past }) 
             program={p}
             participation={participationByProgram.get(p.id)}
             applicantCount={applicantCounts.get(p.id) ?? 0}
+            waitlistPosition={waitlistPositions.get(p.id) ?? null}
             past={past}
             onOpen={() => onOpen(p)}
           />

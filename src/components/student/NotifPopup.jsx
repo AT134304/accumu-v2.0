@@ -20,7 +20,7 @@ import Icon from '../Icon';
 import { fetchMyNotifications, markNotificationsRead } from '../../lib/notificationService';
 import '../../styles/Notifications.css';
 
-/** 알림 종류별 아이콘·색 (프로토타입 NOTIF_IC/COLOR/SOFT, 1139~1141줄 + ADR 0013 신규 4종). */
+/** 알림 종류별 아이콘·색 (프로토타입 NOTIF_IC/COLOR/SOFT, 1139~1141줄 + ADR 0013 신규 4종 + ADR 0018 2종). */
 const LOOK = {
   // 학생
   new: { icon: 'ic-compass', color: 'var(--brand)', soft: 'var(--brand-soft)' },
@@ -31,6 +31,10 @@ const LOOK = {
   upcoming: { icon: 'ic-calendar', color: 'var(--brand)', soft: 'var(--brand-soft)' },
   // 할 일이 남은 상태다. rose(거부/실패)가 아니라 amber(주의) — .pf-msg.warn 이 세운 뜻 그대로.
   exit_due: { icon: 'ic-qr', color: 'var(--amber)', soft: 'var(--amber-soft)' },
+  // 대기하던 자리가 확정됐다는 좋은 소식이다 — 'enter'와 같은 브랜드 톤 (ADR 0018).
+  promoted: { icon: 'ic-check', color: 'var(--brand)', soft: 'var(--brand-soft)' },
+  // 확인이 필요한 변경이다 — exit_due와 같은 amber "주의" 톤 (ADR 0018).
+  rescheduled: { icon: 'ic-calendar', color: 'var(--amber)', soft: 'var(--amber-soft)' },
   // 관리자 (ADR 0013). 전부 관리자 기능 3종에 관한 사실이다 — 그 밖의 종류를 늘리지 말 것.
   apply_admin: { icon: 'ic-user', color: 'var(--indigo)', soft: 'var(--indigo-soft)' },
   mentee: { icon: 'ic-school', color: 'var(--brand)', soft: 'var(--brand-soft)' },

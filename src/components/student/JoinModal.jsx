@@ -4,9 +4,13 @@
 // 구조: .mthumb(카테고리 그라데이션 + 아이콘 + 닫기) / .mbody(태그·제목·주최+상태 배지·설명·infogrid·CTA)
 //
 // [프로토타입과 다른 점]
-//  - 확정 F-1: 카피에서 QR 언급 제거. `참석하기 · QR 발급받기` -> `참석 신청하기`,
-//    `이미 신청했습니다 · 마이페이지에서 QR 확인` -> `이미 신청했습니다`. (QR은 다음 스펙이라
-//    지금 QR을 약속하는 카피를 쓰면 없는 기능을 약속하는 셈이 된다.)
+//  - 확정 F-1: CTA 라벨(`mbtn`)에서는 여전히 QR을 언급하지 않는다. `참석하기 · QR 발급받기` ->
+//    `참석 신청하기`, `이미 신청했습니다 · 마이페이지에서 QR 확인` -> `이미 신청했습니다`.
+//    [2026-08-11 부분 해제] 이 결정의 원래 이유("QR 기능 자체가 없어서 약속하면 거짓")는 QR이
+//    실제로 구현된 지금은 유효하지 않다. 그래서 infogrid 아래 안내문(join-period-note)에는 QR을
+//    언급한다 — 신청 후 뭘 해야 하는지 몰라 참여를 놓치는 학생이 생기는 게 더 큰 문제라서다.
+//    CTA 버튼 라벨만은 그대로 QR을 안 담는다(버튼은 "지금 이 클릭이 뭘 하는가"만 말하는 자리라
+//    안내문과 섞으면 라벨이 길어져 오히려 읽기 어렵다 — 순수 레이아웃상의 이유로 유지).
 //  - 확정 H-1: 지난 날짜(`date < 오늘`) 프로그램은 신청 불가. 프로토타입 openJoin은 status만 봐서
 //    과거 프로그램도 status='open'이면 버튼이 활성인 버그가 있다 — 재현하지 않는다.
 //  - ADR 0016: 정원이 차도 신청을 거부하지 않는다 — 'waitlisted'로 등록된다. 그래서 예전의 '마감'
@@ -24,12 +28,22 @@ import { fmtDateRange, todayISO } from '../../lib/date';
  *   존재 자체가 "신청됨"의 증거다(ADR 0004 구현 가이드 4번) — 값이 없으면 신청 이력이 없다는 뜻.
  * @param {number}   applicantCount  이 프로그램에 자리를 확보한 인원(applied+entered+completed).
  *   케빈 요청(2026-08-10) "신청자 수를 보이게 해" — program_applicant_counts() RPC (ADR 0016).
+ * @param {number|null} waitlistPosition 내가 대기 중이면 몇 번째인지(1부터). ADR 0018 —
+ *   my_waitlist_positions() RPC. 대기 중이 아니면 null.
  * @param {Function} onClose         팝업 닫기
  * @param {Function} onApply         async (program) => 'created' | 'waitlisted' | 'duplicate'. 실패 시 throw.
  * @param {Function} onCancel        async (participationId) => {ok:true,promoted:boolean} | {ok:false,reason}.
  *   실패(네트워크 등)만 throw — "취소 가능 시점이 지났다"는 throw가 아니라 ok:false로 온다.
  */
-export default function JoinModal({ program, participation, applicantCount = 0, onClose, onApply, onCancel }) {
+export default function JoinModal({
+  program,
+  participation,
+  applicantCount = 0,
+  waitlistPosition = null,
+  onClose,
+  onApply,
+  onCancel,
+}) {
   const c = catOf(program.category);
   const st = statusOf(program.status);
   const [pending, setPending] = useState(false);
@@ -56,7 +70,8 @@ export default function JoinModal({ program, participation, applicantCount = 0, 
   let label = '참석 신청하기';
   let disabled = false;
   if (status === 'waitlisted') {
-    label = '대기 중이에요';
+    // [대기 순번 — ADR 0018] 순번을 알면 "대기 중이에요"보다 훨씬 구체적인 기대치를 준다.
+    label = waitlistPosition != null ? `대기 ${waitlistPosition}번째예요` : '대기 중이에요';
     disabled = true;
   } else if (joined) {
     label = '이미 신청했습니다';
@@ -183,10 +198,23 @@ export default function JoinModal({ program, participation, applicantCount = 0, 
                 : '포인트는 종료일 퇴장 인증 때 한 번에 지급됩니다.'}
           </p>
         )}
+        {/* [단일 일자 QR 안내 — ADR 0018, 2026-08-11] 확정 F-1은 "QR을 약속하는 카피 금지"였다 — 그때는 QR
+            기능 자체가 없었다. 지금은 실제로 있으므로(CLAUDE.md 6장) 더 이상 거짓 약속이 아니다.
+            기간제와 똑같이 "신청 후 QR로 뭘 해야 하는지"를 미리 말해준다 — 안 그러면 신청만 하고
+            QR 센터를 어떻게 찾는지 몰라 참여를 놓치는 학생이 생긴다. */}
+        {!isPeriod && (
+          <p className="join-period-note">
+            신청 후 <b>마이페이지 · QR 확인</b>에서 입장 QR을 인증해야 참석이 시작되고, 종료 시
+            퇴장 QR을 인증해야 포인트가 지급됩니다.
+          </p>
+        )}
 
-        {/* 대기/마감 안내 — "실패"가 아니라 상태다. rose(오류)와 다른 중립 톤(join-hint). */}
+        {/* 대기/마감 안내 — "실패"가 아니라 상태다. rose(오류)와 다른 중립 톤(join-hint).
+            [순번 — ADR 0018] 알 수 있을 때만 문장 맨 앞에 붙인다(조회 실패로 null이면 이전처럼
+            순번 없이 안내한다 — 모르는 걸 안다고 말하지 않는다). */}
         {status === 'waitlisted' && (
           <div className="join-hint" role="status">
+            {waitlistPosition != null && <>현재 대기 {waitlistPosition}번째예요. </>}
             대기 순번이 앞당겨지면 자동으로 자리가 확정돼요. 확정 전까지는 QR이 발급되지 않아요.
           </div>
         )}

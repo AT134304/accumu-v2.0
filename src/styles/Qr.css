@@ -69,6 +69,10 @@
   font-weight: 800; font-size: 15px; margin-right: 5px; vertical-align: middle;
 }
 .countdown.expired { color: var(--rose); font-weight: 700; }
+/* 만료 5분 전 경고(2026-08-11) — b-wait/STATUS.wait와 같은 amber 톤. 포인트가 아니라 "대기·주의"
+   의미로 이미 쓰이던 색이라 여기서도 재사용한다(원칙 4는 CAT 색에서 amber를 막을 뿐이다). */
+.countdown.warn { color: var(--amber); font-weight: 700; }
+.countdown .cdn.warn { background: var(--amber-soft); color: var(--amber); }
 
 .qr-reissue {
   display: inline-flex; align-items: center; gap: 6px; margin-top: 13px; height: 40px; padding: 0 18px;

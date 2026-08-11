@@ -1,9 +1,10 @@
 // Accumu v2 — 프로그램 카드 (Accumu_prototype.html pcardHTML() 815줄 재현)
 // 표시 필드: category(그룹·표시명 태그) / title / org / date / time / points / status / isMatched
 //           + participation(신청 상태) / past(날짜 지남) / applicantCount(신청자 수, ADR 0016)
+//           / waitlistPosition(내 대기 순번, ADR 0018)
 // [원칙 가드] popularity는 화면에 절대 표시하지 않는다 — 프로그램 선택 화면에서 "인기순" 정렬의 입력으로만
-//   쓰이며, 순위 라벨은 만들지 않는다 (CLAUDE.md 2장 1번). 신청자 수는 순위가 아니라 단순 카운트라
-//   ADR 0016으로 예외를 열었다(케빈 요청 "신청자 수를 보이게 해").
+//   쓰이며, 순위 라벨은 만들지 않는다 (CLAUDE.md 2장 1번). 신청자 수·내 대기 순번은 다른 학생과 겨루는
+//   순위가 아니라 단순 카운트/내 상황이라 ADR 0016·0018로 예외를 열었다(케빈 요청).
 import Icon from '../Icon';
 import { catOf, statusOf } from '../../lib/taxonomy';
 import { fmtDateRange } from '../../lib/date';
@@ -16,8 +17,16 @@ import { fmtDateRange } from '../../lib/date';
  *   [기본값이 0이 아니라 null인 이유] 홈(StudentHomePage)은 이 값을 아예 넘기지 않는다 — 0을 기본값으로
  *   두면 실제로는 신청자가 있는데도 "조회 안 함"과 "정말 0명"을 구분 못 해 홈 카드마다 거짓으로
  *   "0명 신청"이 뜬다. null이면 그 줄 자체를 렌더하지 않는다(모르는 것을 안다고 말하지 않는다).
+ * @param {number|null} waitlistPosition 내가 대기 중이면 몇 번째인지(1부터). ADR 0018.
  */
-export default function ProgramCard({ program, onOpen, participation, past = false, applicantCount = null }) {
+export default function ProgramCard({
+  program,
+  onOpen,
+  participation,
+  past = false,
+  applicantCount = null,
+  waitlistPosition = null,
+}) {
   const c = catOf(program.category);
   const st = statusOf(program.status);
 
@@ -32,9 +41,13 @@ export default function ProgramCard({ program, onOpen, participation, past = fal
   // past는 확정 H-1(지난 날짜 신청 차단)을 카드 버튼에도 반영한 것이다. 프로토타입은 날짜를 보지 않아
   // 과거 프로그램에도 '참여' 버튼이 활성으로 남는 버그가 있다 — 재현하지 않는다.
   // 카드 본체 클릭은 계속 팝업을 열 수 있다(지난 활동도 상세는 볼 수 있어야 한다). 버튼만 잠근다.
+  // [대기 순번 — ADR 0018] "대기중"만으로는 얼마나 기다려야 할지 감이 안 온다. waitlistPosition이
+  // 있으면 "대기 3번째"로 더 구체적으로 보여준다(원칙 1 — 다른 학생과 겨루는 순위가 아니라 내 상황).
   const label =
     status === 'waitlisted'
-      ? '대기중'
+      ? waitlistPosition != null
+        ? `대기 ${waitlistPosition}번째`
+        : '대기중'
       : joined
         ? '신청됨'
         : past

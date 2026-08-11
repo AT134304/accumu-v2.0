@@ -14,9 +14,10 @@
 //   reviews_select_own 이 "본인 참여의 리뷰"만 열어 관리자는 담당 학생 것도 읽을 수 없다.
 //   그래서 reviewByParticipationId 도 넘기지 않는다(넘길 데이터를 얻을 수도 없다).
 //
-// [쓰기 동작 — ADR 0015 로 1개 생겼다] participations 에는 여전히 관리자 update 정책이 0개라
-//   코멘트·확인 도장·활동 추가는 없다. 딱 하나 생긴 것은 "담당 해제"(mentor_students 삭제) — 관리자
-//   기능이 3종에서 4종이 됐다(CLAUDE.md 원칙 6 개정).
+// [쓰기 동작 — ADR 0015로 1개, ADR 0019로 1개 더] participations 에는 여전히 관리자 update 정책이
+//   0개라 코멘트·확인 도장·활동 추가는 없다. 생긴 것은 "담당 해제"(mentor_students 삭제, ADR 0015)와
+//   "비밀번호 초기화"(admin-reset-student-password Edge Function, ADR 0019) 둘뿐 — 관리자 기능이
+//   3종 → 4종 → 5종이 됐다(CLAUDE.md 원칙 6 개정).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import Modal from '../components/Modal';
@@ -26,7 +27,12 @@ import ArchiveSummary from '../components/archive/ArchiveSummary';
 import ArchivePrintHeader from '../components/archive/ArchivePrintHeader';
 import ActivityList from '../components/archive/ActivityList';
 import { TRACK } from '../lib/taxonomy';
-import { fetchCompletedActivitiesOf, fetchMentoredStudent, removeMentee } from '../lib/archiveService';
+import {
+  fetchCompletedActivitiesOf,
+  fetchMentoredStudent,
+  removeMentee,
+  resetStudentPassword,
+} from '../lib/archiveService';
 import { todayISO } from '../lib/date';
 import '../styles/AdminShell.css';
 
@@ -46,6 +52,13 @@ export default function AdminStudentArchivePage() {
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState('');
+
+  // 비밀번호 초기화 (ADR 0019) — 같은 2단계 확인 패턴 + 결과(임시 비밀번호)를 보여줄 3번째 상태.
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState('');
+  // 발급된 임시 비밀번호 — 모달을 닫으면 즉시 버린다(다른 곳에 저장하지 않는다).
+  const [tempPassword, setTempPassword] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,6 +147,32 @@ export default function AdminStudentArchivePage() {
     }
   }, [student, removing, navigate]);
 
+  // 비밀번호 초기화 (ADR 0019). 성공해도 이 페이지에 남는다(담당 해제와 달리 학생 목록에서 빠질
+  // 이유가 없다) — 대신 확인 모달을 결과 모달로 바꾼다.
+  const handleResetPassword = useCallback(async () => {
+    if (!student || resetting) return;
+    setResetting(true);
+    setResetError('');
+    try {
+      const res = await resetStudentPassword(student.id);
+      if (!res.ok) {
+        setResetError(
+          res.reason === 'not_your_student'
+            ? '담당 학생이 아니어서 초기화할 수 없어요.'
+            : '비밀번호를 초기화하지 못했어요. 잠시 후 다시 시도해 주세요.'
+        );
+        return;
+      }
+      setConfirmingReset(false);
+      setTempPassword(res.temp_password);
+    } catch (err) {
+      console.error('[AdminStudentArchive] 비밀번호 초기화 실패:', err);
+      setResetError('비밀번호를 초기화하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setResetting(false);
+    }
+  }, [student, resetting]);
+
   // 담당이 아닌/없는 학생 — 404 로 뭉개지 않고 돌아갈 길을 준다.
   if (headerState === 'notfound') {
     return (
@@ -164,6 +203,20 @@ export default function AdminStudentArchivePage() {
           마이페이지
         </button>
         <div style={{ display: 'flex', gap: 8 }}>
+          {/* [비밀번호 초기화 — ADR 0019] 관리자 기능 5번째. 가상 이메일 계정({학번}@accumu.local)은
+              이메일로 재설정 링크를 받을 수 없어서 생긴 대체 경로 — 확인 모달을 거친다(되돌릴 수
+              없는 동작이라 "내리기"·"담당 해제"와 같은 2단계 규율). */}
+          {student && (
+            <button
+              type="button"
+              className="adm-removebtn"
+              onClick={() => setConfirmingReset(true)}
+              title="이 학생의 비밀번호를 새로 발급합니다"
+            >
+              <Icon name="ic-refresh" size={16} />
+              비밀번호 초기화
+            </button>
+          )}
           {/* [담당 해제 — ADR 0015] 관리자 기능 4번째. 확인 없이 바로 지우지 않는다 — "내리기"와
               같은 2단계(확인 모달) 규율을 그대로 따른다. */}
           {student && (
@@ -261,6 +314,25 @@ export default function AdminStudentArchivePage() {
         )}
       </div>
 
+      {confirmingReset && student && (
+        <ResetPasswordConfirm
+          student={student}
+          busy={resetting}
+          error={resetError}
+          onCancel={() => {
+            if (!resetting) {
+              setConfirmingReset(false);
+              setResetError('');
+            }
+          }}
+          onConfirm={handleResetPassword}
+        />
+      )}
+
+      {tempPassword && student && (
+        <TempPasswordModal student={student} tempPassword={tempPassword} onClose={() => setTempPassword(null)} />
+      )}
+
       {confirmingRemove && student && (
         <RemoveMenteeConfirm
           student={student}
@@ -276,6 +348,80 @@ export default function AdminStudentArchivePage() {
         />
       )}
     </section>
+  );
+}
+
+/* ---------- 비밀번호 초기화 확인 창 (ADR 0019 — RemoveMenteeConfirm과 같은 패턴) ---------- */
+function ResetPasswordConfirm({ student, busy, error, onCancel, onConfirm }) {
+  return (
+    <Modal onClose={busy ? () => {} : onCancel} labelledBy="resetpw-title" className="confirm-modal">
+      <div className="mbody">
+        <h3 id="resetpw-title">비밀번호를 초기화할까요?</h3>
+        <p className="confirm-target">
+          {student.name} · {student.code}
+        </p>
+        <p className="confirm-desc">
+          <b>기존 비밀번호는 즉시 사용할 수 없게 됩니다.</b> 새 임시 비밀번호가 발급되면 학생에게
+          직접 전달해 주세요 — 이 화면을 벗어나면 다시 확인할 방법이 없습니다.
+        </p>
+        {error && (
+          <p className="pf-msg err" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="pf-actions">
+          <button type="button" className="pf-btn ghost" onClick={onCancel} disabled={busy}>
+            취소
+          </button>
+          <button type="button" className="pf-btn danger" onClick={onConfirm} disabled={busy}>
+            {busy ? '처리 중…' : '초기화'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------- 임시 비밀번호 결과 창 (ADR 0019) ----------
+   [저장하지 않는다] 이 값은 이 컴포넌트의 props로만 존재한다 — 부모(state)를 닫으면 값 자체가
+   메모리에서 사라진다. 새로고침하면 다시 볼 수 없다(의도된 동작 — "1회 표시"). */
+function TempPasswordModal({ student, tempPassword, onClose }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(tempPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch (err) {
+      console.warn('[AdminStudentArchive] 클립보드 복사 실패(화면의 값을 직접 읽어 전달하면 된다):', err);
+    }
+  }, [tempPassword]);
+
+  return (
+    <Modal onClose={onClose} labelledBy="temppw-title" className="confirm-modal">
+      <div className="mbody">
+        <h3 id="temppw-title">새 임시 비밀번호</h3>
+        <p className="confirm-target">
+          {student.name} · {student.code}
+        </p>
+        <div className="pwreveal">
+          <b className="val">{tempPassword}</b>
+          <button type="button" className="pwcopybtn" onClick={handleCopy}>
+            {copied ? '복사됨' : '복사'}
+          </button>
+        </div>
+        <p className="confirm-desc" style={{ marginTop: 14 }}>
+          이 값은 지금만 표시됩니다. 학생에게 전달해 로그인 후 원하는 비밀번호로 다시 설정하도록
+          안내해 주세요.
+        </p>
+        <div className="pf-actions">
+          <button type="button" className="pf-btn ghost" onClick={onClose}>
+            닫기
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

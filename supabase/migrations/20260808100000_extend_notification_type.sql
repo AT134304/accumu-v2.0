@@ -19,8 +19,12 @@
 --   1) 이 파일        (enum 값 커밋)
 --   2) 20260808120000 (관리자 알림 + 전환 알림)
 --   3) 20260808140000 (내일 예정·퇴장 미완료 알림 + 가입/연동 구분)
+--   4) 20260811200000 (대기열 승격 알림, ADR 0018 — 'promoted' 값이 필요하다)
+--   5) 20260811220000 (프로그램 일정 변경 알림, ADR 0018 — 'rescheduled' 값이 필요하다)
 --
---   재실행해도 안전하다(if not exists).
+--   재실행해도 안전하다(if not exists). >>> 이 파일이 이미 적용된 환경에서 새 값을 추가했다면,
+--   파일 전체를 다시 한 번(단독으로) 실행하기만 하면 된다 — 기존 값들은 add value if not exists라
+--   재적용이 안전하고, 새로 추가된 줄만 실제로 커밋된다.
 
 -- ---------------------------------------------------------
 -- 원본 4종 (20260806120000): new / apply / enter / exit
@@ -46,3 +50,13 @@ alter type public.notification_type add value if not exists 'upcoming_admin';
 
 -- 학생 — 입장은 했는데 퇴장 인증이 없다 (그 상태로는 포인트가 지급되지 않는다)
 alter type public.notification_type add value if not exists 'exit_due';
+
+-- ---------------------------------------------------------
+-- ADR 0018 (2026-08-11) — 대기열 승격 알림
+-- ---------------------------------------------------------
+
+-- 학생 — 대기 중이던 자리가 취소로 비어 자동 승격됨(cancel_my_participation, 20260811200000)
+alter type public.notification_type add value if not exists 'promoted';
+
+-- 학생 — 신청/대기 중인 프로그램의 일정(날짜·시간·진행일)이 관리자 수정으로 바뀜(20260811220000)
+alter type public.notification_type add value if not exists 'rescheduled';

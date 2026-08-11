@@ -208,6 +208,33 @@ export async function removeMentee(studentId) {
 }
 
 /**
+ * 담당 학생 비밀번호 초기화 (ADR 0019 — 관리자 기능 5번째).
+ *
+ * [왜 RPC가 아니라 Edge Function인가] 비밀번호는 auth.users(Supabase Auth 내부 스키마) 소관이라
+ *   일반 SQL로 안전하게 못 건드린다 — 이 앱의 계정 생성도 전부 Admin API(scripts/seed-accounts.mjs,
+ *   naver-auth/google-auth)를 거친다. 같은 원칙으로 비밀번호 변경도 admin.auth.admin.updateUserById를
+ *   쓰는 Edge Function(admin-reset-student-password)이 유일한 경로다.
+ * [권한 경계는 함수 안에 있다] 이 함수 자체는 호출만 할 뿐 권한을 검사하지 않는다 — Edge Function이
+ *   호출자의 JWT로 mentor_students를 다시 읽어 "진짜 내 담당 학생인가"를 확인한다(RLS 재사용).
+ * [비밀번호를 프런트가 만들지 않는다] 서버가 임의 생성해 1회 응답으로 돌려준다. 화면은 그 값을
+ *   저장하지 않고 한 번 보여준 뒤 버린다(state를 모달이 닫히면 버림).
+ *
+ * @param {string} studentId
+ * @returns {Promise<{ok:true, temp_password:string} | {ok:false, reason:'not_your_student'|'update_failed'}>}
+ * @throws 네트워크/함수 미배포 등 진짜 예외만 던진다.
+ */
+export async function resetStudentPassword(studentId) {
+  const { data, error } = await supabase.functions.invoke('admin-reset-student-password', {
+    body: { student_id: studentId },
+  });
+  if (error) {
+    console.error('[archiveService] admin-reset-student-password 호출 실패:', error);
+    throw error;
+  }
+  return data ?? { ok: false, reason: 'unknown' };
+}
+
+/**
  * 담당 학생 1명의 완료 활동 (상세 목록).
  * participations_select_mentored_as_admin 이 이미 "담당 5명 + completed" 로 좁혀 두었고,
  * 여기서는 화면에 띄울 학생 1명으로만 더 좁힌다.

@@ -336,6 +336,11 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
   const expiresMs = Date.parse(issued.expires_at);
   const remaining = Number.isNaN(expiresMs) ? 0 : expiresMs - now;
   const expired = remaining <= 0;
+  // [만료 임박 경고 — ADR 0018, 2026-08-11] 30분 내내 같은 회색이다가 0초에 갑자기 "지났습니다"로 바뀌면,
+  // 늦게 온 학생은 QR을 스캔대에 대는 순간 처음 만료를 알게 된다. 마지막 5분은 색을 바꿔 미리
+  // 눈에 띄게 한다 — 판정 자체는 여전히 서버(*_token_expires_at)가 한다, 이건 표시일 뿐이다.
+  const WARN_MS = 5 * 60 * 1000;
+  const warn = !expired && remaining <= WARN_MS;
 
   // 남은 유효시간 1초 틱. 이 값은 "표시"일 뿐 판정이 아니다 —
   // 만료 판정의 소유자는 서버의 *_token_expires_at 컬럼이다 (ADR 0005 결정 1-3).
@@ -559,9 +564,9 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
             </button>
           </>
         ) : (
-          <div className="countdown">
-            <span className="cdn">{mmss(remaining)}</span>
-            남음 · 시간이 지나면 다시 발급받을 수 있어요
+          <div className={warn ? 'countdown warn' : 'countdown'}>
+            <span className={warn ? 'cdn warn' : 'cdn'}>{mmss(remaining)}</span>
+            {warn ? '남음 · 곧 만료돼요, 스캔이 늦어지면 다시 발급받으세요' : '남음 · 시간이 지나면 다시 발급받을 수 있어요'}
           </div>
         )}
 

@@ -179,6 +179,25 @@ export async function fetchApplicantCounts() {
   return new Map((data ?? []).map((row) => [row.program_id, row.applicant_count]));
 }
 
+/**
+ * 내가 대기 중인 프로그램마다 몇 번째로 대기 중인지 (ADR 0018).
+ *
+ * [순번을 보여주는 이유] ADR 0016 때는 "순번은 순위처럼 읽힐 수 있다"며 의도적으로 숨겼지만, 케빈이
+ *   명시적으로 뒤집었다 — "내가 몇 번째인가"는 다른 학생과 겨루는 순위가 아니라 내 상황에 대한
+ *   사실 하나다(신청자 수를 연 것과 같은 논리, ADR 0016 결정 3).
+ *
+ * @returns {Promise<Map<string, number>>} program_id -> 순번(1부터). 대기 중이 아닌 프로그램은 없음.
+ *   조회 실패 시 빈 Map(열화 표시) — fetchApplicantCounts()와 같은 이유.
+ */
+export async function fetchMyWaitlistPositions() {
+  const { data, error } = await supabase.rpc('my_waitlist_positions');
+  if (error) {
+    console.warn('[programService] 대기 순번 조회 실패 — 표시 없이 진행합니다:', error);
+    return new Map();
+  }
+  return new Map((data ?? []).map((row) => [row.program_id, row.waitlist_position]));
+}
+
 /* ==========================================================================
    관리자 홈 (ADR 0005 결정 7-5 — 새 RLS 정책 0개)
    ========================================================================== */
