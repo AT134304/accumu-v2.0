@@ -3,11 +3,14 @@
 // (셸이 라우트 전환마다 다시 마운트되지 않아 나브 상태/스크롤이 튀지 않는다.)
 import { Outlet } from 'react-router-dom';
 import StudentShell from '../components/student/StudentShell';
+import { TutorialProvider } from '../context/TutorialContext';
 
 export default function StudentLayout() {
   return (
-    <StudentShell>
-      <Outlet />
-    </StudentShell>
+    <TutorialProvider>
+      <StudentShell>
+        <Outlet />
+      </StudentShell>
+    </TutorialProvider>
   );
 }

@@ -7,21 +7,27 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTutorial } from '../context/TutorialContext';
 import Icon from '../components/Icon';
 import StackViz from '../components/student/StackViz';
 import ProgramCard from '../components/student/ProgramCard';
-import { fetchRecommendedPrograms } from '../lib/programService';
+import { fetchAppliedProgramIds, fetchRecommendedPrograms, fetchTutorialProgram } from '../lib/programService';
 import { fetchCompletedActivities } from '../lib/participationService';
 import '../styles/StudentHome.css';
+import '../styles/Tutorial.css';
 
 export default function StudentHomePage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const tutorial = useTutorial();
 
   const [programs, setPrograms] = useState([]);
   const [state, setState] = useState('loading'); // 'loading' | 'ready' | 'error'
   // 마일스톤 스택 데이터 (확정 B-1). 추천 조회와 독립적으로 실패해도 홈 전체가 죽지 않아야 한다.
   const [completed, setCompleted] = useState([]);
+  // [ADR 0021] 신규 학생 가이드 트래커 시작 CTA. 튜토리얼 프로그램에 아직 참여 이력이 없을 때만 보인다 —
+  // 이미 한 번이라도 신청했다면(완료 전이든 후든) 다시 권하지 않는다(participations는 1인 1회 unique다).
+  const [tutorialCta, setTutorialCta] = useState(null); // {id, title} | null
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +73,24 @@ export default function StudentHomePage() {
     };
   }, []);
 
+  // [ADR 0021] 튜토리얼 CTA 노출 판정 — 두 조회 다 실패해도(마이그레이션 미적용 등) 조용히 숨긴다.
+  // 이 홈 화면이 "신규 학생 온보딩"의 유일한 진입점이라 실패해도 화면 자체는 죽으면 안 된다.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [program, appliedIds] = await Promise.all([fetchTutorialProgram(), fetchAppliedProgramIds()]);
+        if (cancelled) return;
+        if (program && !appliedIds.has(program.id)) setTutorialCta(program);
+      } catch (err) {
+        console.warn('[StudentHome] 튜토리얼 CTA 판정 실패 — 숨깁니다:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // 확정 B: 카드/전체 보기 클릭 -> 프로그램 선택 화면 경로로 라우팅 (대상은 아직 placeholder).
   const goPrograms = () => navigate('/student/programs');
 
@@ -78,6 +102,31 @@ export default function StudentHomePage() {
 
   return (
     <section className="screen">
+      {/* ===== 신규 학생 가이드 트래커 시작 CTA (ADR 0021) =====
+          [트래커가 이미 켜져 있으면 다시 안 보여준다] 배너 자체가 "시작해볼까요?" 권유라, 이미
+          시작한 학생에게 또 보이면 이중 초대가 된다. */}
+      {tutorialCta && !tutorial.active && (
+        <div className="tut-cta">
+          <div className="tut-cta-ic" aria-hidden="true">
+            <Icon name="ic-compass" size={20} color="var(--brand)" />
+          </div>
+          <div className="tut-cta-body">
+            <h4>Accumu가 처음이신가요?</h4>
+            <p>신청부터 QR 인증, 포인트 적립까지 짧은 연습으로 사용법을 익혀보세요.</p>
+          </div>
+          <button
+            type="button"
+            className="tut-cta-btn"
+            onClick={() => {
+              tutorial.start();
+              setTutorialCta(null);
+            }}
+          >
+            시작하기
+          </button>
+        </div>
+      )}
+
       {/* ===== 히어로 (성장/포트폴리오 서사 — brand blue 우선) ===== */}
       <div className="hero">
         <div className="glow" />

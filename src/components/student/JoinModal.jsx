@@ -18,6 +18,7 @@
 import { useState } from 'react';
 import Modal from '../Modal';
 import Icon from '../Icon';
+import { useTutorial } from '../../context/TutorialContext';
 import { catOf, statusOf } from '../../lib/taxonomy';
 import { fmtDateRange, todayISO } from '../../lib/date';
 
@@ -46,14 +47,16 @@ export default function JoinModal({
 }) {
   const c = catOf(program.category);
   const st = statusOf(program.status);
+  const tutorial = useTutorial();
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
   const [cancelMsg, setCancelMsg] = useState(null);
 
   // todayISO()는 로컬(KST) 기준. toISOString()은 KST 오전 9시 이전에 하루 밀린다 (ADR 0003 6번).
   // [기간제] 종료일이 지나야 "끝난 활동"이다 — 시작한 뒤에도 기간 중에는 계속 신청 가능해야 한다.
+  // [is_tutorial — ADR 0021] date 값 자체가 의미 없는 자리표시자다 — "지난 날짜" 판정에서 제외한다.
   const today = todayISO();
-  const isPast = (program.end_date ?? program.date) < today;
+  const isPast = !program.is_tutorial && (program.end_date ?? program.date) < today;
   const isPeriod = Boolean(program.end_date);
 
   const status = participation?.status; // undefined | applied | waitlisted | entered | completed
@@ -148,7 +151,8 @@ export default function JoinModal({
             <div className="k">
               <Icon name="ic-calendar" size={14} /> 날짜
             </div>
-            <div className="v">{fmtDateRange(program.date, program.end_date)}</div>
+            {/* [is_tutorial — ADR 0021] date 값 자체가 자리표시자라 그대로 찍지 않는다. */}
+            <div className="v">{program.is_tutorial ? '상시 진행' : fmtDateRange(program.date, program.end_date)}</div>
           </div>
           <div className="it">
             <div className="k">
@@ -202,10 +206,20 @@ export default function JoinModal({
             기능 자체가 없었다. 지금은 실제로 있으므로(CLAUDE.md 6장) 더 이상 거짓 약속이 아니다.
             기간제와 똑같이 "신청 후 QR로 뭘 해야 하는지"를 미리 말해준다 — 안 그러면 신청만 하고
             QR 센터를 어떻게 찾는지 몰라 참여를 놓치는 학생이 생긴다. */}
-        {!isPeriod && (
+        {!isPeriod && !program.is_tutorial && (
           <p className="join-period-note">
             신청 후 <b>마이페이지 · QR 확인</b>에서 입장 QR을 인증해야 참석이 시작되고, 종료 시
             퇴장 QR을 인증해야 포인트가 지급됩니다.
+          </p>
+        )}
+        {/* [튜토리얼 전용 안내 — ADR 0021] 일반 안내와 문구를 다르게 쓴다 — 이 프로그램은 실제 활동이
+            아니라 QR 인증·아카이브·포인트가 어떻게 이어지는지 미리 보여주는 연습이라는 점, 그리고
+            관리자 스캔 없이 자동으로 인증된다는 점을 신청 전에 알려준다. */}
+        {program.is_tutorial && (
+          <p className="join-period-note">
+            신청 후 <b>마이페이지 · QR 확인</b>에서 입·퇴장 QR을 인증해 보세요. 실제 활동과 달리
+            카메라 스캔 없이 QR을 보여주면 자동으로 인증됩니다 — Accumu의 QR 인증·포인트 지급·
+            디지털 아카이브 기록 과정을 미리 체험해 보는 연습용 활동이에요.
           </p>
         )}
 
@@ -224,7 +238,15 @@ export default function JoinModal({
           </div>
         )}
 
-        <button type="button" className="mbtn" disabled={disabled || pending} onClick={handleApply}>
+        {/* [ADR 0021] 튜토리얼 프로그램 신청 버튼만 2단계 하이라이트 대상이 된다 — 실제 신청 성공
+            여부를 다시 확인하지 않는 근사치 트래커라, 클릭 자체를 "신청했다"로 본다. */}
+        <button
+          type="button"
+          className="mbtn"
+          disabled={disabled || pending}
+          onClick={handleApply}
+          data-tutorial={program.is_tutorial && tutorial.isStep(2) ? 2 : undefined}
+        >
           {pending ? '처리 중…' : label}
         </button>
 

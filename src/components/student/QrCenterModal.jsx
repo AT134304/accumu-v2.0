@@ -14,6 +14,7 @@ import Icon from '../Icon';
 import Modal from '../Modal';
 import ReviewForm from './ReviewForm';
 import { useAuth } from '../../context/AuthContext';
+import { useTutorial } from '../../context/TutorialContext';
 import { catOf } from '../../lib/taxonomy';
 import { fmtDateRange, todayISO } from '../../lib/date';
 import {
@@ -24,6 +25,7 @@ import {
   issueAttendanceQr,
   issueQr,
   issueRejectText,
+  verifyTutorialQr,
 } from '../../lib/participationService';
 import '../../styles/Qr.css';
 
@@ -38,6 +40,11 @@ import '../../styles/Qr.css';
 const POLL_FAST_MS = 2_000;
 const POLL_SLOW_MS = 10_000;
 const POLL_FAST_WINDOW_MS = 120_000; // QR 표시(또는 재발급) 후 2분
+
+// [ADR 0021] 튜토리얼 프로그램은 관리자 스캔을 기다리지 않고 학생 화면이 직접 검증을 부른다.
+// 0초 즉시 처리하면 "QR이 뭘 하는 물건인지" 느낄 틈도 없이 화면이 넘어간다 — 실제 스캔 한 번의
+// 체감 시간과 비슷하게 짧은 지연을 둔다. 판정 자체와는 무관한 순수 연출용 상수다.
+const TUTORIAL_AUTO_VERIFY_MS = 1_600;
 
 /** 참여 상태 -> 목록 보조 문구 (프로토타입 1013줄 카피). 단일 일자 프로그램 전용 —
  *  기간제는 참여 전체 상태가 아니라 "오늘" 세션 상태를 보여줘야 해서 periodActionOf()가 별도로 만든다. */
@@ -56,9 +63,11 @@ function programView(program) {
       color: cat.color,
       soft: cat.soft,
       // 기간제(program.end_date 있음)는 범위로 찍힌다 — fmtDateRange가 단일 일자면 자동으로 fmtDate와 같다.
-      meta: [fmtDateRange(program.date, program.end_date), program.points ? `+${program.points}P` : null].filter(
-        Boolean
-      ),
+      // [is_tutorial — ADR 0021] date 값이 자리표시자라 그대로 찍지 않는다.
+      meta: [
+        program.is_tutorial ? '상시 진행' : fmtDateRange(program.date, program.end_date),
+        program.points ? `+${program.points}P` : null,
+      ].filter(Boolean),
       points: program.points ?? null,
     };
   }
@@ -128,6 +137,7 @@ function periodActionOf(item, sessions) {
 }
 
 export default function QrCenterModal({ onClose }) {
+  const tutorial = useTutorial();
   const [items, setItems] = useState([]);
   // 기간제 참여 건의 "오늘까지의 출석 기록" — participation.id -> attendance_sessions 행 배열.
   // 단일 일자 항목은 이 맵에 없다(조회 자체를 하지 않는다).
@@ -261,6 +271,9 @@ export default function QrCenterModal({ onClose }) {
                     ? [period.label, period.note].filter(Boolean).join(' · ')
                     : STATUS_LABEL[it.status] ?? it.status;
                   const disabled = busyId === it.id || (period ? period.disabled : false);
+                  // [ADR 0021] 튜토리얼 참여의 입장/퇴장 버튼만 각각 5·7단계 하이라이트 대상이다.
+                  const isTutorial = Boolean(it.program?.is_tutorial);
+                  const tutStep = isTutorial ? (isEntry ? tutorial.isStep(5) && 5 : tutorial.isStep(7) && 7) : undefined;
                   return (
                     <div className="qi" key={it.id}>
                       <div className="ic" style={{ background: v.soft }}>
@@ -277,6 +290,7 @@ export default function QrCenterModal({ onClose }) {
                         className={isEntry ? 'scanbtn enter' : 'scanbtn exit'}
                         onClick={() => openQr(it, period ? period.type : isEntry ? 'entry' : 'exit', Boolean(period))}
                         disabled={disabled}
+                        data-tutorial={tutStep || undefined}
                       >
                         {busyId === it.id
                           ? '발급 중…'
@@ -309,12 +323,15 @@ function mmss(ms) {
 function QrView({ participation, type, issued: initialIssued, period, onBack, onClose }) {
   const isEntry = type === 'entry';
   const v = programView(participation.program);
+  // [ADR 0021] 관리자 스캔 대신 학생 화면이 직접 verify_tutorial_qr()을 부르는 참여인지.
+  const isTutorial = Boolean(participation.program?.is_tutorial);
 
   // [기간제 지급 방식 — 20260809160000] 카드/QR 목록과 같은 필드(participation.program.attendance_payout_mode).
   // period=true인데도 값이 없으면(레거시 데이터) 'full'로 취급한다 — DB가 백필해두지만 프런트도 fail-safe.
   const payoutMode = period ? participation.program?.attendance_payout_mode ?? 'full' : null;
 
   const { refreshProfile } = useAuth();
+  const tutorial = useTutorial();
   const [issued, setIssued] = useState(initialIssued);
   const [now, setNow] = useState(() => Date.now());
   const [done, setDone] = useState(false);
@@ -420,7 +437,9 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
   // 이전 요청이 끝난 뒤에 다음을 잡아 느린 네트워크에서 요청이 겹쳐 쌓이지 않는다.
   // issued.token 이 의존성에 있어 "다시 발급받기"를 누르면 빠른 구간이 새로 시작된다(= 다시 스캔할 상황).
   useEffect(() => {
-    if (done) return undefined;
+    // [ADR 0021] 튜토리얼은 관리자가 스캔할 일이 없다 — 폴링할 대상(관리자의 스캔 행위)이 애초에
+    // 없으므로 이 효과 자체를 돌리지 않는다. 아래 별도 효과가 검증을 직접 부른다.
+    if (done || isTutorial) return undefined;
     const startedAt = Date.now();
     let timer = null;
 
@@ -442,7 +461,45 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
       if (timer) clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [done, checkOnce, issued.token]);
+  }, [done, isTutorial, checkOnce, issued.token]);
+
+  // [ADR 0021] 튜토리얼 셀프 검증 — 관리자 스캔 대신 이 효과가 직접 verify_tutorial_qr()을 부른다.
+  // 나머지(exitOutcome 조립·profile 잔액 새로고침·done 전환)는 위 checkOnce의 성공 분기와 같은 결과를
+  // 만든다 — "누가 검증을 트리거했는가"만 다르고 그 뒤 화면 흐름은 동일해야 두 경로가 갈라지지 않는다.
+  useEffect(() => {
+    if (!isTutorial || done) return undefined;
+    const timer = setTimeout(async () => {
+      if (doneRef.current) return;
+      try {
+        const res = await verifyTutorialQr(issued.token);
+        if (doneRef.current) return;
+        if (!res.ok) {
+          // 정상 경로에선 사실상 발생하지 않는다(막 발급받은 토큰이라서다) — 그래도 조용히 넘기지 않는다.
+          setNotice('자동 인증에 실패했어요. "다시 발급받기" 없이도 목록에서 다시 시도할 수 있어요.');
+          return;
+        }
+        doneRef.current = true;
+        if (isEntry) {
+          setDone(true);
+          return;
+        }
+        setExitOutcome({ pointsAwarded: true, fullyCompleted: true });
+        setDone(true);
+        refreshProfile?.().catch((err) =>
+          console.warn('[QrCenterModal] 잔액 갱신 실패(표시만 지연됨):', err)
+        );
+        // [ADR 0021] 8단계("만족도·한줄평 입력")는 리뷰폼이 실제로 뜨는 이 시점에 넘긴다 — 클릭
+        // 기반이 아니라 여기서 명시적으로 부르는 이유는, 직전 클릭(퇴장 QR)이 이미 7단계를 넘겼고
+        // 8단계로 넘어갈 자연스러운 다음 클릭이 없기 때문이다(리뷰폼 자체를 감시하면 별점을 눌러
+        // 보기만 해도 넘어가 버린다 — 실제로 제출/건너뛰기 전까지는 근사치조차 부정확해진다).
+        if (tutorial.isStep(7)) tutorial.advance();
+      } catch (err) {
+        console.error('[QrCenterModal] 튜토리얼 자동 인증 실패:', err);
+        setNotice('자동 인증에 실패했어요. 잠시 후 다시 시도해 주세요.');
+      }
+    }, TUTORIAL_AUTO_VERIFY_MS);
+    return () => clearTimeout(timer);
+  }, [isTutorial, done, isEntry, issued.token, refreshProfile, tutorial]);
 
   async function reissue() {
     if (busy) return;
@@ -522,11 +579,15 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
             <div className="qr-reviewdone muted">평가는 아카이브에서 언제든 남길 수 있어요</div>
           )}
 
+          {/* [ADR 0021] 튜토리얼 입장 완료 화면의 "목록으로"만 6단계 하이라이트 대상이다 — 그 시점엔
+              입장이 이미 자동 인증돼 있으므로, 이 버튼을 누르는 것이 곧 "7단계(퇴장 QR)로 넘어가겠다"는
+              뜻이다. */}
           <button
             type="button"
             className="mbtn"
             style={{ marginTop: 22 }}
             onClick={isEntry || !exitOutcome.fullyCompleted ? onBack : onClose}
+            data-tutorial={isTutorial && isEntry && tutorial.isStep(6) ? 6 : undefined}
           >
             {isEntry || !exitOutcome.fullyCompleted ? '목록으로' : '확인'}
           </button>
@@ -553,9 +614,18 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
         <h3 id="qr-title" style={{ marginTop: 16 }}>
           {v.title}
         </h3>
-        <div className="desc">현장의 QR 리더기에 인식시켜 주세요.</div>
+        <div className="desc">
+          {isTutorial ? '잠시만 기다려 주세요, 자동으로 인증됩니다.' : '현장의 QR 리더기에 인식시켜 주세요.'}
+        </div>
 
-        {expired ? (
+        {/* [ADR 0021 — 튜토리얼 전용 안내] "QR 옆에" 자동 인증 사실을 명시한다. 실제 참여의 카운트다운/
+            만료/재발급/수동 코드 UI는 여기서 의미가 없다 — 발급 후 TUTORIAL_AUTO_VERIFY_MS 안에 이미
+            끝난다. 그 UI들을 그대로 두면 "30분 안에 스캔하세요"라는 거짓 정보가 된다. */}
+        {isTutorial ? (
+          <div className="qr-tutorial-note" role="status">
+            이 프로그램은 튜토리얼이라 자동 인증됩니다. 실제 활동은 관리자가 QR을 직접 스캔해요.
+          </div>
+        ) : expired ? (
           <>
             <div className="countdown expired">유효시간이 지났습니다</div>
             <button type="button" className="qr-reissue" onClick={reissue} disabled={busy}>
@@ -571,10 +641,13 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
         )}
 
         {/* 수동 확인용 코드. 학생은 검증 RPC 호출 권한이 없으므로 자기 토큰을 알아도 스스로 인증할 수 없다
-            (스펙 "시연 환경 전제"). 웹캠 인식이 실패할 때 관리자가 이 코드를 직접 입력한다(확정 D-1). */}
-        <div className="qr-code-text">
-          코드 <b>{issued.token}</b>
-        </div>
+            (스펙 "시연 환경 전제"). 웹캠 인식이 실패할 때 관리자가 이 코드를 직접 입력한다(확정 D-1).
+            [튜토리얼은 숨긴다] 스스로 검증하는 참여라 "수동 확인용 코드"라는 문구 자체가 성립하지 않는다. */}
+        {!isTutorial && (
+          <div className="qr-code-text">
+            코드 <b>{issued.token}</b>
+          </div>
+        )}
 
         {notice && <div className="qr-notice">{notice}</div>}
 

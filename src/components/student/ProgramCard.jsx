@@ -94,8 +94,9 @@ export default function ProgramCard({
         <div className="meta">
           <Icon name="ic-calendar" size={13} />
           {/* date는 프런트에서 "7월 16일 (목)"으로 포맷. 기간제(end_date 있음)는 범위로 찍힌다(fmtDateRange).
-              time은 자유 텍스트라 파싱 없이 그대로 출력. */}
-          {fmtDateRange(program.date, program.end_date)} · {program.time}
+              time은 자유 텍스트라 파싱 없이 그대로 출력.
+              [is_tutorial — ADR 0021] date 컬럼 값 자체가 의미 없는 자리표시자라 그대로 찍지 않는다. */}
+          {program.is_tutorial ? '상시 진행' : fmtDateRange(program.date, program.end_date)} · {program.time}
         </div>
         {/* 신청자 수 — 케빈 요청(2026-08-10) "신청자 수를 보이게 해" (ADR 0016). 순위·비교가 아니라
             그 카드 하나의 사실이다. applicantCount가 null(홈 추천 카드 등, 아직 조회 안 함)이면

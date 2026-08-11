@@ -22,6 +22,11 @@
 .qtag.exit { background: var(--indigo-soft); color: var(--indigo); }
 
 .qr-lead { font-size: 13.5px; color: var(--muted); line-height: 1.55; margin-bottom: 6px; }
+/* 튜토리얼 자동 인증 안내(ADR 0021) — 오류가 아니라 사실 고지라 join-hint와 같은 중립 톤을 쓴다. */
+.qr-tutorial-note {
+  margin-top: 14px; padding: 9px 12px; border-radius: 10px; background: #EEF1F6;
+  font-size: 12.5px; font-weight: 700; color: var(--ink2); text-align: center; line-height: 1.5;
+}
 .qr-notice {
   margin-top: 12px; padding: 10px 12px; border-radius: 10px;
   background: var(--amber-soft); color: #8A5A15; font-size: 12.5px; font-weight: 600; line-height: 1.5;

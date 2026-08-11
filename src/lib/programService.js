@@ -14,8 +14,10 @@ import { todayISO } from './date';
 // [capacity — ADR 0016] 이전에는 "정원은 조회하지 않는다"가 원칙이었다(ADR 0006 결정 6-1 — 응답에
 //   숫자가 없다). 취소·대기열이 생기며 그 결정의 "재검토 시점"이 왔고, 케빈이 "신청자 수를 보이게 해"로
 //   명시적으로 뒤집었다. JoinModal이 신청자 수와 나란히 보여준다 — 카드에는 여전히 안 찍는다.
+// [is_tutorial — ADR 0021] true면 "지난 날짜" 판정(확정 H-1)에서 제외하고 "상시 진행"으로 표시한다.
+//   앱 전체에서 이 값이 true인 행은 시딩으로 심은 튜토리얼 프로그램 하나뿐이다.
 const CARD_FIELDS =
-  'id, category, title, org, date, end_date, time, points, capacity, career_track, status, attendance_payout_mode, min_attendance_days, session_dates';
+  'id, category, title, org, date, end_date, time, points, capacity, career_track, status, attendance_payout_mode, min_attendance_days, session_dates, is_tutorial';
 
 // 프로그램 선택 화면용. 카드 필드 + 팝업(description) + 클라이언트 정렬 입력(popularity/created_at).
 //
@@ -196,6 +198,28 @@ export async function fetchMyWaitlistPositions() {
     return new Map();
   }
   return new Map((data ?? []).map((row) => [row.program_id, row.waitlist_position]));
+}
+
+/**
+ * 신규 학생 온보딩용 튜토리얼 프로그램 1건(ADR 0021). 홈 화면이 "처음이신가요?" 시작 CTA를 보여줄지
+ * 판단하는 데만 쓴다 — 표시할 값이 title/id 둘뿐이라 CARD_FIELDS 전체를 가져오지 않는다.
+ *
+ * @returns {Promise<{id: string, title: string} | null>} 실패해도 null(열화 표시 — CTA를 안 보여줄 뿐,
+ *   홈 화면 자체는 죽지 않는다).
+ */
+export async function fetchTutorialProgram() {
+  const { data, error } = await supabase
+    .from('programs')
+    .select('id, title')
+    .eq('is_tutorial', true)
+    .eq('is_published', true)
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.warn('[programService] 튜토리얼 프로그램 조회 실패:', error);
+    return null;
+  }
+  return data ?? null;
 }
 
 /* ==========================================================================
@@ -423,7 +447,9 @@ export async function fetchRecommendedPrograms(profile, limit = 8) {
       // `date >= 오늘`이라 "오늘 이미 끝난 프로그램"은 노출된다 — 프로토타입과 동일한 의도적 동작(ADR 0003 6번).
       // [기간제 — or 조건] date >= 오늘(아직 시작 안 함) 이거나 end_date >= 오늘(진행 중 또는 끝나지 않음).
       //   단일 일자 프로그램은 end_date 가 NULL 이라 뒷 조건이 항상 거짓이 되어 기존 동작과 같다.
-      .or(`date.gte.${iso},end_date.gte.${iso}`)
+      // [is_tutorial — ADR 0021] date 값이 자리표시자라 시간이 지나면 위 두 조건이 전부 거짓이 되어
+      //   튜토리얼 프로그램이 조용히 추천에서 빠진다 — 세 번째 조건으로 항상 통과시킨다.
+      .or(`date.gte.${iso},end_date.gte.${iso},is_tutorial.eq.true`)
       .order('created_at', { ascending: false })
       .limit(50), // 안전 상한. 데모 실제 행 수는 16~20.
     fetchAppliedProgramIds(),

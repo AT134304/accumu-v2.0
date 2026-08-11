@@ -4,25 +4,31 @@
 import { useCallback, useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useTutorial } from '../../context/TutorialContext';
 import Icon from '../Icon';
 import NotifPopup from './NotifPopup';
 import CalendarPopup from './CalendarPopup';
+import TutorialOverlay from './TutorialOverlay';
 import { fetchUnreadCount, syncMyNotices } from '../../lib/notificationService';
 import '../../styles/StudentShell.css';
 
 // 데스크톱 상단 메뉴 (모바일 ≤768px에서는 숨기고 하단 탭바로 대체)
+// [tutorialSteps — ADR 0021] 이 링크가 가이드 트래커의 하이라이트 대상이 되는 단계 번호들.
+//   마이페이지는 1·4·11단계 두 번 나온다(케빈이 준 순서) — 배열로 둔다. 데스크톱/모바일 둘 다 같은
+//   목적지로 가는 링크가 있어(MENU/TABS 각각) 두 배열 모두에 같은 번호를 붙인다 — 화면 폭에 따라
+//   어느 쪽이 보이든 하이라이트가 항상 맞는 요소를 찾는다.
 const MENU = [
-  { to: '/student/programs', icon: 'ic-compass', label: '프로그램' },
-  { to: '/student/archive', icon: 'ic-folder', label: '디지털 아카이브' },
-  { to: '/student/mypage', icon: 'ic-user', label: '마이페이지' },
+  { to: '/student/programs', icon: 'ic-compass', label: '프로그램', tutorialSteps: [1] },
+  { to: '/student/archive', icon: 'ic-folder', label: '디지털 아카이브', tutorialSteps: [9] },
+  { to: '/student/mypage', icon: 'ic-user', label: '마이페이지', tutorialSteps: [4, 11] },
 ];
 
 // 모바일 하단 탭바 4개 (CLAUDE.md 8장)
 const TABS = [
   { to: '/student', icon: 'ic-home', label: '홈', end: true },
-  { to: '/student/programs', icon: 'ic-compass', label: '프로그램' },
-  { to: '/student/archive', icon: 'ic-folder', label: '아카이브' },
-  { to: '/student/mypage', icon: 'ic-user', label: '마이' },
+  { to: '/student/programs', icon: 'ic-compass', label: '프로그램', tutorialSteps: [1] },
+  { to: '/student/archive', icon: 'ic-folder', label: '아카이브', tutorialSteps: [9] },
+  { to: '/student/mypage', icon: 'ic-user', label: '마이', tutorialSteps: [4, 11] },
 ];
 
 const navClass = ({ isActive }) => (isActive ? 'on' : undefined);
@@ -30,9 +36,13 @@ const navClass = ({ isActive }) => (isActive ? 'on' : undefined);
 export default function StudentShell({ children }) {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const tutorial = useTutorial();
   // 'notif' | 'calendar' | null
   const [popup, setPopup] = useState(null);
   const [unread, setUnread] = useState(0);
+
+  // [ADR 0021] 이 단계 목록 중 하나와 지금 단계가 같으면 그 요소가 하이라이트 대상이다.
+  const tutStep = (steps) => (tutorial.active && steps?.includes(tutorial.step) ? tutorial.step : undefined);
 
   const points = profile?.points_balance ?? 0;
   const initial = profile?.name?.trim()?.[0] ?? '';
@@ -81,7 +91,7 @@ export default function StudentShell({ children }) {
 
         <div className="menu">
           {MENU.map((m) => (
-            <NavLink key={m.to} to={m.to} className={navClass}>
+            <NavLink key={m.to} to={m.to} className={navClass} data-tutorial={tutStep(m.tutorialSteps)}>
               <Icon name={m.icon} size={18} />
               {m.label}
             </NavLink>
@@ -98,6 +108,7 @@ export default function StudentShell({ children }) {
           className="bell"
           onClick={() => setPopup('notif')}
           aria-label={unread > 0 ? `알림 ${unread}건` : '알림'}
+          data-tutorial={tutStep([3])}
         >
           <Icon name="ic-bell" size={22} />
           {/* 확정 C 가 dot 을 금지했던 이유는 "근거 없는 가짜 표시"였다. 이제 실제 개수를 세므로
@@ -137,12 +148,14 @@ export default function StudentShell({ children }) {
 
       <nav className="bottomnav">
         {TABS.map((t) => (
-          <NavLink key={t.to} to={t.to} end={t.end} className={navClass}>
+          <NavLink key={t.to} to={t.to} end={t.end} className={navClass} data-tutorial={tutStep(t.tutorialSteps)}>
             <Icon name={t.icon} size={22} />
             <span>{t.label}</span>
           </NavLink>
         ))}
       </nav>
+
+      <TutorialOverlay />
 
       {popup === 'calendar' && <CalendarPopup onClose={() => setPopup(null)} />}
       {popup === 'notif' && (

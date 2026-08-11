@@ -130,9 +130,12 @@ export default function StudentProgramsPage() {
         .filter((row) => row.list.length > 0);
 
     // [기간제] "지난"의 기준은 종료일이다 — 시작일이 지났어도 기간 중이면 여전히 참여할 수 있는 쪽이다.
+    // [is_tutorial — ADR 0021] 튜토리얼 프로그램은 date 값 자체에 의미가 없다("상시 진행") — 어떤
+    // 날짜를 넣어도 "지난 프로그램"으로 떨어지지 않게 항상 upcoming 쪽으로 분류한다.
     const endOf = (p) => p.end_date ?? p.date;
-    const nextUpcomingRows = buildRows(visible.filter((p) => endOf(p) >= today));
-    const nextPastRows = buildRows(visible.filter((p) => endOf(p) < today));
+    const isPastProgram = (p) => !p.is_tutorial && endOf(p) < today;
+    const nextUpcomingRows = buildRows(visible.filter((p) => !isPastProgram(p)));
+    const nextPastRows = buildRows(visible.filter((p) => isPastProgram(p)));
 
     const count =
       nextUpcomingRows.reduce((m, r) => m + r.list.length, 0) +

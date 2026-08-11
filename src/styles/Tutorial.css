@@ -1,0 +1,64 @@
+/* Accumu v2 — 가이드 트래커(TutorialOverlay, ADR 0021)
+   .overlay(모달 배경)가 z-index:200이라 그 위에 항상 보이도록 300을 쓴다 — 트래커가 켜진 동안은
+   QR 모달·참여 팝업 안의 버튼도 하이라이트해야 하기 때문이다. */
+
+.tut-ring {
+  position: fixed; z-index: 300; pointer-events: none; border-radius: 14px;
+  border: 3px solid var(--brand); box-shadow: 0 0 0 4px var(--brand-soft), 0 0 18px rgba(37, 99, 235, .55);
+  animation: tut-pulse 1.6s ease-in-out infinite;
+  transition: top .12s ease, left .12s ease, width .12s ease, height .12s ease;
+}
+@keyframes tut-pulse {
+  0%, 100% { opacity: .75; }
+  50% { opacity: 1; }
+}
+
+.tut-banner {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+  z-index: 300; width: min(420px, calc(100vw - 32px));
+  background: var(--ink); color: #fff; border-radius: 16px; padding: 14px 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .28);
+}
+.tut-head { display: flex; align-items: center; justify-content: space-between; }
+.tut-step {
+  font-size: 11px; font-weight: 800; letter-spacing: .4px; color: #BCD0FF;
+  background: rgba(255, 255, 255, .1); padding: 3px 9px; border-radius: 20px;
+}
+.tut-close {
+  width: 24px; height: 24px; border-radius: 8px; color: #fff; opacity: .6;
+  font-size: 17px; line-height: 1; display: grid; place-items: center;
+}
+.tut-close:hover { opacity: 1; background: rgba(255, 255, 255, .12); }
+.tut-text { margin-top: 8px; font-size: 13.5px; line-height: 1.55; }
+.tut-next {
+  margin-top: 12px; width: 100%; height: 38px; border-radius: 10px;
+  background: var(--brand); color: #fff; font-weight: 700; font-size: 13.5px; transition: .14s;
+}
+.tut-next:hover { background: var(--brand-dk); }
+
+@media (max-width: 430px) {
+  .tut-banner { bottom: 78px; } /* 하단 탭바를 가리지 않는다 */
+}
+
+/* ---------- 홈 화면 시작 CTA(ADR 0021) — 오버레이가 아니라 일반 페이지 흐름 안의 카드다 ---------- */
+.tut-cta {
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px; margin-bottom: 18px;
+  background: var(--brand-soft); border: 1px solid var(--brand-soft); border-radius: var(--r);
+}
+.tut-cta-ic {
+  flex: none; width: 40px; height: 40px; border-radius: 12px; background: #fff;
+  display: grid; place-items: center;
+}
+.tut-cta-body { flex: 1; min-width: 0; }
+.tut-cta-body h4 { font-size: 14.5px; font-weight: 800; letter-spacing: -.2px; color: var(--ink); }
+.tut-cta-body p { font-size: 12.5px; color: var(--ink2); margin-top: 2px; line-height: 1.5; }
+.tut-cta-btn {
+  flex: none; height: 38px; padding: 0 16px; border-radius: 10px; background: var(--brand);
+  color: #fff; font-weight: 700; font-size: 13px; transition: .14s;
+}
+.tut-cta-btn:hover { background: var(--brand-dk); }
+
+@media (max-width: 600px) {
+  .tut-cta { flex-wrap: wrap; }
+  .tut-cta-btn { width: 100%; }
+}

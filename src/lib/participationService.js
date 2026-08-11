@@ -15,9 +15,10 @@ import { supabase } from './supabaseClient';
  *  end_date — 기간제 프로그램 판별(not null)과 QR 센터의 "오늘 세션" 범위 계산에 쓴다.
  *  attendance_payout_mode — QR 센터가 "이번 퇴장에서 포인트가 지급되는가"를 판정할 때 쓴다
  *  (20260809160000). min_attendance_days는 QR 센터 화면에 노출하지 않는다(원칙 1 — 남은 일수 게이지 금지).
- *  session_dates — "오늘이 실제 진행일인가"를 QR 센터가 판정할 때 쓴다(20260809180000). */
+ *  session_dates — "오늘이 실제 진행일인가"를 QR 센터가 판정할 때 쓴다(20260809180000).
+ *  is_tutorial — QR 센터가 관리자 스캔 대신 verify_tutorial_qr() 셀프 검증 경로를 탈지 판정한다(ADR 0021). */
 const PROGRAM_FIELDS =
-  'id, category, title, date, end_date, time, points, attendance_payout_mode, session_dates';
+  'id, category, title, date, end_date, time, points, attendance_payout_mode, session_dates, is_tutorial';
 
 /* ==========================================================================
    조회
@@ -124,6 +125,27 @@ export async function issueQr({ participationId, type }) {
  */
 export function buildQrPayload(issued) {
   return issued.token;
+}
+
+/**
+ * 튜토리얼 프로그램 QR 셀프 검증 (ADR 0021).
+ *
+ * [관리자 스캔이 없는 유일한 참여] 이 함수를 부를 수 있는 대상은 서버가 정한다(programs.is_tutorial=
+ *   true인 참여 건만) — 클라이언트가 "이건 튜토리얼이니까 셀프 인증 API를 불러도 된다"고 판단하는
+ *   게 아니다. 실제 프로그램의 토큰으로 호출하면 서버가 reason:'not_tutorial'로 거부한다.
+ * [QrCenterModal이 폴링 대신 이 함수를 직접 부른다] 일반 참여는 "관리자가 스캔했는가"를 10초 폴링으로
+ *   확인하지만, 튜토리얼은 검증 자체를 학생 화면이 수행하므로 폴링할 대상(관리자의 스캔 행위)이
+ *   애초에 없다.
+ *
+ * @param {string} token buildQrPayload(issued)와 같은 값(발급된 토큰 그 자체).
+ * @returns {Promise<{ok:true, type:'entry'|'exit', points_awarded?:number} |
+ *                    {ok:false, reason:'not_found'|'not_tutorial'|'used'|'expired'|'wrong_order'|'already_completed'}>}
+ * @throws 42501(비로그인)·네트워크 등 진짜 예외만 던진다.
+ */
+export async function verifyTutorialQr(token) {
+  const { data, error } = await supabase.rpc('verify_tutorial_qr', { p_token: token });
+  if (error) throw error;
+  return data ?? { ok: false, reason: 'unknown' };
 }
 
 /* ==========================================================================
