@@ -473,3 +473,63 @@ export async function completeGoogleLogin({ code, state }) {
 
   return { ok: true };
 }
+
+/* ==========================================================================
+   비밀번호 변경/재설정 (ADR 0020)
+   ========================================================================== */
+
+/**
+ * 본인 비밀번호 변경 — 로그인된 세션에서만 호출한다.
+ *
+ * [현재 비밀번호를 다시 묻지 않는다] Supabase Auth는 이미 유효한 세션을 신뢰의 근거로 삼는다 —
+ *   같은 신뢰 모델을 이 함수도 그대로 따른다(로그인 상태 자체가 "본인 확인"을 대신한다).
+ * [두 화면이 이 함수 하나를 공유한다] 마이페이지의 "비밀번호 변경"과, 이메일 재설정 링크를 타고 온
+ *   /auth/reset-password 화면의 "새 비밀번호 설정"이 둘 다 이 함수를 부른다 — 후자도 결국
+ *   `verifyOtp`로 세션을 만든 뒤의 "로그인된 상태에서 비밀번호를 바꾸는" 같은 동작이라서다.
+ *
+ * @param {string} newPassword
+ * @throws Supabase Auth 에러(세션 없음 등) 그대로.
+ */
+export async function updateMyPassword(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}
+
+/**
+ * 개인 계정(실제 이메일) 비밀번호 재설정 이메일 발송.
+ *
+ * [학교/관리자 계정에는 쓰지 않는다] `{학번}@accumu.local` 같은 가상 이메일은 받는 사람이 없어
+ *   이 방법이 원천적으로 통하지 않는다(ADR 0019 배경) — 그쪽은 관리자의 "비밀번호 초기화"(학생) 또는
+ *   운영자 문의(관리자 본인) 경로를 대신 쓴다. 이 함수를 학교/관리자 이메일에 호출하지 말 것.
+ * [존재 여부를 노출하지 않는다] Supabase는 이메일이 실제로 등록돼 있는지와 무관하게 항상 같은 결과를
+ *   돌려준다 — 호출부도 "보냈어요"라고만 말하고 성공/실패로 계정 존재 여부를 유추할 문구를 만들지 말 것.
+ *
+ * @param {string} email
+ * @throws 네트워크 등 진짜 예외만 던진다.
+ */
+export async function requestPasswordReset(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/auth/reset-password`,
+  });
+  if (error) throw error;
+}
+
+/**
+ * 이름으로 학번 찾기 — 학교 계정 전용(ADR 0020).
+ *
+ * [학번 노출을 수용하는 이유 — ADR 0008 결정 4의 연장] "학번은 교실에서 공개적으로 쓰이는 식별자이고
+ *   비밀번호 없이는 아무것도 되지 않는다"는 판단을 이 기능에도 그대로 적용한다. check_signup_availability
+ *   가 이미 같은 이유로 "code_taken"(학번 존재 여부)을 노출해 왔다 — 여기서 이름→학번 조회를 여는 것은
+ *   그 판단을 넓힌 것이지 새로 만든 것이 아니다.
+ * [정확히 일치하는 이름만, 동명이인은 알려주지 않는다] 서버(find_student_code_by_name RPC)가 그 학번을
+ *   추측해 알려주지 않는다 — "동명이인이 있어요"까지만 말한다.
+ *
+ * @param {string} name
+ * @returns {Promise<{ok:true, code:string} | {ok:false, reason:'not_found'|'ambiguous'}>}
+ * @throws 네트워크 등 진짜 예외만 던진다.
+ */
+export async function findStudentCodeByName(name) {
+  const { data, error } = await supabase.rpc('find_student_code_by_name', { p_name: name });
+  if (error) throw error;
+  return data ?? { ok: false, reason: 'not_found' };
+}

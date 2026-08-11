@@ -22,6 +22,7 @@ import { TRACK } from '../lib/taxonomy';
 import { fetchMentoredStudents } from '../lib/archiveService';
 import { fetchAdminPrograms } from '../lib/programService';
 import { fetchMyInviteCode } from '../lib/profileService';
+import PasswordChangeForm from '../components/PasswordChangeForm';
 import '../styles/AdminShell.css';
 
 export default function AdminMyPage() {
@@ -187,6 +188,9 @@ export default function AdminMyPage() {
               학생이 회원가입 시 이 코드를 입력하면 담당 학생으로 연동됩니다.
             </div>
           )}
+
+          {/* 비밀번호 변경 (ADR 0020) — 학생 마이페이지와 같은 컴포넌트. */}
+          <PasswordChangeForm />
         </div>
 
         {/* 결정 N — 셸 우측 아이콘 버튼은 그대로 두고 여기에 텍스트 버튼을 하나 더 둔다(중복 허용).

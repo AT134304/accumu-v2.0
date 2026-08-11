@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import SocialLogin from '../components/SocialLogin';
+import AccountHelpModal from '../components/AccountHelpModal';
 import { loginPersonal } from '../lib/authService';
 import '../styles/LoginPage.css';
 
@@ -39,6 +40,8 @@ export default function LoginPage() {
   const [adminForm, setAdminForm] = useState(emptyAdminForm);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // 아이디/비밀번호 찾기 (ADR 0020). 어느 모달인지만 담고, 내용 분기는 AccountHelpModal이 tab/mode로 한다.
+  const [helpType, setHelpType] = useState(null); // 'find-id' | 'forgot-password' | null
 
   // 이미 로그인 + role 확정 상태면 즉시 자기 role 홈으로 리다이렉트 (ADR 0001 라우트 테이블)
   if (!loading && session && profile) {
@@ -258,6 +261,18 @@ export default function LoginPage() {
           </button>
         </form>
 
+        {/* 아이디/비밀번호 찾기 (ADR 0020) — 실제로 할 수 있는 일은 계정 종류(tab/mode)마다 다르다.
+            여기서는 어느 모달을 열지만 정하고, 내용 분기는 AccountHelpModal이 맡는다. */}
+        <div className="hint accthelp-links">
+          <button type="button" className="linklike" onClick={() => setHelpType('find-id')}>
+            아이디를 잊으셨나요?
+          </button>
+          <span aria-hidden="true"> · </span>
+          <button type="button" className="linklike" onClick={() => setHelpType('forgot-password')}>
+            비밀번호를 잊으셨나요?
+          </button>
+        </div>
+
         {/* 소셜(네이버·구글)은 개인 계정 수단이다 — 관리자 탭과 학교 계정 탭에는 두지 않는다.
             (학교 계정은 학번·이름 대조가 로그인의 일부라 소셜 계정으로 대체할 수 없다.) */}
         {tab === 'student' && mode === 'personal' && <SocialLogin mode="login" />}
@@ -285,6 +300,16 @@ export default function LoginPage() {
             하나뿐이라, 위치로 고르면 그 필수 링크가 사라진다. 그래서 전용 클래스로 지목한다. */}
         <div className="hint tagline">Accumu — 참여·인증 기반 커리어 포트폴리오</div>
       </div>
+
+      {helpType && (
+        <AccountHelpModal
+          type={helpType}
+          tab={tab}
+          mode={mode}
+          prefillEmail={personalForm.email}
+          onClose={() => setHelpType(null)}
+        />
+      )}
     </div>
   );
 }

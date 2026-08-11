@@ -22,6 +22,7 @@ import Icon from '../components/Icon';
 import Toast from '../components/Toast';
 import QrCenterModal from '../components/student/QrCenterModal';
 import PointLedger from '../components/student/PointLedger';
+import PasswordChangeForm from '../components/PasswordChangeForm';
 import { TRACK } from '../lib/taxonomy';
 import { describePending, fetchMyPointLedger, settleMyPoints } from '../lib/pointService';
 import { linkSchoolAccount, setCareerInterest } from '../lib/profileService';
@@ -301,6 +302,9 @@ export default function StudentMyPage() {
                 </form>
               )}
             </div>
+
+            {/* 비밀번호 변경 (ADR 0020) — 학교/개인/소셜 계정 공통. 자세한 건 컴포넌트 주석 참고. */}
+            <PasswordChangeForm />
 
             {/* [보존 — 확정 J·F-1] 위치(계열 칩 아래)·카피·indigo 색 모두 프로토타입 652줄 그대로.
                 신청 직후에 QR 을 발급하지 않는 규율도 그대로다(토큰 30분 만료). */}

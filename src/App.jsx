@@ -9,6 +9,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import NaverCallbackPage from './pages/NaverCallbackPage';
 import GoogleCallbackPage from './pages/GoogleCallbackPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import StudentHomePage from './pages/StudentHomePage';
 import StudentProgramsPage from './pages/StudentProgramsPage';
 import StudentArchivePage from './pages/StudentArchivePage';
@@ -38,6 +39,10 @@ export default function App() {
           {/* 구글 로그인 콜백 (ADR 0011) — 네이버와 같은 형태다. Supabase 콜백이 아니라 앱으로
               직접 돌아오므로, Google Cloud Console 의 승인된 리디렉션 URI 가 곧 이 주소다. */}
           <Route path="/auth/google" element={<GoogleCallbackPage />} />
+          {/* 비밀번호 재설정 콜백 (ADR 0020) — 개인 계정(실제 이메일) 전용. Supabase가 이메일 링크의
+              redirectTo로 이 주소를 쓴다(authService.requestPasswordReset). role 검사가 없는 공개
+              라우트다 — 아직 role이 확정된 세션이 아니라 recovery 세션이라서다. */}
+          <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
 
           {/* 학생 화면 — ProtectedRoute(role="student") 안쪽에서만 공통 셸이 렌더된다.
               /student/* 전체가 한 번의 role 검사를 공유하므로 권한 경계는 그대로다. */}

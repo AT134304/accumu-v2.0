@@ -1,0 +1,21 @@
+/* Accumu v2 — 로그인 화면 아이디/비밀번호 찾기(AccountHelpModal, ADR 0020)
+   .overlay/.modal/.mbody/.confirm-modal/.pf-actions/.pf-btn/.confirm-desc는 StudentShell.css/
+   AdminShell.css가 이미 정의한다(앱 전체가 코드스플릿 없이 한 번에 번들되어 로그인 화면에서도
+   이미 로드돼 있다) — 여기서는 이 모달이 새로 쓰는 폼/결과 표시만 추가한다. */
+.accthelp-form { display: flex; gap: 8px; margin: 14px 0; }
+.accthelp-form input {
+  flex: 1; height: 42px; padding: 0 13px; border-radius: 10px; border: 1px solid var(--line);
+  font-size: 14px; background: var(--bg);
+}
+.accthelp-form input:focus { outline: none; border-color: var(--brand); background: #fff; }
+.accthelp-form button {
+  height: 42px; padding: 0 16px; border-radius: 10px; background: var(--brand); color: #fff;
+  font-weight: 700; font-size: 13px; white-space: nowrap; transition: .14s;
+}
+.accthelp-form button:hover:not(:disabled) { background: var(--brand-dk); }
+.accthelp-form button:disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; }
+
+.accthelp-result { font-size: 13.5px; line-height: 1.6; margin-bottom: 14px; }
+.accthelp-result.ok { color: var(--ink); font-weight: 600; }
+.accthelp-result.ok b { color: var(--brand-dk); font-weight: 800; }
+.accthelp-result.err { color: var(--rose); font-weight: 600; }
