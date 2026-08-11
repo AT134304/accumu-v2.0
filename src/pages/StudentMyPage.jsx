@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTutorial } from '../context/TutorialContext';
 import Icon from '../components/Icon';
 import Toast from '../components/Toast';
 import QrCenterModal from '../components/student/QrCenterModal';
@@ -32,6 +33,7 @@ import '../styles/StudentMyPage.css';
 export default function StudentMyPage() {
   // session 은 개인 계정의 이메일 표시에만 쓴다(profiles 에 email 컬럼이 없다 — auth.users 가 소유).
   const { profile, session, signOut, applyProfilePatch } = useAuth();
+  const tutorial = useTutorial();
 
   const [qrOpen, setQrOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -307,8 +309,16 @@ export default function StudentMyPage() {
             <PasswordChangeForm />
 
             {/* [보존 — 확정 J·F-1] 위치(계열 칩 아래)·카피·indigo 색 모두 프로토타입 652줄 그대로.
-                신청 직후에 QR 을 발급하지 않는 규율도 그대로다(토큰 30분 만료). */}
-            <button type="button" className="qrcheck" onClick={() => setQrOpen(true)}>
+                신청 직후에 QR 을 발급하지 않는 규율도 그대로다(토큰 30분 만료).
+                [ADR 0021 — 버그 수정] 하이라이트 전용(data-tutorial-pre) — 5단계의 진짜 목표는 QR
+                센터 안의 "입장 QR" 버튼(data-tutorial="5")이다. 이 버튼을 진행 트리거로 삼으면
+                모달을 여는 순간(아직 QR도 안 열었는데) 6단계로 잘못 넘어간다. */}
+            <button
+              type="button"
+              className="qrcheck"
+              onClick={() => setQrOpen(true)}
+              data-tutorial-pre={tutorial.isStep(5) ? 5 : undefined}
+            >
               <Icon name="ic-qr" size={18} />
               QR 확인 · 입퇴장 인증
             </button>

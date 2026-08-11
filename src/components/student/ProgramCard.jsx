@@ -8,6 +8,7 @@
 import Icon from '../Icon';
 import { catOf, statusOf } from '../../lib/taxonomy';
 import { fmtDateRange } from '../../lib/date';
+import { useTutorial } from '../../context/TutorialContext';
 
 /**
  * @param {{id: string, status: string}|undefined} participation
@@ -29,6 +30,7 @@ export default function ProgramCard({
 }) {
   const c = catOf(program.category);
   const st = statusOf(program.status);
+  const tutorial = useTutorial();
 
   const status = participation?.status;
   const joined = Boolean(status);
@@ -71,6 +73,10 @@ export default function ProgramCard({
           onOpen();
         }
       }}
+      // [ADR 0021 — 버그 수정] 하이라이트 전용(data-tutorial-pre) — 이 카드를 진행 트리거로 삼으면
+      // 카드를 여는 순간(아직 신청도 안 했는데) 3단계로 넘어가 버린다. 실제 진행은 JoinModal의
+      // "참석 신청하기" 버튼(data-tutorial="2")이 맡는다.
+      data-tutorial-pre={program.is_tutorial && tutorial.isStep(2) ? 2 : undefined}
     >
       <div className="thumb" style={{ background: `linear-gradient(135deg,${c.soft},#fff)` }}>
         {/* group(교내/교외)이 사라져 유형 이름 하나다 — ADR 0014 */}

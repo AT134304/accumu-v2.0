@@ -567,8 +567,16 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
             <div className="qr-review">
               <ReviewForm
                 participationId={participation.id}
-                onSaved={() => setReviewState('saved')}
-                onSkip={() => setReviewState('skipped')}
+                onSaved={() => {
+                  setReviewState('saved');
+                  // [ADR 0021 — 버그 수정] 8단계("만족도·한줄평 입력")에서 9단계로 넘기는 호출이
+                  // 빠져 있었다 — 저장/건너뛰기 어느 쪽도 트래커를 진행시키지 않아 8단계에서 멈췄다.
+                  if (isTutorial && tutorial.isStep(8)) tutorial.advance();
+                }}
+                onSkip={() => {
+                  setReviewState('skipped');
+                  if (isTutorial && tutorial.isStep(8)) tutorial.advance();
+                }}
               />
             </div>
           )}

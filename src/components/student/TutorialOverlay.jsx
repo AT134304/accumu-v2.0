@@ -6,6 +6,13 @@
 // [Modal.jsx와 같은 이유로 body에 포털한다] 학생 화면(.screen)은 진입 애니메이션에 transform이
 //   있어 그 자손에서는 position:fixed가 뷰포트가 아니라 .screen 기준이 된다. 배너/링이 어디서
 //   렌더되든 뷰포트 기준으로 고정되려면 body로 빼야 한다.
+//
+// [data-tutorial-pre — 하이라이트 전용, 진행 트리거 아님 (버그 수정, 2026-08-11)]
+//   일부 단계는 "두 번 클릭해야 진짜 다음 단계로 넘어가는" 중간 버튼이 있다(예: 2단계 — 프로그램
+//   목록에서 카드를 먼저 열고, 그 안의 "신청하기"를 눌러야 실제로 신청된다). 중간 버튼(카드)까지
+//   data-tutorial(진행 트리거)로 잡으면 카드를 여는 순간 다음 단계로 잘못 넘어간다. 그래서 중간
+//   버튼은 "하이라이트만" 받는 별도 속성을 쓴다 — 진행 목표(data-tutorial)가 아직 DOM에 없을 때만
+//   링의 대체 위치로 쓰인다(목표가 나타나는 순간 그쪽으로 자연히 넘어간다).
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { TUTORIAL_STEPS, useTutorial } from '../../context/TutorialContext';
@@ -25,7 +32,11 @@ export default function TutorialOverlay() {
     }
     let raf;
     const tick = () => {
-      const el = document.querySelector(`[data-tutorial="${tutorial.step}"]`);
+      // 진짜 진행 목표가 있으면 그쪽을 우선한다 — 없을 때만(아직 그 화면/모달에 도달하지 않았을 때)
+      // "하이라이트 전용" 중간 버튼으로 대체한다.
+      const el =
+        document.querySelector(`[data-tutorial="${tutorial.step}"]`) ??
+        document.querySelector(`[data-tutorial-pre="${tutorial.step}"]`);
       setRect(el ? el.getBoundingClientRect() : null);
       raf = requestAnimationFrame(tick);
     };
