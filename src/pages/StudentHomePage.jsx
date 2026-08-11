@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTutorial } from '../context/TutorialContext';
 import Icon from '../components/Icon';
+import Modal from '../components/Modal';
 import StackViz from '../components/student/StackViz';
 import ProgramCard from '../components/student/ProgramCard';
 import { fetchAppliedProgramIds, fetchRecommendedPrograms, fetchTutorialProgram } from '../lib/programService';
@@ -28,6 +29,12 @@ export default function StudentHomePage() {
   // [ADR 0021] 신규 학생 가이드 트래커 시작 CTA. 튜토리얼 프로그램에 아직 참여 이력이 없을 때만 보인다 —
   // 이미 한 번이라도 신청했다면(완료 전이든 후든) 다시 권하지 않는다(participations는 1인 1회 unique다).
   const [tutorialCta, setTutorialCta] = useState(null); // {id, title} | null
+  // [2026-08-11 개정] "눈에 띄게 + 필수적으로" — 팝업(Modal)으로 먼저 보여준다. "다음에 할게요"로
+  // 닫아도 완전히 사라지지 않는다 — 이 state는 이번 마운트(=이번 홈 방문)에서만 팝업을 숨기고,
+  // 아래 인라인 카드(.tut-cta)는 계속 남아 있다. 홈에 다시 오거나 재로그인하면 팝업이 또 뜬다 —
+  // 완료하기 전까진 계속 눈에 밟히게 하려는 의도다(완전한 강제는 아니다 — 데모 시연 유연성을 위해
+  // 언제든 건너뛸 수는 있어야 한다).
+  const [modalDismissed, setModalDismissed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,6 +132,37 @@ export default function StudentHomePage() {
             시작하기
           </button>
         </div>
+      )}
+
+      {/* [2026-08-11] 팝업 버전 — 홈에 올 때마다(완료 전까지) 눈에 띄게 먼저 띄운다. 위 인라인
+          카드와 같은 조건에 modalDismissed(이번 방문 한정)만 더 본다. */}
+      {tutorialCta && !tutorial.active && !modalDismissed && (
+        <Modal onClose={() => setModalDismissed(true)} labelledBy="tut-start-title" className="confirm-modal">
+          <div className="mbody tut-start-modal">
+            <div className="tut-cta-ic lg" aria-hidden="true">
+              <Icon name="ic-compass" size={28} color="var(--brand)" />
+            </div>
+            <h3 id="tut-start-title">Accumu가 처음이신가요?</h3>
+            <p className="confirm-desc">
+              가입을 환영해요! 신청부터 QR 입·퇴장 인증, 포인트 적립, 디지털 아카이브 기록까지 —
+              짧은 연습으로 Accumu 사용법을 먼저 익혀보세요.
+            </p>
+            <button
+              type="button"
+              className="mbtn"
+              onClick={() => {
+                tutorial.start();
+                setTutorialCta(null);
+                setModalDismissed(true);
+              }}
+            >
+              지금 시작하기
+            </button>
+            <button type="button" className="tut-start-later" onClick={() => setModalDismissed(true)}>
+              다음에 할게요
+            </button>
+          </div>
+        </Modal>
       )}
 
       {/* ===== 히어로 (성장/포트폴리오 서사 — brand blue 우선) ===== */}

@@ -13,9 +13,11 @@
   50% { opacity: 1; }
 }
 
+/* [우측 하단으로 배치 — 2026-08-11] 가운데 하단은 프로그램 카드의 "참여" 버튼과 정확히 겹쳤다
+   (카드 가로 스크롤 목록의 foot이 화면 하단 가까이 온다). 우측 하단은 그 동선 밖이다. */
 .tut-banner {
-  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
-  z-index: 300; width: min(420px, calc(100vw - 32px));
+  position: fixed; right: 18px; bottom: 18px; left: auto;
+  z-index: 300; width: min(360px, calc(100vw - 32px));
   background: var(--ink); color: #fff; border-radius: 16px; padding: 14px 16px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, .28);
 }
@@ -37,7 +39,7 @@
 .tut-next:hover { background: var(--brand-dk); }
 
 @media (max-width: 430px) {
-  .tut-banner { bottom: 78px; } /* 하단 탭바를 가리지 않는다 */
+  .tut-banner { bottom: 78px; right: 10px; left: 10px; width: auto; } /* 하단 탭바를 가리지 않는다 */
 }
 
 /* ---------- 홈 화면 시작 CTA(ADR 0021) — 오버레이가 아니라 일반 페이지 흐름 안의 카드다 ---------- */
@@ -62,3 +64,18 @@
   .tut-cta { flex-wrap: wrap; }
   .tut-cta-btn { width: 100%; }
 }
+
+/* ---------- 홈 화면 시작 팝업(ADR 0021, 2026-08-11 추가) — "눈에 띄게 + 필수적으로" ----------
+   인라인 카드(.tut-cta)보다 한 단계 강한 넛지다. Modal.jsx(.confirm-modal) 위에서 렌더된다. */
+.tut-start-modal { text-align: center; }
+.tut-start-modal .tut-cta-ic.lg {
+  width: 56px; height: 56px; border-radius: 16px; background: var(--brand-soft);
+  display: grid; place-items: center; margin: 0 auto 14px;
+}
+.tut-start-modal h3 { font-size: 19px; font-weight: 800; letter-spacing: -.3px; }
+.tut-start-modal .confirm-desc { text-align: center; margin: 10px 0 20px; }
+.tut-start-later {
+  width: 100%; margin-top: 10px; height: 38px; font-size: 12.5px; font-weight: 600;
+  color: var(--muted); border-radius: 10px;
+}
+.tut-start-later:hover { background: var(--bg); color: var(--ink2); }
