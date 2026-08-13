@@ -38,8 +38,31 @@
 }
 .tut-next:hover { background: var(--brand-dk); }
 
-@media (max-width: 430px) {
-  .tut-banner { bottom: 78px; right: 10px; left: 10px; width: auto; } /* 하단 탭바를 가리지 않는다 */
+/* [.avoid — 배너가 하이라이트 대상을 덮을 때 위로 피한다, 2026-08-13]
+   클래스는 TutorialOverlay 의 rAF 루프가 겹침을 감지해 직접 붙인다(단계당 한 번, 단계가 바뀌면 뗀다).
+   데스크톱에서도 우하단 배너가 카드의 "참여" 버튼과 겹칠 수 있어 media query 밖에 둔다. */
+.tut-banner.avoid { top: 78px; bottom: auto; }
+
+/* ============ RESPONSIVE ============
+   [430px 이 아니라 768px 인 이유 — 2026-08-13 수정]
+   하단 탭바(.bottomnav)는 ≤768px 부터 뜨는데 이 규칙만 ≤430px 이었다. 431~768px(작은 태블릿,
+   가로 모드 폰)에서는 배너가 탭바 위에 그대로 겹쳐 앉아 "프로그램·아카이브·마이" 탭을 누를 수
+   없었다 — 그 탭을 눌러야 진행되는 1·4·9·11단계가 거기서 막혔다. */
+@media (max-width: 768px) {
+  .tut-banner {
+    right: 10px; left: 10px; width: auto;
+    /* 탭바 ≈62px + 여유 8px. 홈 인디케이터가 있는 기기는 탭바가 그만큼 더 높다(탭바 자신도
+       같은 env() 를 padding 에 쓴다) — 상수 78px 로는 그 기기에서 다시 겹쳤다. */
+    bottom: calc(70px + env(safe-area-inset-bottom));
+    /* 세로가 짧은 화면(가로 모드)에서 배너가 본문을 통째로 덮지 않게 한다. 12단계 안내문이
+       길어서 실제로 그럴 수 있다. */
+    max-height: 46vh; overflow-y: auto;
+  }
+  /* 상단 고정 네비(62px) 바로 아래 */
+  .tut-banner.avoid { top: 70px; bottom: auto; }
+  /* 손가락으로 누르는 화면 — 24px 종료 버튼은 너무 작다 */
+  .tut-close { width: 34px; height: 34px; font-size: 20px; }
+  .tut-next { height: 46px; font-size: 14.5px; }
 }
 
 /* ---------- 홈 화면 시작 CTA(ADR 0021) — 오버레이가 아니라 일반 페이지 흐름 안의 카드다 ---------- */
