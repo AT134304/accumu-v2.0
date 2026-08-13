@@ -16,8 +16,10 @@ import { todayISO } from './date';
 //   명시적으로 뒤집었다. JoinModal이 신청자 수와 나란히 보여준다 — 카드에는 여전히 안 찍는다.
 // [is_tutorial — ADR 0021] true면 "지난 날짜" 판정(확정 H-1)에서 제외하고 "상시 진행"으로 표시한다.
 //   앱 전체에서 이 값이 true인 행은 시딩으로 심은 튜토리얼 프로그램 하나뿐이다.
+// [image_url — ADR 0022] 대표 사진 1장의 공개 URL. NULL이면 카드가 기존 category 아이콘을 그린다.
+//   카드가 실제로 그리는 값이라 CARD_FIELDS에 있다(팝업도 같은 사진을 크게 쓴다).
 const CARD_FIELDS =
-  'id, category, title, org, date, end_date, time, points, capacity, career_track, status, attendance_payout_mode, min_attendance_days, session_dates, is_tutorial';
+  'id, category, title, org, date, end_date, time, points, capacity, career_track, status, attendance_payout_mode, min_attendance_days, session_dates, is_tutorial, image_url';
 
 // 프로그램 선택 화면용. 카드 필드 + 팝업(description) + 클라이언트 정렬 입력(popularity/created_at).
 //
@@ -275,7 +277,7 @@ export async function fetchAdminHomePrograms(adminId) {
 // [popularity 를 가져오지 않는다] 화면에 쓰지 않는 값을 페이로드에 싣지 않는다 — 원칙 가드를 코드로 표현한 것이다
 //   (표시도 편집도 하지 않는다: 컬럼 주석 / 스펙 이슈 3).
 const ADMIN_MANAGE_FIELDS =
-  'id, category, title, org, description, date, end_date, time, capacity, points, career_track, status, is_published, created_by, created_at, attendance_payout_mode, min_attendance_days, session_dates';
+  'id, category, title, org, description, date, end_date, time, capacity, points, career_track, status, is_published, created_by, created_at, attendance_payout_mode, min_attendance_days, session_dates, image_url';
 
 // 폼이 소유하는 컬럼 화이트리스트. insert/update 페이로드는 반드시 이 목록을 통과한다.
 //
@@ -299,6 +301,7 @@ const FORM_COLUMNS = [
   'points',
   'capacity',
   'status',
+  'image_url', // 대표 사진(ADR 0022). 값의 출처는 uploadProgramImage() 하나뿐, 지울 땐 null.
 ];
 
 const pickFormColumns = (fields) => {
@@ -308,6 +311,75 @@ const pickFormColumns = (fields) => {
   }
   return out;
 };
+
+/* ---------- 대표 사진 업로드 (ADR 0022 / 20260813120000) ---------- */
+
+// 버킷 설정(20260813120000)과 **같은 값을 두 곳에 적는다**. 여기 값은 사용자에게 미리 알려주기
+// 위한 것이고, 진짜 상한은 버킷의 file_size_limit/allowed_mime_types 다(프런트 검증은 우회 가능).
+// >>> 한쪽을 바꾸면 반드시 다른 쪽도 바꿀 것. 어긋나면 "폼은 통과했는데 업로드만 실패"가 된다.
+export const PROGRAM_IMAGE_BUCKET = 'program-images';
+export const PROGRAM_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
+export const PROGRAM_IMAGE_MIME = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+export const PROGRAM_IMAGE_RULE_MSG = 'JPG·PNG·WEBP 형식의 3MB 이하 이미지만 올릴 수 있어요.';
+
+/** 사용자에게 그대로 보여줄 수 있는 업로드 실패. (describeSaveError 와 달리 필드가 하나뿐이라 message 만 든다) */
+export class ProgramImageError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ProgramImageError';
+  }
+}
+
+/**
+ * 프로그램 대표 사진 업로드 → 공개 URL 반환.
+ *
+ * [경로가 `{adminId}/{uuid}.{ext}` 인 이유]
+ *   - 첫 폴더가 auth.uid() 여야 storage 정책 program_images_insert_admin_own 을 통과한다(마이그레이션 3절).
+ *   - 파일명이 uuid 라 매 업로드가 새 오브젝트다 → upsert 가 필요 없고, 같은 이름을 덮어써서
+ *     **다른 프로그램의 사진이 바뀌는 사고**가 구조적으로 불가능하다. 원본 파일명은 쓰지 않는다
+ *     (한글·공백·중복 파일명이 그대로 URL 이 되는 문제도 같이 사라진다).
+ * [옛 파일을 지우지 않는다] 교체 후 폼을 취소하면 DB 는 여전히 옛 URL 을 가리킨다 — 그 시점에
+ *   지우면 저장된 행의 이미지가 깨진다. 스토리지엔 delete 정책 자체가 없다(마이그레이션 3절 주석).
+ *
+ * @param {string} adminId 로그인한 관리자의 profile id (= auth.uid())
+ * @param {File} file <input type="file"> 이 준 파일
+ * @returns {Promise<string>} public URL (programs.image_url 에 그대로 저장한다)
+ * @throws {ProgramImageError} 형식·용량 위반, 권한 거부 등 사용자에게 보여줄 사유가 있는 실패
+ */
+export async function uploadProgramImage(adminId, file) {
+  if (!adminId) throw new ProgramImageError('로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.');
+  if (!file) throw new ProgramImageError('파일을 선택해 주세요.');
+
+  const ext = PROGRAM_IMAGE_MIME[file.type];
+  if (!ext || file.size > PROGRAM_IMAGE_MAX_BYTES) throw new ProgramImageError(PROGRAM_IMAGE_RULE_MSG);
+
+  const path = `${adminId}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage
+    .from(PROGRAM_IMAGE_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: false });
+
+  if (error) {
+    console.error('[programService] 사진 업로드 실패:', error);
+    // 버킷이 없으면(마이그레이션 미실행) 404 가 온다 — "다시 시도"로 절대 풀리지 않는 상황이라 따로 말해준다.
+    const status = error.statusCode ?? error.status;
+    if (String(status) === '404') {
+      throw new ProgramImageError(
+        '사진 저장소(program-images)가 아직 준비되지 않았습니다. 마이그레이션을 먼저 실행해 주세요.'
+      );
+    }
+    if (String(status) === '403') {
+      throw new ProgramImageError('사진을 올릴 권한이 없습니다. 관리자 계정으로 로그인했는지 확인해 주세요.');
+    }
+    throw new ProgramImageError('사진 업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+
+  const { data } = supabase.storage.from(PROGRAM_IMAGE_BUCKET).getPublicUrl(path);
+  const url = data?.publicUrl;
+  // getPublicUrl 은 네트워크를 타지 않는 문자열 조합이라 실패가 거의 없지만, 빈 값을 그대로
+  // image_url 에 넣으면 DB 체크(programs_image_url_shape)에서 23514 로 튄다 — 여기서 먼저 잡는다.
+  if (!url) throw new ProgramImageError('사진 주소를 만들지 못했습니다. 다시 시도해 주세요.');
+  return url;
+}
 
 /**
  * update 가 0행으로 끝났을 때의 에러 (스펙 이슈 1).

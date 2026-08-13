@@ -278,8 +278,15 @@ function ProgramRow({ program, applicantCount = 0, busy, highlighted, rowRef, on
 
   return (
     <div className={cls.join(' ')} ref={rowRef}>
+      {/* [사진 — ADR 0022] 올린 사진을 목록에서 바로 확인할 수 있게 아이콘 자리에 작게 띄운다.
+          [학생 화면과 달리 onError fallback 을 두지 않는다] 학생에게는 깨진 사진을 숨기는 게 맞지만,
+          관리자에게는 "사진이 깨졌다"가 고쳐야 할 사실이다 — 숨기면 다시 올릴 이유를 못 본다. */}
       <div className="ic" style={{ background: cat.soft }}>
-        <Icon name={cat.icon} size={20} color={cat.color} />
+        {program.image_url ? (
+          <img className="ic-photo" src={program.image_url} alt="" loading="lazy" />
+        ) : (
+          <Icon name={cat.icon} size={20} color={cat.color} />
+        )}
       </div>
 
       <div className="info">

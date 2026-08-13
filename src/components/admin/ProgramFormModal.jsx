@@ -17,7 +17,13 @@ import Modal from '../Modal';
 import Icon from '../Icon';
 import { CAT, TRACK, STATUS } from '../../lib/taxonomy';
 import { todayISO } from '../../lib/date';
-import { createProgram, updateProgram } from '../../lib/programService';
+import {
+  createProgram,
+  updateProgram,
+  uploadProgramImage,
+  ProgramImageError,
+  PROGRAM_IMAGE_RULE_MSG,
+} from '../../lib/programService';
 import { CAPACITY_RULE_MSG, POINTS_RULE_MSG, describeSaveError } from '../../lib/programErrors';
 
 // 라벨이 name 하나다 — 4종으로 줄면서 group(교내/교외)이 사라졌다(ADR 0014).
@@ -64,6 +70,8 @@ function toFormValues(program) {
       title: '',
       org: '',
       description: '',
+      // 대표 사진(ADR 0022). 선택 항목 — 비어 있으면 카드가 기존 category 아이콘을 그린다.
+      image_url: '',
       // 캘린더/날짜 기본값은 하드코딩이 아니라 실행 시점의 실제 오늘 (CLAUDE.md 9장, toISOString() 금지)
       date: todayISO(),
       end_date: '', // 기간제 프로그램의 종료일. "기간제 프로그램" 체크가 꺼져 있으면 저장 시 null로 보낸다.
@@ -81,6 +89,7 @@ function toFormValues(program) {
     title: program.title ?? '',
     org: program.org ?? '',
     description: program.description ?? '',
+    image_url: program.image_url ?? '',
     date: program.date ?? '',
     end_date: program.end_date ?? '',
     attendance_payout_mode: program.attendance_payout_mode ?? 'full',
@@ -106,13 +115,19 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [serverErr, setServerErr] = useState(null); // { field?, message }
+  // [사진 — ADR 0022] 업로드는 저장과 별개의 왕복이다. 파일을 고르는 즉시 스토리지로 올라가고
+  // 폼이 들고 있는 값은 그 결과 URL 하나뿐이다(File 객체를 폼 상태에 담아두지 않는다 —
+  // 담으면 저장 시점에 업로드가 시작돼 "저장 눌렀는데 한참 뒤 사진 때문에 실패"가 된다).
+  const [uploading, setUploading] = useState(false);
+  const [photoErr, setPhotoErr] = useState(null);
   const bodyRef = useRef(null);
+  const fileRef = useRef(null);
 
-  // 저장 중에는 Esc/바깥 클릭으로 닫히지 않게 한다(요청이 날아간 채 화면만 사라지는 상태 방지).
+  // 저장/업로드 중에는 Esc/바깥 클릭으로 닫히지 않게 한다(요청이 날아간 채 화면만 사라지는 상태 방지).
   // 참조가 안정적이어야 Modal 의 keydown 리스너가 매 렌더 재등록되지 않는다.
   const handleClose = useCallback(() => {
-    if (!saving) onClose();
-  }, [saving, onClose]);
+    if (!saving && !uploading) onClose();
+  }, [saving, uploading, onClose]);
 
   const set = (key) => (e) => {
     const next = e.target.value;
@@ -243,6 +258,37 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
     });
   }, []);
 
+  /** 파일 선택 → 즉시 업로드 → 성공하면 폼 값이 URL 로 바뀐다. */
+  const handlePhotoPick = useCallback(
+    async (e) => {
+      const file = e.target.files?.[0];
+      // [값을 비우는 이유] 같은 파일을 다시 고르면 change 가 발생하지 않는다 — 업로드가 한 번
+      // 실패한 뒤 같은 사진으로 재시도하는 게 가장 흔한 시나리오인데 그때 아무 반응이 없게 된다.
+      e.target.value = '';
+      if (!file) return;
+
+      setPhotoErr(null);
+      setUploading(true);
+      try {
+        const url = await uploadProgramImage(adminId, file);
+        setV((prev) => ({ ...prev, image_url: url }));
+      } catch (err) {
+        console.error('[AdminPrograms] 사진 업로드 실패:', err);
+        setPhotoErr(err instanceof ProgramImageError ? err.message : PROGRAM_IMAGE_RULE_MSG);
+      } finally {
+        setUploading(false);
+      }
+    },
+    [adminId]
+  );
+
+  /** 사진 지우기 — 폼 값만 비운다. 스토리지 오브젝트는 지우지 않는다(ADR 0022 / 마이그레이션 3절):
+   *  저장하지 않고 취소하면 DB 는 여전히 옛 URL 을 가리키므로, 여기서 지우면 그 행이 깨진다. */
+  const clearPhoto = useCallback(() => {
+    setPhotoErr(null);
+    setV((prev) => ({ ...prev, image_url: '' }));
+  }, []);
+
   // 스크롤 컨테이너는 .mbody 가 아니라 .modal 이다(overflow:auto 가 거기 있다).
   // 첫 오류 필드가 접힌 스크롤 아래에 있으면 "눌리지도 않고 이유도 안 보이는" 상태가 된다.
   const scrollFormTop = () =>
@@ -252,6 +298,8 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
     e.preventDefault();
     setSubmitted(true);
     setServerErr(null);
+    // 업로드가 끝나기 전에 저장하면 방금 고른 사진 없이 저장된다(폼 값이 아직 옛 URL 이다).
+    if (uploading) return;
     if (locked || Object.keys(missing).length > 0) {
       scrollFormTop();
       return;
@@ -262,6 +310,9 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
       title: v.title.trim(),
       org: v.org.trim(),
       description: v.description.trim(),
+      // 빈 문자열이 아니라 null 을 보낸다 — DB 체크(programs_image_url_shape)가 '^https://' 를
+      // 요구하므로 ''는 23514 로 튄다. "사진 없음"의 표현은 NULL 하나다.
+      image_url: v.image_url || null,
       date: v.date,
       // 체크가 꺼져 있으면 v.end_date에 남은 값이 있어도(예: 껐다 켰다) 무시하고 null을 보낸다 —
       // "기간제 프로그램" 체크박스가 유일한 소유자다.
@@ -371,6 +422,63 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
               maxLength={400}
             />
           </Field>
+
+          {/* [대표 사진 — ADR 0022] 선택 항목이다. 없으면 지금까지처럼 활동 유형 아이콘이 그려지므로
+              "사진 없는 프로그램"이 미완성으로 보이지 않는다(기존 20여 행이 전부 그 상태다).
+              필수로 만들지 않는 이유이기도 하다 — 필수가 되면 사진을 못 구한 활동은 올릴 수 없게 된다.
+              [원칙 4] 사진은 활동(포트폴리오) 쪽 요소라 포인트 칸보다 위에 둔다. */}
+          <div className={photoErr ? 'pf err' : 'pf'}>
+            <label htmlFor="pf-photo">대표 사진</label>
+
+            <div className="pf-photo">
+              {v.image_url ? (
+                <img className="pf-photo-preview" src={v.image_url} alt="선택한 대표 사진 미리보기" />
+              ) : (
+                <div className="pf-photo-empty">
+                  <Icon name="ic-image" size={24} />
+                  <span>사진을 올리지 않으면 활동 유형 아이콘이 표시됩니다.</span>
+                </div>
+              )}
+
+              <div className="pf-photo-acts">
+                {/* 실제 입력칸은 숨기고 버튼으로 연다 — file input 의 기본 모양("파일 선택 없음")은
+                    디자인 시스템 밖이고 문구도 손댈 수 없다. label htmlFor 는 그대로 살아 있어
+                    위의 "대표 사진" 라벨을 눌러도 열린다. */}
+                <input
+                  ref={fileRef}
+                  id="pf-photo"
+                  type="file"
+                  className="pf-photo-input"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handlePhotoPick}
+                  disabled={uploading}
+                />
+                <button
+                  type="button"
+                  className="pf-photo-btn"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploading}
+                >
+                  <Icon name="ic-image" size={15} />
+                  {uploading ? '올리는 중…' : v.image_url ? '사진 바꾸기' : '사진 올리기'}
+                </button>
+                {v.image_url && !uploading && (
+                  <button type="button" className="pf-photo-btn ghost" onClick={clearPhoto}>
+                    <Icon name="ic-close" size={14} />
+                    지우기
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {photoErr ? (
+              <p className="pf-msg err">{photoErr}</p>
+            ) : (
+              <p className="pf-msg hint">
+                JPG·PNG·WEBP, 3MB 이하. 카드에서는 가로로 넓게 잘려 보이니 가운데에 담아주세요.
+              </p>
+            )}
+          </div>
 
           <div className="pf-2col">
             <Field
@@ -617,11 +725,12 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
           </p>
 
           <div className="pf-actions">
-            <button type="button" className="pf-btn ghost" onClick={onClose} disabled={saving}>
+            <button type="button" className="pf-btn ghost" onClick={onClose} disabled={saving || uploading}>
               취소
             </button>
-            <button type="submit" className="pf-btn primary" disabled={saving || locked}>
-              {saving ? '저장 중…' : isEdit ? '저장' : '초안으로 저장'}
+            {/* 업로드 중 저장을 막는다 — 누르면 방금 고른 사진 없이 저장된다(handleSubmit 의 가드와 짝). */}
+            <button type="submit" className="pf-btn primary" disabled={saving || uploading || locked}>
+              {saving ? '저장 중…' : uploading ? '사진 올리는 중…' : isEdit ? '저장' : '초안으로 저장'}
             </button>
           </div>
         </form>

@@ -51,6 +51,9 @@ export default function JoinModal({
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
   const [cancelMsg, setCancelMsg] = useState(null);
+  // 대표 사진(ADR 0022). 깨진 URL이면 아이콘으로 되돌린다 — ProgramCard와 같은 처리.
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const photo = program.image_url && !photoFailed ? program.image_url : null;
 
   // todayISO()는 로컬(KST) 기준. toISOString()은 KST 오전 9시 이전에 하루 밀린다 (ADR 0003 6번).
   // [기간제] 종료일이 지나야 "끝난 활동"이다 — 시작한 뒤에도 기간 중에는 계속 신청 가능해야 한다.
@@ -131,8 +134,15 @@ export default function JoinModal({
 
   return (
     <Modal onClose={onClose} labelledBy="join-title">
-      <div className="mthumb" style={{ background: `linear-gradient(135deg,${c.soft},#fff)` }}>
-        <Icon name={c.icon} size={46} color={c.color} />
+      {/* [썸네일 자리 — ADR 0022] 카드와 같은 규칙: 사진이 있으면 사진, 없으면 카테고리 아이콘.
+          카드에서 사진을 보고 눌렀는데 팝업에서 아이콘으로 바뀌면 "다른 것을 열었나" 싶어진다 —
+          두 화면이 같은 값을 쓴다(ProgramCard 와 fallback 처리까지 동일). */}
+      <div className={photo ? 'mthumb has-photo' : 'mthumb'} style={{ background: `linear-gradient(135deg,${c.soft},#fff)` }}>
+        {photo ? (
+          <img className="thumb-photo" src={photo} alt="" onError={() => setPhotoFailed(true)} />
+        ) : (
+          <Icon name={c.icon} size={46} color={c.color} />
+        )}
       </div>
 
       <div className="mbody join-modal">

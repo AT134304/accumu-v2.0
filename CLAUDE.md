@@ -59,7 +59,7 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 | `profiles` | id, role, code, name, points_balance, points_total, currency_balance, career_interest, account_type | 학생/관리자 공통 계정. `account_type`(school/personal)은 학생 전용 (ADR 0008) |
 | `mentor_students` | admin_id, student_id | 관리자-담당학생 매핑. **권한 경계 자체**. 생기는 경로는 시딩 + 학생의 초대코드 입력(`link_school_account`) 2가지, 없어지는 경로는 관리자의 "담당 해제" 1가지뿐(ADR 0015). 그 외 편집 UI 없음 |
 | `invite_codes` | code, kind(school/admin), admin_id, is_active | 가입 초대코드 (ADR 0008). 관리자별 고정 school 코드 + 관리자 승격용 코드. **앱에서 생성 불가**(정책 0개, 시딩/SQL 전용) |
-| `programs` | id, category, title, org, description, date, time, capacity, points, career_track, is_published, created_by | is_published로 게시/게시중단. `category`·`career_track` 값은 아래 참고 |
+| `programs` | id, category, title, org, description, date, time, capacity, points, career_track, is_published, created_by, image_url | is_published로 게시/게시중단. `category`·`career_track` 값은 아래 참고. `image_url`(ADR 0022)은 대표 사진 **1장**의 공개 URL — NULL이면 카드가 기존 category 아이콘을 그린다(아이콘은 폐기가 아니라 fallback). 배열/갤러리로 늘리지 말 것 |
 | `participations` | id, student_id, program_id, status, entry_at, exit_at, entry_token, exit_token | 신청·입장·퇴장 상태 + QR 토큰 |
 | `point_transactions` | id, student_id, type(적립/전환), amount, related_participation_id, settled_month | 포인트 내역. `settled_month`(전환 행 전용)는 "어느 달 적립분의 정산인가" — ADR 0012 |
 | `reviews` | id, participation_id, rating, comment | 별점 + 한줄평 |
@@ -133,7 +133,7 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 
 ## 10. 관리자 화면 (기획서 5장)
 
-관리자 홈(오늘 진행 프로그램 우선) / 프로그램 관리(올리기·내리기·수정) / 담당 학생 5명 아카이브 조회 + PDF 확인 + 포인트 열람(ADR 0015) + 담당 해제(ADR 0015) + 비밀번호 초기화(ADR 0019) / QR 카메라 스캔.
+관리자 홈(오늘 진행 프로그램 우선) / 프로그램 관리(올리기·내리기·수정 — 등록·수정 폼에서 **대표 사진 1장** 업로드, ADR 0022. 새 메뉴가 아니라 폼 안의 입력칸 하나다) / 담당 학생 5명 아카이브 조회 + PDF 확인 + 포인트 열람(ADR 0015) + 담당 해제(ADR 0015) + 비밀번호 초기화(ADR 0019) / QR 카메라 스캔.
 
 **상단 공통: 알림, 캘린더 (ADR 0013 / 2026-08-08 추가).** 원칙 6은 **동작**으로 센다 — 이 둘은 위 4종에
 관한 **읽기**이고 관리자가 새로 할 수 있게 된 일이 0개다(셸 메뉴도 4개 그대로 — 담당 해제는 새 메뉴가

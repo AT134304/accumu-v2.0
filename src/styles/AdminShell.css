@@ -30,7 +30,9 @@
 .adm-list.muted { box-shadow: none; background: transparent; }
 .adm-row { display: flex; align-items: center; gap: 13px; padding: 14px 0; border-top: 1px solid var(--line); }
 .adm-row:first-child { border-top: none; }
-.adm-row .ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; }
+.adm-row .ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; overflow: hidden; }
+/* 대표 사진(ADR 0022) — 아이콘 자리를 그대로 채운다. 관리자 목록에서 "사진을 올렸는지"를 한눈에 본다. */
+.adm-row .ic-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
 .adm-row .info { flex: 1; min-width: 0; }
 .adm-row .info h5 { font-size: 14.5px; font-weight: 700; letter-spacing: -.2px; }
 .adm-row .info .m { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
@@ -210,6 +212,40 @@
   font-size: 13px; font-weight: 600; color: var(--ink2); cursor: pointer; user-select: none;
 }
 .pf-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--brand); flex: none; }
+
+/* 대표 사진 (ProgramFormModal, ADR 0022)
+   미리보기 비율(16:7)은 학생 카드 썸네일(236×108 ≈ 16:7.3)에 맞춘 것이다 — 폼에서 보이는 잘린
+   모양과 카드에서 보이는 모양이 달라지면 "가운데에 담아주세요" 안내가 거짓말이 된다. */
+.pf-photo {
+  border: 1.5px solid var(--line2); border-radius: 10px; background: var(--bg);
+  padding: 10px; display: flex; flex-direction: column; gap: 10px;
+}
+.pf-photo-preview {
+  width: 100%; aspect-ratio: 16 / 7; object-fit: cover; display: block;
+  border-radius: 7px; background: var(--bg2);
+}
+.pf-photo-empty {
+  width: 100%; aspect-ratio: 16 / 7; border-radius: 7px; background: var(--bg2);
+  border: 1px dashed var(--line2); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 7px; text-align: center; padding: 0 14px;
+}
+.pf-photo-empty .isvg { color: var(--line2); }
+.pf-photo-empty span { font-size: 12px; color: var(--muted); line-height: 1.5; }
+/* 실제 file input 은 숨긴다 — 기본 위젯 모양·문구를 디자인 시스템에 맞출 수 없다.
+   label[for="pf-photo"] 는 그대로 살아 있어 라벨 클릭도 파일 창을 연다. */
+.pf-photo-input { display: none; }
+.pf-photo-acts { display: flex; gap: 7px; }
+.pf-photo-btn {
+  height: 38px; padding: 0 14px; border-radius: 9px; font-size: 13px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 6px; transition: .16s;
+  background: var(--brand); color: #fff; border: 1.5px solid var(--brand);
+}
+.pf-photo-btn .isvg { color: #fff; }
+.pf-photo-btn:hover:not(:disabled) { background: var(--brand-dk); border-color: var(--brand-dk); }
+.pf-photo-btn:disabled { opacity: .55; cursor: default; }
+.pf-photo-btn.ghost { background: #fff; color: var(--ink2); border-color: var(--line2); }
+.pf-photo-btn.ghost .isvg { color: var(--muted); }
+.pf-photo-btn.ghost:hover { background: var(--bg2); border-color: var(--line2); }
 
 /* 진행일 캘린더 그리드 (ProgramFormModal의 SessionDatesPicker, 20260809180000) */
 .pf-sessionpicker {

@@ -5,6 +5,7 @@
 // [원칙 가드] popularity는 화면에 절대 표시하지 않는다 — 프로그램 선택 화면에서 "인기순" 정렬의 입력으로만
 //   쓰이며, 순위 라벨은 만들지 않는다 (CLAUDE.md 2장 1번). 신청자 수·내 대기 순번은 다른 학생과 겨루는
 //   순위가 아니라 단순 카운트/내 상황이라 ADR 0016·0018로 예외를 열었다(케빈 요청).
+import { useState } from 'react';
 import Icon from '../Icon';
 import { catOf, statusOf } from '../../lib/taxonomy';
 import { fmtDateRange } from '../../lib/date';
@@ -31,6 +32,11 @@ export default function ProgramCard({
   const c = catOf(program.category);
   const st = statusOf(program.status);
   const tutorial = useTutorial();
+  // [사진이 깨졌을 때 아이콘으로 되돌린다 — ADR 0022] image_url 은 스토리지 오브젝트를 가리키는데
+  // DB 행과 파일의 수명이 분리돼 있다(앱은 오브젝트를 지우지 않지만 대시보드에서는 지울 수 있다).
+  // 그때 alt="" 인 깨진 이미지가 카드마다 뜨는 대신, 사진이 없던 시절의 표시로 조용히 돌아간다.
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const photo = program.image_url && !photoFailed ? program.image_url : null;
 
   const status = participation?.status;
   const joined = Boolean(status);
@@ -78,7 +84,15 @@ export default function ProgramCard({
       // "참석 신청하기" 버튼(data-tutorial="2")이 맡는다.
       data-tutorial-pre={program.is_tutorial && tutorial.isStep(2) ? 2 : undefined}
     >
-      <div className="thumb" style={{ background: `linear-gradient(135deg,${c.soft},#fff)` }}>
+      {/* [썸네일 자리 — ADR 0022] 사진이 있으면 사진, 없으면 지금까지처럼 카테고리 아이콘.
+          그라데이션 배경은 둘 다에서 유지된다(사진이 로드되기 전 빈 회색 대신 이 색이 보인다). */}
+      <div className={photo ? 'thumb has-photo' : 'thumb'} style={{ background: `linear-gradient(135deg,${c.soft},#fff)` }}>
+        {photo ? (
+          // alt="" — 바로 아래 제목·주최가 같은 정보를 글로 주는 장식 이미지다(중복 낭독 방지).
+          <img className="thumb-photo" src={photo} alt="" loading="lazy" onError={() => setPhotoFailed(true)} />
+        ) : (
+          <Icon name={c.icon} size={40} color={c.color} />
+        )}
         {/* group(교내/교외)이 사라져 유형 이름 하나다 — ADR 0014 */}
         <span className="tag">{c.name}</span>
         {/* 계열 매칭 배지 — 개인화 표시일 뿐 보상/랭킹 요소가 아니다 (확정 E) */}
@@ -88,7 +102,6 @@ export default function ProgramCard({
             내 관심 계열
           </span>
         )}
-        <Icon name={c.icon} size={40} color={c.color} />
       </div>
 
       <div className="body">
