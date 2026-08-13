@@ -18,6 +18,14 @@ build/
 # 링크된 프로젝트 ref·버전 캐시. CLI 가 자동 생성하며 사람이 편집하지 않는다.
 supabase/.temp/
 
+# --- 구버전 스냅샷 백업 (2026-08-13) ---
+# 루트에 accumu-team / accumu-team-v2 / accumu-v2.0-main 세 벌의 옛 사본이 겹쳐 있어 지웠고,
+# 그중 **옛 폴더에만 있던** 파일(.env.local 실키, supabase CLI 링크 정보, 초기 버전 문서 2개)만
+# _legacy-keep/ 로 빼뒀다. 실제 키가 들어 있으므로 절대 커밋되면 안 된다 — 위 .env 규칙은
+# 파일명이 v2.0-main.env.local 처럼 바뀌어 있어 걸리지 않는다. 그래서 폴더째 무시한다.
+_legacy-keep/
+accumu-v2.0-main.zip
+
 # --- OS / 에디터 ---
 .DS_Store
 *.log
