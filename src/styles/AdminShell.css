@@ -214,8 +214,8 @@
 .pf-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--brand); flex: none; }
 
 /* 대표 사진 (ProgramFormModal, ADR 0022)
-   [미리보기 비율 = 학생 카드 썸네일 비율(236/108)] 업로드 시점에 programService.cropToCardRatio()가
-   실제로 그 비율로 잘라서 저장하므로, 이 상자에 보이는 그림이 곧 학생 카드에 나올 그림이다.
+   [미리보기 비율 = 학생 카드 썸네일 비율(236/108)] 업로드 시점에 programService.renderCropToBlob()이
+   관리자가 고른 영역을 그 비율로 구워서 저장하므로, 이 상자에 보이는 그림이 곧 학생 카드에 나올 그림이다.
    근사치(16/7)를 쓰면 폼에서 본 것과 카드가 미세하게 달라져 "잘린 모양을 확인했다"가 거짓이 된다.
    >>> StudentShell.css 의 .pcard .thumb 높이나 .strip .pcard 폭을 바꾸면 여기와
    >>> programService.PROGRAM_IMAGE_RATIO 를 같이 바꿀 것. */

@@ -316,7 +316,7 @@ const pickFormColumns = (fields) => {
 /* ---------- 대표 사진 업로드 (ADR 0022 / 20260813120000) ---------- */
 
 export const PROGRAM_IMAGE_BUCKET = 'program-images';
-// 읽어들일 수 있는 입력 형식. 출력은 아래 cropToCardRatio() 가 webp(또는 jpeg)로 통일한다.
+// 읽어들일 수 있는 입력 형식. 출력은 아래 renderCropToBlob() 이 webp(또는 jpeg)로 통일한다.
 export const PROGRAM_IMAGE_MIME = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 // [입력 상한 15MB — 버킷의 3MB 와 다른 값이고, 달라도 되는 이유]
 //   업로드되는 것은 원본이 아니라 **잘라서 줄인 결과물**(≈100~200KB)이라 버킷 제한에 걸릴 일이 없다.

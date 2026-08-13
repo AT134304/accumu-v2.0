@@ -1,0 +1,34 @@
+-- Accumu v2 — program-images 의 공개 SELECT 정책 제거 (ADR 0022 결정 3 정정)
+--
+-- [배경] QA 지적(2026-08-13). 20260813120000 이 만든 program_images_select_public 은
+--   방어적으로 넣은 정책이었는데, 실제로는 **필요가 없으면서 문을 여는** 쪽이었다.
+--
+-- [필요가 없는 이유] public 버킷의 이미지 읽기는 /storage/v1/object/public/... 경로가 처리하고
+--   그 경로는 RLS 를 타지 않는다. 앱이 하는 일도 getPublicUrl(문자열 조합) + <img src> 뿐이다
+--   (src 전체에 storage .list() 호출 0개). 즉 이 정책 없이도 사진은 그대로 표시된다.
+--
+-- [문을 여는 이유] `to public` 으로 storage.objects 의 SELECT 를 허용하므로
+--   supabase.storage.from('program-images').list('') 가 통과한다. anon 키는 프런트 번들에
+--   그대로 들어 있으므로 누구나 호출할 수 있고, 그러면 다음이 노출된다:
+--     - 미게시(is_published=false) 초안 프로그램의 사진 전부
+--     - 폼을 취소해 DB 에 연결조차 되지 않은 버려진 사진 전부
+--     - 관리자 계정의 auth.uid() — 경로 첫 폴더가 곧 uid 다
+--     - 오브젝트 메타데이터(업로드 시각·크기·mimetype)
+--   ADR 0022 결정 3 이 기댄 "파일명이 uuid 라 추측 불가"는 **열거 앞에서 무의미하다**
+--   (추측할 필요가 없다). 그 전제를 되살리려면 열거를 막아야 한다.
+--
+-- [남는 노출 — 이것은 의도한 트레이드오프 그대로다]
+--   "URL 을 아는 사람이 이미지 바이트를 본다"뿐이다. 게시된 프로그램의 URL 만 앱에 등장하고,
+--   미게시 초안의 URL 은 소유 관리자만 읽을 수 있으며(programs_select_own_as_admin),
+--   uuid 파일명은 열거가 막히면 추측이 불가능하다. 홍보물이라는 ADR 의 판단과 맞는다.
+--
+-- >>> 이 정책을 되살리지 말 것. 되살리는 순간 위 4가지가 다시 익명에게 열린다.
+-- >>> program_images_insert_admin_own(업로드 경계)은 그대로 둔다 — 그건 실제로 일하는 정책이다.
+
+drop policy if exists "program_images_select_public" on storage.objects;
+
+-- [배포 후 한 줄 확인 — QA 지적 3]
+--   storage.objects 의 RLS 가 꺼져 있으면 남은 insert 정책도 장식이 된다(그 경우 anon 도 업로드 가능).
+--   Supabase 신규 프로젝트는 기본 활성이라 문제일 가능성은 낮지만, 아래로 한 번 확인할 것:
+--
+--   select relrowsecurity from pg_class where oid = 'storage.objects'::regclass;  -- 기대값: t

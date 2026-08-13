@@ -324,6 +324,14 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
     setServerErr(null);
     // 업로드가 끝나기 전에 저장하면 방금 고른 사진 없이 저장된다(폼 값이 아직 옛 URL 이다).
     if (uploading) return;
+    // [자르는 중 저장 차단 — QA 지적, 2026-08-13] uploading 만 막고 cropFile 을 안 보면,
+    // 자르기 패널을 열어둔 채 폼 아래쪽 "저장"을 누를 때 **사진 없이 성공 토스트가 뜨고 모달이
+    // 닫힌다**(폼 값이 아직 빈 문자열 → payload null). 실패 신호가 0이라 나중에 목록을 봐야 안다.
+    if (cropFile) {
+      setPhotoErr('사진 자르기를 먼저 끝내거나 취소해 주세요.');
+      scrollFormTop();
+      return;
+    }
     if (locked || Object.keys(missing).length > 0) {
       scrollFormTop();
       return;
@@ -767,8 +775,14 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
             <button type="button" className="pf-btn ghost" onClick={onClose} disabled={saving || uploading}>
               취소
             </button>
-            {/* 업로드 중 저장을 막는다 — 누르면 방금 고른 사진 없이 저장된다(handleSubmit 의 가드와 짝). */}
-            <button type="submit" className="pf-btn primary" disabled={saving || uploading || locked}>
+            {/* 업로드 중·자르는 중 저장을 막는다 — 누르면 방금 고른 사진 없이 저장된다
+                (handleSubmit 의 가드와 짝. 버튼만 잠그면 Enter 제출이 뚫리고, 가드만 두면
+                 왜 안 눌리는지 모르는 버튼이 된다). */}
+            <button
+              type="submit"
+              className="pf-btn primary"
+              disabled={saving || uploading || Boolean(cropFile) || locked}
+            >
               {saving ? '저장 중…' : uploading ? '사진 올리는 중…' : isEdit ? '저장' : '초안으로 저장'}
             </button>
           </div>

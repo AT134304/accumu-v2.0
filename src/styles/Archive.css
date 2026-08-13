@@ -104,7 +104,11 @@ button.arc-row { cursor: pointer; }
 button.arc-row:hover { background: var(--bg); }
 button.arc-row:focus-visible { outline: none; background: var(--bg); box-shadow: 0 0 0 3px var(--brand-soft); }
 .arc-row .ic { width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; overflow: hidden; }
-/* 대표 사진(ADR 0022) — 아이콘 자리를 그대로 채운다. PDF 로 뽑을 때도 그대로 인쇄된다. */
+/* 대표 사진(ADR 0022) — 아이콘 자리를 그대로 채운다.
+   [인쇄에는 안 나온다] print.css 가 이 칸(.arc-row .ic)을 통째로 숨긴다 — 종이에서는 유형이 바로
+   옆 메타 줄에 글자로 이미 있어 중복이고 잉크만 먹는다(2026-08-13).
+   [정사각이라 가로가 크게 잘린다] 파일은 236/108 인데 이 칸은 42×42 다. "사진이 있다"는 식별
+   표시라 의도된 열화 — 관리자가 자르기 창에서 고른 그림과 여기 보이는 그림은 다를 수 있다. */
 .arc-row .ic-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
 .arc-row .info { flex: 1; min-width: 0; display: block; }
 .arc-row .info .t,

@@ -29,6 +29,8 @@ export default function ImageCropper({ file, busy = false, onCancel, onConfirm }
   const viewportRef = useRef(null);
   const imgRef = useRef(null);
   const dragRef = useRef(null);
+  const pointersRef = useRef(new Map()); // 지금 내려가 있는 포인터들 (핀치 판정용)
+  const pinchRef = useRef(null); // { dist, zoom } — 두 손가락이 내려간 순간의 기준값
 
   // [useMemo + cleanup 전용 effect] effect 본문에서 setState 로 URL 을 넣으면 렌더가 한 번 더 돌고
   //   프로젝트 lint 규칙(set-state-in-effect)에도 걸린다. 생성은 렌더 중에, 해제만 effect 에서.
@@ -71,39 +73,101 @@ export default function ImageCropper({ file, busy = false, onCancel, onConfirm }
     setNat({ w: el.naturalWidth, h: el.naturalHeight });
   };
 
-  // 확대/축소는 **뷰포트 가운데를 기준**으로 한다. 좌상단 기준이면 확대할수록 보고 있던 피사체가
-  // 화면 밖으로 밀려나 매번 다시 끌어와야 한다.
-  const handleZoom = (e) => {
-    const next = Number(e.target.value);
-    if (geo && view && nat) {
+  /**
+   * 확대/축소를 **anchor(뷰포트 좌표) 기준**으로 적용한다. 슬라이더·핀치·휠이 전부 이걸 쓴다.
+   * 좌상단 기준으로 확대하면 보고 있던 피사체가 화면 밖으로 밀려나 매번 다시 끌어와야 한다.
+   */
+  const applyZoom = useCallback(
+    (nextRaw, ax, ay) => {
+      if (!geo || !view || !nat) return;
+      const next = Math.min(MAX_ZOOM, Math.max(1, nextRaw));
       const k = next / zoom;
-      const cx = vw / 2;
-      const cy = geo.vh / 2;
       const dw2 = nat.w * geo.base * next;
       const dh2 = nat.h * geo.base * next;
       setOffset(
-        clampOffset({ x: cx - (cx - view.x) * k, y: cy - (cy - view.y) * k }, vw, geo.vh, dw2, dh2)
+        clampOffset({ x: ax - (ax - view.x) * k, y: ay - (ay - view.y) * k }, vw, geo.vh, dw2, dh2)
       );
-    }
-    setZoom(next);
+      setZoom(next);
+    },
+    [geo, view, nat, vw, zoom]
+  );
+
+  // 슬라이더는 뷰포트 한가운데를 기준으로 확대한다.
+  const handleZoom = (e) => {
+    if (!geo) return;
+    applyZoom(Number(e.target.value), vw / 2, geo.vh / 2);
   };
 
+  // [휠 확대 — passive:false 가 필요해서 네이티브로 단다]
+  //   React 의 onWheel 로는 preventDefault 가 먹지 않아, 확대하려던 휠이 폼 모달을 스크롤시킨다.
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return undefined;
+    const onWheel = (e) => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      // exp 를 쓰면 확대/축소가 대칭이다(같은 양을 굴리면 정확히 원위치).
+      applyZoom(zoom * Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [applyZoom, zoom]);
+
   // 포인터 이벤트 하나로 마우스·터치·펜을 다 받는다. setPointerCapture 덕에 창 밖으로 끌어도 끊기지 않는다.
+  // [두 손가락 핀치 — 케빈 요청 2026-08-13] 뷰포트에 touch-action:none 을 걸어 드래그를 살린 대가로
+  //   브라우저 기본 핀치까지 막혀 있다. 폰에서 확대하려면 슬라이더를 찾아 끌어야 해서 어색했다.
+  //   내려간 포인터를 Map 으로 세고 2개가 되면 그 사이 거리 변화를 배율로, 중점을 anchor 로 쓴다.
   const onPointerDown = (e) => {
     if (!view || busy) return;
     e.currentTarget.setPointerCapture?.(e.pointerId);
-    dragRef.current = { px: e.clientX, py: e.clientY, ox: view.x, oy: view.y };
+    const pts = pointersRef.current;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pts.size >= 2) {
+      // 두 손가락이면 이동은 핀치가 맡는다 — 드래그와 동시에 굴러가면 그림이 튄다.
+      dragRef.current = null;
+      const [a, b] = [...pts.values()];
+      pinchRef.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom };
+    } else {
+      dragRef.current = { px: e.clientX, py: e.clientY, ox: view.x, oy: view.y };
+    }
   };
+
   const onPointerMove = (e) => {
+    const pts = pointersRef.current;
+    if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    const pinch = pinchRef.current;
+    if (pts.size >= 2 && pinch && pinch.dist > 0) {
+      const [a, b] = [...pts.values()];
+      const r = viewportRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      applyZoom(pinch.zoom * (dist / pinch.dist), (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+      return;
+    }
+
     const d = dragRef.current;
     if (!d || !geo) return;
     setOffset(
       clampOffset({ x: d.ox + (e.clientX - d.px), y: d.oy + (e.clientY - d.py) }, vw, geo.vh, geo.dw, geo.dh)
     );
   };
+
   const onPointerUp = (e) => {
-    dragRef.current = null;
+    const pts = pointersRef.current;
+    pts.delete(e.pointerId);
     e.currentTarget.releasePointerCapture?.(e.pointerId);
+
+    if (pts.size < 2) pinchRef.current = null;
+    // 한 손가락이 남으면 **그 지점부터** 이동을 다시 시작한다 — 안 하면 남은 손가락이
+    // 처음 내려놓은 좌표를 기준으로 계산돼 그림이 확 튄다.
+    if (pts.size === 1 && view) {
+      const [p] = [...pts.values()];
+      dragRef.current = { px: p.x, py: p.y, ox: view.x, oy: view.y };
+    } else if (pts.size === 0) {
+      dragRef.current = null;
+    }
   };
 
   // 마우스를 못 쓰는 경우를 위해 방향키로도 옮길 수 있게 한다(뷰포트가 tabIndex=0 이다).
@@ -146,7 +210,7 @@ export default function ImageCropper({ file, busy = false, onCancel, onConfirm }
         className="pf-crop-view"
         ref={viewportRef}
         role="application"
-        aria-label="사진에서 보여줄 영역 고르기. 드래그하거나 방향키로 옮기세요."
+        aria-label="사진에서 보여줄 영역 고르기. 드래그하거나 방향키로 옮기고, 두 손가락 또는 휠로 확대하세요."
         tabIndex={0}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -187,8 +251,8 @@ export default function ImageCropper({ file, busy = false, onCancel, onConfirm }
         <p className="pf-msg err">{err}</p>
       ) : (
         <p className="pf-msg hint">
-          드래그해서 위치를, 슬라이더로 크기를 맞춰주세요. <b>이 창에 보이는 그대로</b> 잘려서
-          학생 카드에 올라갑니다.
+          드래그해서 위치를 맞추고, <b>두 손가락(또는 휠·슬라이더)</b>으로 확대하세요.{' '}
+          <b>이 창에 보이는 그대로</b> 잘려서 학생 카드와 참여 팝업에 올라갑니다.
         </p>
       )}
 
