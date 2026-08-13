@@ -101,13 +101,18 @@ export default function ActivityDetailModal({ activity, review = null, onReviewS
               <div className="v">{track}</div>
             </div>
           )}
-          {/* 참여 확인 일시 = QR 퇴장 인증 시각. 아카이브의 모든 활동이 2회 인증을 통과했다는 근거다. */}
+          {/* 참여 확인 일시 = QR 입·퇴장 인증 시각. 아카이브의 모든 활동이 2회 인증(원칙 5)을
+              통과했다는 근거다 — 기간제 출석 기록(아래)의 "입장 · 퇴장" 표기와 형식을 맞춘다. */}
           <div className="it wide">
             <div className="k">
               <Icon name="ic-qr" size={13} />
               참여 확인 일시
             </div>
-            <div className="v">{fmtDateTime(activity?.exit_at) || '기록 없음'}</div>
+            <div className="v">
+              {activity?.exit_at
+                ? `${activity?.entry_at ? `입장 ${fmtDateTime(activity.entry_at).split(' ').pop()} · ` : ''}퇴장 ${fmtDateTime(activity.exit_at)}`
+                : '기록 없음'}
+            </div>
           </div>
         </div>
 

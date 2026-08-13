@@ -101,3 +101,12 @@ export function fmtDateTime(timestamp) {
   if (Number.isNaN(d.getTime())) return '';
   return `${fmtDate(todayISO(d))} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
+
+/** timestamptz -> 'HH:MM' (로컬, 날짜 없이 시각만). 같은 줄에서 exit_at이 이미 날짜를 보여줄 때
+ *  entry_at을 나란히 붙이는 용도(아카이브 "입장/퇴장" 줄) — 날짜를 두 번 반복하지 않는다. */
+export function fmtTime(timestamp) {
+  if (!timestamp) return '';
+  const d = new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}

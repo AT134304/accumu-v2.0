@@ -14,7 +14,7 @@ import Icon from '../Icon';
 import { StarsMini } from '../student/ReviewForm';
 import { describeActivity } from '../../lib/archiveService';
 import { TRACK } from '../../lib/taxonomy';
-import { fmtDateTime } from '../../lib/date';
+import { fmtDateTime, fmtTime } from '../../lib/date';
 import '../../styles/Archive.css';
 
 /**
@@ -22,7 +22,7 @@ import '../../styles/Archive.css';
  *   activities: Array<object>,
  *   onSelect?: (activity: object) => void,  // 없으면 행이 클릭 불가(관리자 아카이브는 상세가 없다)
  *   emptyText?: React.ReactNode,
- *   showConfirmedAt?: boolean,              // 참여 확인 일시(exit_at) 줄
+ *   showConfirmedAt?: boolean,              // 입장(entry_at)·퇴장(exit_at) 인증 시각 줄
  *   reviewByParticipationId?: Map,          // 학생 화면 전용 — 평가 줄(결정 D)
  *   amountByParticipationId?: Map           // 학생 화면 전용 — 지급 포인트(확정 L-1)
  * }} props
@@ -81,9 +81,14 @@ function ActivityRow({ activity, onSelect, showConfirmedAt, showTrack, review, s
       <span className="info">
         <span className="t">{d.title}</span>
         <span className="m">{meta}</span>
-        {/* QR 퇴장 인증 시각. 아카이브에 뜨는 활동이 전부 2회 인증을 통과했다는 사실이 여기서 보인다. */}
+        {/* QR 입·퇴장 인증 시각 — 아카이브에 뜨는 활동이 전부 2회 인증(원칙 5)을 통과했다는 사실이
+            여기서 보인다. entry_at은 participations 조회에 이미 포함돼 있던 값이라(archiveService
+            PARTICIPATION_FIELDS) 새 조회 없이 시각만 나란히 붙인다. */}
         {showConfirmedAt && activity.exit_at && (
-          <span className="m confirm">참여 확인 · {fmtDateTime(activity.exit_at)}</span>
+          <span className="m confirm">
+            {activity.entry_at && `입장 ${fmtTime(activity.entry_at)} · `}
+            퇴장 {fmtDateTime(activity.exit_at)}
+          </span>
         )}
         {track && <span className="arc-track">{track}</span>}
         {/* 평가 줄 (결정 D) — 별 미니 + 상태 문구. 건너뛴 활동은 여기서 "눌러서 남기기"로 되돌아온다.
