@@ -73,8 +73,15 @@ function ActivityRow({ activity, onSelect, showConfirmedAt, showTrack, review, s
 
   const body = (
     <>
+      {/* [대표 사진 — ADR 0022] 있으면 사진, 없으면 지금까지처럼 카테고리 아이콘.
+          <img> 는 phrasing content 라 이 행이 <button> 이 돼도 유효하다(아래 span 주석의 "블록 요소를
+          넣지 않는다"는 HTML 콘텐츠 모델 이야기이고 img 는 거기 걸리지 않는다). */}
       <span className="ic" style={{ background: d.cat.soft }}>
-        <Icon name={d.cat.icon} size={22} color={d.cat.color} />
+        {d.imageUrl ? (
+          <img className="ic-photo" src={d.imageUrl} alt="" loading="lazy" />
+        ) : (
+          <Icon name={d.cat.icon} size={22} color={d.cat.color} />
+        )}
       </span>
       {/* 행 전체가 <button> 이 될 수 있어 내부는 전부 span 이다(버튼 안에 블록 요소를 넣지 않는다).
           줄바꿈은 Archive.css 가 display:block 으로 만든다. */}

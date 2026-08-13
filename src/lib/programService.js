@@ -230,7 +230,8 @@ export async function fetchTutorialProgram() {
 
 // 관리자 홈이 그리는 필드 + created_by(본인 필터용). is_published 는 상태 표시가 아니라
 // "왜 이 행이 보이는가"를 코드에서 설명하기 위해 함께 가져온다.
-const ADMIN_FIELDS = 'id, category, title, org, date, end_date, time, points, is_published, created_by';
+const ADMIN_FIELDS =
+  'id, category, title, org, date, end_date, time, points, is_published, created_by, image_url';
 
 /**
  * 관리자 홈용 프로그램 조회 — "오늘 진행" + "예정".

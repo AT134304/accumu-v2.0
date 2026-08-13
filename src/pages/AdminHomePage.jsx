@@ -127,8 +127,14 @@ function ProgramRow({ program, action = null }) {
   const cat = catOf(program.category);
   return (
     <div className="adm-row">
+      {/* [대표 사진 — ADR 0022] 프로그램 관리 목록과 같은 처리. 오늘 스캔할 프로그램을 사진으로
+          바로 알아본다. 여기도 onError fallback 을 두지 않는다 — 관리자에게 깨진 사진은 고쳐야 할 사실이다. */}
       <div className="ic" style={{ background: cat.soft }}>
-        <Icon name={cat.icon} size={20} color={cat.color} />
+        {program.image_url ? (
+          <img className="ic-photo" src={program.image_url} alt="" loading="lazy" />
+        ) : (
+          <Icon name={cat.icon} size={20} color={cat.color} />
+        )}
       </div>
       <div className="info">
         <h5>{program.title}</h5>

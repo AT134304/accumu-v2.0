@@ -23,7 +23,11 @@ import { fmtDateRange, localDateOf, monthKey, monthLabel } from './date';
  * [end_date — 기간제 프로그램, 20260809140000] NULL이면 단일 일자. 있으면 dateLabel이 범위로 찍히고
  *   summarizeActivities()의 monthSpan/periodLabel이 시작월~종료월 전체를 센다(아래 monthsBetween 참고).
  */
-export const ARCHIVE_PROGRAM_FIELDS = 'id, category, title, org, date, end_date, time, career_track';
+// [image_url — ADR 0022] 아카이브 행의 아이콘 자리에 대표 사진을 그린다. NULL 이면 지금까지처럼
+//   카테고리 아이콘이다(폐기가 아니라 fallback). 아카이브는 포트폴리오 화면이라 활동 사진이
+//   들어가는 것이 원칙 4(포트폴리오 우선)와 같은 방향이다.
+export const ARCHIVE_PROGRAM_FIELDS =
+  'id, category, title, org, date, end_date, time, career_track, image_url';
 
 /** 참여 행 필드. 상태 전이·토큰 컬럼은 화면이 쓰지 않으므로 가져오지 않는다. */
 const PARTICIPATION_FIELDS = 'id, program_id, status, entry_at, exit_at';
@@ -296,6 +300,8 @@ export function describeActivity(activity) {
     dateLabel: dateISO ? fmtDateRange(dateISO, p?.end_date) : '',
     time: p?.time ?? '',
     careerTrack: p?.career_track ?? null,
+    // 대표 사진(ADR 0022). 게시중단으로 p 를 못 읽은 건은 null 이라 자동으로 아이콘이 그려진다.
+    imageUrl: p?.image_url ?? null,
   };
 }
 

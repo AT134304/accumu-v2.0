@@ -103,7 +103,9 @@
 button.arc-row { cursor: pointer; }
 button.arc-row:hover { background: var(--bg); }
 button.arc-row:focus-visible { outline: none; background: var(--bg); box-shadow: 0 0 0 3px var(--brand-soft); }
-.arc-row .ic { width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; }
+.arc-row .ic { width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; overflow: hidden; }
+/* 대표 사진(ADR 0022) — 아이콘 자리를 그대로 채운다. PDF 로 뽑을 때도 그대로 인쇄된다. */
+.arc-row .ic-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
 .arc-row .info { flex: 1; min-width: 0; display: block; }
 .arc-row .info .t,
 .arc-row .info .m { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
