@@ -344,58 +344,61 @@ const toBlob = (canvas, type, quality) =>
   new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 
 /**
- * 원본 이미지를 **카드 썸네일 모양으로 가운데를 잘라낸** Blob 으로 바꾼다.
- *
- * [왜 화면 CSS 에만 맡기지 않는가 — 케빈 요청 2026-08-13]
- *   "사진이 원래 아이콘이 들어가 있던 위치에 맞게 잘려서 놓이게" 해달라는 요청이다. object-fit 으로
- *   보이는 것만 잘라내면 (a) 원본 그대로가 업로드돼 모바일에서 3000px 짜리를 매 카드마다 내려받고,
- *   (b) 관리자가 폼에서 본 모양과 학생 카드의 모양이 미묘하게 달라진다. 여기서 실제로 잘라 두면
- *   저장된 파일 자체가 카드 모양이라 둘이 정확히 같아지고, 파일도 100~200KB 로 줄어든다.
- * [가운데 기준 자동이다 — 영역 선택 UI 는 만들지 않았다] 필요하면 그때 붙인다(ADR 0022 재검토 시점).
- * [EXIF 회전] 브라우저의 image-orientation 초기값이 from-image 라 <img> 로 읽는 시점에 이미 바로
- *   선 상태다(세로로 찍은 폰 사진이 눕지 않는다).
+ * 파일 자체가 다룰 수 있는 것인지 확인한다(형식·용량). 자르기 화면을 띄우기 **전에** 부른다 —
+ * 못 읽을 파일로 자르기 창을 열어놓고 마지막에 실패하는 것보다 고르는 즉시 말해주는 게 낫다.
+ * @throws {ProgramImageError}
  */
-async function cropToCardRatio(file) {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise((resolve, reject) => {
-      const el = new Image();
-      el.onload = () => resolve(el);
-      el.onerror = () => reject(new ProgramImageError('이미지를 읽지 못했습니다. 다른 파일로 시도해 주세요.'));
-      el.src = url;
-    });
-
-    const outW = PROGRAM_IMAGE_OUT_W;
-    const outH = Math.round(outW / PROGRAM_IMAGE_RATIO);
-
-    // 원본에서 잘라낼 영역: 남는 쪽(가로가 넓으면 좌우, 세로가 길면 위아래)을 균등하게 버린다.
-    const { naturalWidth: nw, naturalHeight: nh } = img;
-    if (!nw || !nh) throw new ProgramImageError('이미지를 읽지 못했습니다. 다른 파일로 시도해 주세요.');
-    let sw = nw;
-    let sh = nh;
-    if (nw / nh > PROGRAM_IMAGE_RATIO) sw = Math.round(nh * PROGRAM_IMAGE_RATIO);
-    else sh = Math.round(nw / PROGRAM_IMAGE_RATIO);
-    const sx = Math.round((nw - sw) / 2);
-    const sy = Math.round((nh - sh) / 2);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = outW;
-    canvas.height = outH;
-    const ctx = canvas.getContext('2d');
-    // 투명한 PNG 가 jpeg 로 나갈 때 검게 되지 않도록 흰 바탕을 먼저 깐다.
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, outW, outH);
-    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
-
-    // [webp 우선, jpeg 대체] toBlob 은 지원하지 않는 타입을 주면 **조용히 png 로 떨어진다** —
-    // png 는 버킷의 allowed_mime_types 에 있긴 하지만 같은 화질에서 몇 배로 크다. 타입을 확인한다.
-    let blob = await toBlob(canvas, 'image/webp', 0.88);
-    if (!blob || blob.type !== 'image/webp') blob = await toBlob(canvas, 'image/jpeg', 0.88);
-    if (!blob) throw new ProgramImageError('이미지를 변환하지 못했습니다. 다른 파일로 시도해 주세요.');
-    return blob;
-  } finally {
-    URL.revokeObjectURL(url);
+export function validateImageFile(file) {
+  if (!file) throw new ProgramImageError('파일을 선택해 주세요.');
+  if (!PROGRAM_IMAGE_MIME[file.type] || file.size > PROGRAM_IMAGE_MAX_BYTES) {
+    throw new ProgramImageError(PROGRAM_IMAGE_RULE_MSG);
   }
+}
+
+/**
+ * 이미지의 지정 영역을 **카드 썸네일 크기(960 × 439)로 구워서** Blob 으로 돌려준다.
+ *
+ * [왜 화면 CSS(object-fit)에만 맡기지 않는가 — 케빈 요청 2026-08-13]
+ *   보이는 것만 자르면 (a) 원본 그대로가 업로드돼 학생 카드 20장마다 3000px 짜리를 내려받고
+ *   (모바일에서 특히 나쁘다), (b) 관리자가 폼에서 본 모양과 학생 카드의 모양이 미묘하게 달라진다.
+ *   여기서 실제로 구워 두면 저장된 파일 자체가 카드 모양이라 둘이 정확히 같아지고, 파일도
+ *   100~200KB 로 줄어든다.
+ * [자를 영역은 관리자가 고른다] ImageCropper 가 드래그·확대로 정한 영역을 원본 픽셀 좌표로
+ *   환산해 넘긴다. 손대지 않으면 가운데가 넘어온다(초기 상태가 가운데 정렬이다).
+ * [EXIF 회전] 브라우저의 image-orientation 초기값이 from-image 라 <img> 로 읽는 시점에 이미 바로
+ *   선 상태다(세로로 찍은 폰 사진이 눕지 않는다). 그래서 화면에 보인 그대로가 그려진다.
+ *
+ * @param {HTMLImageElement} img 로드가 끝난 이미지 요소
+ * @param {{sx:number, sy:number, sw:number, sh:number}} rect 원본 픽셀 기준의 잘라낼 영역
+ */
+export async function renderCropToBlob(img, rect) {
+  const nw = img?.naturalWidth ?? 0;
+  const nh = img?.naturalHeight ?? 0;
+  if (!nw || !nh) throw new ProgramImageError('이미지를 읽지 못했습니다. 다른 파일로 시도해 주세요.');
+
+  // 부동소수 오차로 원본 밖을 가리키면 drawImage 가 그 부분을 빈 픽셀로 그린다 — 원본 안으로 접는다.
+  const sw = Math.max(1, Math.min(nw, Math.round(rect.sw)));
+  const sh = Math.max(1, Math.min(nh, Math.round(rect.sh)));
+  const sx = Math.max(0, Math.min(nw - sw, Math.round(rect.sx)));
+  const sy = Math.max(0, Math.min(nh - sh, Math.round(rect.sy)));
+
+  const outW = PROGRAM_IMAGE_OUT_W;
+  const outH = Math.round(outW / PROGRAM_IMAGE_RATIO);
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+  // 투명한 PNG 가 jpeg 로 나갈 때 검게 되지 않도록 흰 바탕을 먼저 깐다.
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, outW, outH);
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
+
+  // [webp 우선, jpeg 대체] toBlob 은 지원하지 않는 타입을 주면 **조용히 png 로 떨어진다** —
+  // png 는 버킷의 allowed_mime_types 에 있긴 하지만 같은 화질에서 몇 배로 크다. 타입을 확인한다.
+  let blob = await toBlob(canvas, 'image/webp', 0.88);
+  if (!blob || blob.type !== 'image/webp') blob = await toBlob(canvas, 'image/jpeg', 0.88);
+  if (!blob) throw new ProgramImageError('이미지를 변환하지 못했습니다. 다른 파일로 시도해 주세요.');
+  return blob;
 }
 
 /**
@@ -408,24 +411,20 @@ async function cropToCardRatio(file) {
  *     (한글·공백·중복 파일명이 그대로 URL 이 되는 문제도 같이 사라진다).
  * [옛 파일을 지우지 않는다] 교체 후 폼을 취소하면 DB 는 여전히 옛 URL 을 가리킨다 — 그 시점에
  *   지우면 저장된 행의 이미지가 깨진다. 스토리지엔 delete 정책 자체가 없다(마이그레이션 3절 주석).
- * [올라가는 것은 원본이 아니라 잘라낸 결과물이다] cropToCardRatio() 참고. 확장자·contentType 도
- *   입력 파일이 아니라 그 결과물에서 가져온다 — png 를 올려도 저장되는 것은 webp 다.
+ * [올라가는 것은 원본이 아니라 잘라낸 결과물이다] 이 함수는 **이미 잘린 Blob 만 받는다** —
+ *   원본 File 을 넘길 자리가 없다(자르기는 renderCropToBlob()이 끝내고 온다). 확장자·contentType 도
+ *   그 결과물에서 가져오므로 png 를 골라도 저장되는 것은 webp 다.
  *
  * @param {string} adminId 로그인한 관리자의 profile id (= auth.uid())
- * @param {File} file <input type="file"> 이 준 파일
+ * @param {Blob} blob renderCropToBlob() 이 구운 결과물
  * @returns {Promise<string>} public URL (programs.image_url 에 그대로 저장한다)
- * @throws {ProgramImageError} 형식·용량 위반, 권한 거부 등 사용자에게 보여줄 사유가 있는 실패
+ * @throws {ProgramImageError} 권한 거부·버킷 부재 등 사용자에게 보여줄 사유가 있는 실패
  */
-export async function uploadProgramImage(adminId, file) {
+export async function uploadProgramImage(adminId, blob) {
   if (!adminId) throw new ProgramImageError('로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.');
-  if (!file) throw new ProgramImageError('파일을 선택해 주세요.');
-  if (!PROGRAM_IMAGE_MIME[file.type] || file.size > PROGRAM_IMAGE_MAX_BYTES) {
-    throw new ProgramImageError(PROGRAM_IMAGE_RULE_MSG);
-  }
+  if (!blob) throw new ProgramImageError('자를 이미지를 찾지 못했습니다. 사진을 다시 선택해 주세요.');
 
-  const blob = await cropToCardRatio(file);
   const ext = PROGRAM_IMAGE_MIME[blob.type] ?? 'jpg';
-
   const path = `${adminId}/${crypto.randomUUID()}.${ext}`;
   const { error } = await supabase.storage
     .from(PROGRAM_IMAGE_BUCKET)

@@ -107,10 +107,27 @@
   제한에 걸릴 일이 없다. 이제 이 값은 "버킷 제한의 복사본"이 아니라 **디코딩 방어선**이다 —
   폰 사진은 5~10MB 가 흔해서 원본 크기로 막으면 정작 쓰고 싶은 사진이 전부 거부됐다.
   (버킷 설정은 바꾸지 않았다. 마이그레이션 재실행 불필요.)
-- **영역 선택 UI 는 만들지 않았다** — 가운데 기준 자동이다. "인물이 위쪽에 있는 사진"처럼
-  가운데 자르기가 아쉬운 경우가 쌓이면 그때 붙인다.
 - 관리자 폼의 미리보기 상자도 같은 비율로 맞췄다. **미리보기에 보이는 그림 = 학생 카드에 나올
   그림**이다.
+
+### 결정 6-1 — 자를 영역은 관리자가 고른다 (같은 날 후속)
+
+처음에는 가운데 기준 자동이었는데 케빈이 *"어느 부분을 살릴지 내가 고르고 싶어"* 로 확정했다.
+`ImageCropper` 신규 — 파일을 고르면 업로드 전에 자르기 패널이 뜨고, **드래그로 위치 · 슬라이더로
+확대**를 맞춘 뒤 "이 영역으로 자르기"를 눌러야 업로드된다.
+
+- **Modal 이 아니라 폼 안의 패널이다.** `ProgramFormModal` 자체가 이미 `Modal` 이라 여기서 `Modal` 을
+  또 열면 Esc 리스너와 포커스 트랩이 두 벌 겹친다 — Esc 한 번에 자르기 창과 폼이 같이 닫힌다.
+  사진 칸 자리에서 미리보기를 대체하는 패널이면 그 문제가 아예 없고, 모바일에서도 폼 모달이
+  거의 화면 폭이라 크기가 아쉽지 않다.
+- **손대지 않으면 결과가 이전과 같다.** 초기 상태가 "뷰포트를 꼭 덮는 최소 배율 + 가운데 정렬"
+  이라 그냥 확정하면 가운데 자르기와 동일한 그림이 나온다. 고르는 것은 선택이지 의무가 아니다.
+- **Esc·바깥 클릭은 폼이 아니라 자르기만 취소한다.** 사진 하나 잘못 골랐다고 입력하던 폼 전체가
+  날아가면 안 된다.
+- **업로드 실패 시 패널을 닫지 않는다.** 고른 영역 그대로 다시 시도할 수 있어야 한다
+  (`setCropFile(null)` 이 성공 경로에만 있다).
+- 포인터 이벤트 하나로 마우스·터치·펜을 다 받고, 뷰포트에 `touch-action: none` 을 준다 — 없으면
+  모바일에서 사진은 안 움직이고 폼만 스크롤된다. 마우스를 못 쓰는 경우를 위해 방향키 이동도 있다.
 
 ### 결정 6 이전에 있던 버그 — 사진이 카드 전체를 덮었다
 
@@ -146,7 +163,8 @@
 |---|---|
 | `supabase/migrations/20260813120000_add_program_images.sql` | 신규 — 컬럼 + 버킷 + 정책 2개 |
 | `src/lib/programService.js` | `image_url` 을 `CARD_FIELDS`/`ADMIN_MANAGE_FIELDS`/`FORM_COLUMNS` 에 추가, `uploadProgramImage()` + `ProgramImageError` 신규 |
-| `src/components/admin/ProgramFormModal.jsx` | 사진 칸(미리보기 + 올리기/바꾸기/지우기), `uploading` 잠금 |
+| `src/components/admin/ProgramFormModal.jsx` | 사진 칸(미리보기 + 올리기/바꾸기/지우기), 자르기 패널 연결, `uploading` 잠금 |
+| `src/components/admin/ImageCropper.jsx` | 신규 — 드래그·확대로 자를 영역 고르기 (결정 6-1) |
 | `src/components/student/ProgramCard.jsx` | `.thumb` — 사진 or 아이콘 + `onError` fallback |
 | `src/components/student/JoinModal.jsx` | `.mthumb` — 카드와 동일 |
 | `src/pages/AdminProgramsPage.jsx` | 목록 행 아이콘 자리에 사진(관리자용 — fallback 없음) |

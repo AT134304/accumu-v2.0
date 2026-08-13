@@ -250,6 +250,30 @@
 .pf-photo-btn.ghost .isvg { color: var(--muted); }
 .pf-photo-btn.ghost:hover { background: var(--bg2); border-color: var(--line2); }
 
+/* 사진 자르기 패널 (ImageCropper, ADR 0022 결정 6-1) */
+.pf-crop {
+  border: 1.5px solid var(--brand); border-radius: 10px; background: var(--bg);
+  padding: 10px; display: flex; flex-direction: column; gap: 10px;
+}
+/* 자르기 창 — 학생 카드 썸네일과 같은 비율. 여기 보이는 그대로가 결과물이다. */
+.pf-crop-view {
+  position: relative; overflow: hidden; width: 100%; aspect-ratio: 236 / 108;
+  border-radius: 7px; background: var(--ink); cursor: grab;
+  /* 드래그가 페이지 스크롤로 새지 않게 한다 — 없으면 모바일에서 사진이 안 움직이고 폼이 스크롤된다. */
+  touch-action: none; user-select: none;
+}
+.pf-crop-view:active { cursor: grabbing; }
+.pf-crop-view:focus-visible { outline: none; box-shadow: 0 0 0 4px var(--brand-soft); }
+.pf-crop-view img {
+  position: absolute; left: 0; top: 0; max-width: none; /* 전역 이미지 축소 규칙에 눌리지 않게 */
+  transform-origin: 0 0; -webkit-user-drag: none;
+}
+.pf-crop-zoom { display: flex; align-items: center; gap: 9px; padding: 0 2px; }
+.pf-crop-zoom .isvg { color: var(--muted); flex: none; }
+.pf-crop-zoom input[type="range"] { flex: 1; accent-color: var(--brand); height: 22px; }
+.pf-crop-acts { display: flex; gap: 7px; }
+.pf-crop-acts .pf-photo-btn { flex: 1; justify-content: center; }
+
 /* 진행일 캘린더 그리드 (ProgramFormModal의 SessionDatesPicker, 20260809180000) */
 .pf-sessionpicker {
   border: 1.5px solid var(--line2); border-radius: 10px; background: var(--bg); padding: 12px;

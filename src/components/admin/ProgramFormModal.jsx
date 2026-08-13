@@ -17,10 +17,12 @@ import Modal from '../Modal';
 import Icon from '../Icon';
 import { CAT, TRACK, STATUS } from '../../lib/taxonomy';
 import { todayISO } from '../../lib/date';
+import ImageCropper from './ImageCropper';
 import {
   createProgram,
   updateProgram,
   uploadProgramImage,
+  validateImageFile,
   ProgramImageError,
   PROGRAM_IMAGE_RULE_MSG,
 } from '../../lib/programService';
@@ -115,19 +117,28 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [serverErr, setServerErr] = useState(null); // { field?, message }
-  // [사진 — ADR 0022] 업로드는 저장과 별개의 왕복이다. 파일을 고르는 즉시 스토리지로 올라가고
-  // 폼이 들고 있는 값은 그 결과 URL 하나뿐이다(File 객체를 폼 상태에 담아두지 않는다 —
-  // 담으면 저장 시점에 업로드가 시작돼 "저장 눌렀는데 한참 뒤 사진 때문에 실패"가 된다).
+  // [사진 — ADR 0022] 업로드는 저장과 별개의 왕복이다. 파일을 고르면 자르기 패널이 뜨고, 영역을
+  // 확정하는 순간 스토리지로 올라간다. 폼이 들고 있는 값은 그 결과 URL 하나뿐이다(File 객체를
+  // 폼 상태에 담아두지 않는다 — 담으면 저장 시점에 업로드가 시작돼 "저장 눌렀는데 한참 뒤 사진
+  // 때문에 실패"가 된다).
+  const [cropFile, setCropFile] = useState(null); // 자르는 중인 원본 파일 (null = 자르기 패널 닫힘)
   const [uploading, setUploading] = useState(false);
   const [photoErr, setPhotoErr] = useState(null);
   const bodyRef = useRef(null);
   const fileRef = useRef(null);
 
   // 저장/업로드 중에는 Esc/바깥 클릭으로 닫히지 않게 한다(요청이 날아간 채 화면만 사라지는 상태 방지).
+  // 자르는 중이면 폼이 아니라 **자르기만** 취소한다 — 사진 하나 잘못 골랐다고 입력하던 폼 전체가
+  // 날아가면 안 된다.
   // 참조가 안정적이어야 Modal 의 keydown 리스너가 매 렌더 재등록되지 않는다.
   const handleClose = useCallback(() => {
-    if (!saving && !uploading) onClose();
-  }, [saving, uploading, onClose]);
+    if (saving || uploading) return;
+    if (cropFile) {
+      setCropFile(null);
+      return;
+    }
+    onClose();
+  }, [saving, uploading, cropFile, onClose]);
 
   const set = (key) => (e) => {
     const next = e.target.value;
@@ -258,20 +269,33 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
     });
   }, []);
 
-  /** 파일 선택 → 즉시 업로드 → 성공하면 폼 값이 URL 로 바뀐다. */
-  const handlePhotoPick = useCallback(
-    async (e) => {
-      const file = e.target.files?.[0];
-      // [값을 비우는 이유] 같은 파일을 다시 고르면 change 가 발생하지 않는다 — 업로드가 한 번
-      // 실패한 뒤 같은 사진으로 재시도하는 게 가장 흔한 시나리오인데 그때 아무 반응이 없게 된다.
-      e.target.value = '';
-      if (!file) return;
+  /** 파일 선택 → (업로드하지 않고) 자르기 패널을 연다. */
+  const handlePhotoPick = useCallback((e) => {
+    const file = e.target.files?.[0];
+    // [값을 비우는 이유] 같은 파일을 다시 고르면 change 가 발생하지 않는다 — 자르기를 취소한 뒤
+    // 같은 사진을 다시 고르는 게 가장 흔한 시나리오인데 그때 아무 반응이 없게 된다.
+    e.target.value = '';
+    if (!file) return;
 
+    setPhotoErr(null);
+    try {
+      // 못 읽을 파일이면 자르기 창을 열기 전에 말해준다.
+      validateImageFile(file);
+      setCropFile(file);
+    } catch (err) {
+      setPhotoErr(err instanceof ProgramImageError ? err.message : PROGRAM_IMAGE_RULE_MSG);
+    }
+  }, []);
+
+  /** 자르기 확정 → 그 결과물만 업로드 → 성공하면 폼 값이 URL 로 바뀐다. */
+  const handleCropConfirm = useCallback(
+    async (blob) => {
       setPhotoErr(null);
       setUploading(true);
       try {
-        const url = await uploadProgramImage(adminId, file);
+        const url = await uploadProgramImage(adminId, blob);
         setV((prev) => ({ ...prev, image_url: url }));
+        setCropFile(null); // 성공했을 때만 닫는다 — 실패하면 고른 영역 그대로 다시 시도할 수 있다.
       } catch (err) {
         console.error('[AdminPrograms] 사진 업로드 실패:', err);
         setPhotoErr(err instanceof ProgramImageError ? err.message : PROGRAM_IMAGE_RULE_MSG);
@@ -430,54 +454,68 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
           <div className={photoErr ? 'pf err' : 'pf'}>
             <label htmlFor="pf-photo">대표 사진</label>
 
-            <div className="pf-photo">
-              {v.image_url ? (
-                <img className="pf-photo-preview" src={v.image_url} alt="선택한 대표 사진 미리보기" />
-              ) : (
-                <div className="pf-photo-empty">
-                  <Icon name="ic-image" size={24} />
-                  <span>사진을 올리지 않으면 활동 유형 아이콘이 표시됩니다.</span>
-                </div>
-              )}
+            {/* 실제 입력칸은 숨기고 버튼으로 연다 — file input 의 기본 모양("파일 선택 없음")은
+                디자인 시스템 밖이고 문구도 손댈 수 없다. label htmlFor 는 그대로 살아 있어
+                위의 "대표 사진" 라벨을 눌러도 열린다.
+                [자르기 중에도 마운트를 유지한다] 조건부 안에 넣으면 fileRef.current 가 사라져
+                패널을 닫은 뒤 "사진 바꾸기"가 아무 반응도 하지 않는 버튼이 된다. */}
+            <input
+              ref={fileRef}
+              id="pf-photo"
+              type="file"
+              className="pf-photo-input"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handlePhotoPick}
+              disabled={uploading || Boolean(cropFile)}
+            />
 
-              <div className="pf-photo-acts">
-                {/* 실제 입력칸은 숨기고 버튼으로 연다 — file input 의 기본 모양("파일 선택 없음")은
-                    디자인 시스템 밖이고 문구도 손댈 수 없다. label htmlFor 는 그대로 살아 있어
-                    위의 "대표 사진" 라벨을 눌러도 열린다. */}
-                <input
-                  ref={fileRef}
-                  id="pf-photo"
-                  type="file"
-                  className="pf-photo-input"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handlePhotoPick}
-                  disabled={uploading}
-                />
-                <button
-                  type="button"
-                  className="pf-photo-btn"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                >
-                  <Icon name="ic-image" size={15} />
-                  {uploading ? '올리는 중…' : v.image_url ? '사진 바꾸기' : '사진 올리기'}
-                </button>
-                {v.image_url && !uploading && (
-                  <button type="button" className="pf-photo-btn ghost" onClick={clearPhoto}>
-                    <Icon name="ic-close" size={14} />
-                    지우기
-                  </button>
+            {cropFile ? (
+              <ImageCropper
+                file={cropFile}
+                busy={uploading}
+                onCancel={() => setCropFile(null)}
+                onConfirm={handleCropConfirm}
+              />
+            ) : (
+              <div className="pf-photo">
+                {v.image_url ? (
+                  <img className="pf-photo-preview" src={v.image_url} alt="선택한 대표 사진 미리보기" />
+                ) : (
+                  <div className="pf-photo-empty">
+                    <Icon name="ic-image" size={24} />
+                    <span>사진을 올리지 않으면 활동 유형 아이콘이 표시됩니다.</span>
+                  </div>
                 )}
+
+                <div className="pf-photo-acts">
+                  <button
+                    type="button"
+                    className="pf-photo-btn"
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    <Icon name="ic-image" size={15} />
+                    {v.image_url ? '사진 바꾸기' : '사진 올리기'}
+                  </button>
+                  {v.image_url && !uploading && (
+                    <button type="button" className="pf-photo-btn ghost" onClick={clearPhoto}>
+                      <Icon name="ic-close" size={14} />
+                      지우기
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {photoErr ? (
               <p className="pf-msg err">{photoErr}</p>
             ) : (
-              <p className="pf-msg hint">
-                JPG·PNG·WEBP, 15MB 이하. 올리면 <b>카드 모양에 맞게 가운데를 기준으로 자동으로
-                잘려서</b> 저장돼요 — 위 미리보기가 학생 화면에 그대로 나옵니다.
-              </p>
+              !cropFile && (
+                <p className="pf-msg hint">
+                  JPG·PNG·WEBP, 15MB 이하. 사진을 고르면 <b>어느 부분을 보여줄지 직접 정하는
+                  화면</b>이 나와요 — 거기서 확정한 영역이 그대로 학생 카드에 올라갑니다.
+                </p>
+              )
             )}
           </div>
 
