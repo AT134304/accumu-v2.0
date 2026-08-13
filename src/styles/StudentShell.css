@@ -291,20 +291,36 @@ h2.sec { font-size: clamp(20px, 3.4vw, 23px); font-weight: 800; letter-spacing: 
 .pcard .thumb .matchbadge .isvg { color: #fff; }
 
 /* ---------- 대표 사진 (ADR 0022) ----------
-   .thumb / .mthumb 는 place-items:center 그리드라 아이콘이 가운데 놓였다. 사진은 그 칸을 꽉 채운다
-   (object-fit:cover — 비율이 제각각인 원본을 잘라서라도 카드 높이를 일정하게 유지한다. 카드마다
-   높이가 달라지면 가로 스트립이 들쭉날쭉해진다).
-   사진 위에도 .tag / .matchbadge 가 그대로 올라간다. 글씨 대비는 알약 자체(유형색 + 흰 글씨)가
-   책임지고, 스크림은 **알약과 사진을 분리하는 역할**만 한다 — 흰 배경 사진에서 밝은 알약이
-   떠 보이지 않는 것과, 팝업의 .mclose 가 사진에 묻히는 것을 같이 막는다.
-   (::before 는 생성 순서상 배지들보다 아래에 그려져 z-index 가 필요 없다.) */
-.thumb-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
+   [★ position:absolute 를 반드시 유지할 것 — 2026-08-13 버그 수정]
+   처음에는 그냥 `width:100%; height:100%` 인 흐름 안의 img 였는데, 그러면 **사진이 카드 전체를
+   덮어버린다.** .thumb 는 display:grid + place-items:center 이고 행 크기가 auto 다. auto 행을
+   재는 시점에는 행 높이가 아직 정해지지 않았으므로 자식의 height:100% 는 auto 로 해석되고,
+   그 결과 행이 이미지 원본 높이(폰 사진이면 3000px)로 잡힌다. 컨테이너의 108px 는 넘겨진 채로
+   남아 이미지가 본문 위를 통째로 덮는다(.pcard 의 overflow:hidden 이 카드 경계에서만 자른다).
+   place-items:center 때문에 stretch 도 안 걸려 스스로 줄어들지 않는다.
+   -> 절대 위치로 흐름에서 빼면 행 크기 계산에 아예 참여하지 않고 inset:0 이 .thumb(108px)에
+      직접 걸린다. 아이콘(사진 없음) 경로는 흐름 안에 그대로 남아 영향받지 않는다.
+
+   [자르기는 업로드 때 이미 끝나 있다] programService.cropToCardRatio() 가 이 칸의 비율(236/108)로
+   잘라서 저장하므로 object-fit:cover 는 사실상 남는 여유분 처리용 안전장치다(팝업 .mthumb 는
+   비율이 조금 달라 좌우가 아주 살짝 더 잘린다).
+
+   [z-index 를 명시하는 이유] 사진이 절대 위치가 되면서 ::before(스크림)·배지들과 같은
+   "위치 지정 + z-index:auto" 그룹에 들어가 DOM 순서가 곧 그리는 순서가 된다. ::before 는 생성
+   순서상 첫째라 사진 밑으로 깔린다 — 층을 숫자로 못박는다: 사진 0 < 스크림 1 < 배지 2. */
+.thumb-photo {
+  position: absolute; inset: 0; z-index: 0;
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.pcard .thumb, .modal .mthumb { overflow: hidden; }
 .pcard .thumb.has-photo::before,
 .modal .mthumb.has-photo::before {
-  content: ""; position: absolute; inset: 0 0 auto 0; height: 54%;
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 54%; z-index: 1;
   background: linear-gradient(180deg, rgba(22, 33, 62, .28), rgba(22, 33, 62, 0));
   pointer-events: none;
 }
+/* 스크림(1)보다 위. 사진 위에서도 유형·매칭 배지가 항상 읽혀야 한다. */
+.pcard .thumb .tag, .pcard .thumb .matchbadge { z-index: 2; }
 .pcard .body { padding: 13px 15px 15px; flex: 1; display: flex; flex-direction: column; }
 .pcard .body h4 { font-size: 14.5px; font-weight: 700; letter-spacing: -.3px; line-height: 1.35; }
 .pcard .meta { font-size: 12px; color: var(--muted); margin-top: 7px; display: flex; gap: 6px; align-items: center; }

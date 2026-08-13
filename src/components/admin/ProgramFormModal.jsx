@@ -475,7 +475,8 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
               <p className="pf-msg err">{photoErr}</p>
             ) : (
               <p className="pf-msg hint">
-                JPG·PNG·WEBP, 3MB 이하. 카드에서는 가로로 넓게 잘려 보이니 가운데에 담아주세요.
+                JPG·PNG·WEBP, 15MB 이하. 올리면 <b>카드 모양에 맞게 가운데를 기준으로 자동으로
+                잘려서</b> 저장돼요 — 위 미리보기가 학생 화면에 그대로 나옵니다.
               </p>
             )}
           </div>
