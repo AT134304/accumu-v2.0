@@ -24,12 +24,22 @@
  * [색 규칙] amber 계열을 쓰지 않는다 — amber 는 포인트 전용이다(절대 원칙 4).
  *   이전 8종에는 교내 대회가 amber(#E0922F)였는데, 4종으로 줄면 그 비중이 커져 "대회=포인트"로 읽힌다.
  *   초록 계열도 금지(CLAUDE.md 8장).
+ *
+ * [색 3벌을 쓰는 이유 — color / soft / deep]
+ *   - color : 아이콘·점·강조선. 밝은 배경 위의 도형용.
+ *   - soft  : 연한 배경(카드 썸네일 그라데이션, 관리자 목록 아이콘 칸).
+ *   - deep  : **흰 글씨를 얹는 배경 전용**(카드 유형 배너, 참여 팝업 유형 칩).
+ *     color 를 그대로 배경으로 쓰면 흰 글씨 대비가 부족하다 — 특히 career(#0EA5E9)는 2.8:1,
+ *     volunteer(#E2556A)는 3.7:1 로 10.5px 작은 글씨의 기준(4.5:1)에 못 미친다. deep 은 같은
+ *     계열을 어둡게 잡아 전부 5.5:1 이상이 되게 고른 값이다(school 6.7 / contest 7.1 /
+ *     volunteer 5.6 / career 5.9).
+ *     >>> 배너 배경에 color 를 쓰지 말 것. 사진 위에서 유형이 안 읽히면 배너를 단 이유가 없어진다.
  */
 export const CAT = {
-  school: { name: '교내 활동', color: '#3B6FEF', soft: '#E2EAFE', icon: 'ic-school' },
-  contest: { name: '대회·공모전', color: '#8B5CF0', soft: '#EBE2FD', icon: 'ic-trophy' },
-  volunteer: { name: '봉사활동', color: '#E2556A', soft: '#FBDDE2', icon: 'ic-heart' },
-  career: { name: '진로 체험', color: '#0EA5E9', soft: '#DBF0FD', icon: 'ic-compass' },
+  school: { name: '교내 활동', color: '#3B6FEF', soft: '#E2EAFE', deep: '#1D4ED8', icon: 'ic-school' },
+  contest: { name: '대회·공모전', color: '#8B5CF0', soft: '#EBE2FD', deep: '#6D28D9', icon: 'ic-trophy' },
+  volunteer: { name: '봉사활동', color: '#E2556A', soft: '#FBDDE2', deep: '#C0304A', icon: 'ic-heart' },
+  career: { name: '진로 체험', color: '#0EA5E9', soft: '#DBF0FD', deep: '#0369A1', icon: 'ic-compass' },
 };
 
 /**
@@ -68,5 +78,6 @@ export const STATUS = {
 
 // enum과 맵이 어긋날 수 없는 구조지만(양쪽 다 닫힌 값 집합), 마이그레이션만 먼저 확장되는 등의
 // 상황에서 undefined 접근으로 화면 전체가 죽는 것보다는 카드 한 장이 얌전히 뜨는 편이 낫다.
-export const catOf = (key) => CAT[key] ?? { name: '분류 없음', color: '#64748B', soft: '#E9EDF3', icon: 'ic-grid' };
+export const catOf = (key) =>
+  CAT[key] ?? { name: '분류 없음', color: '#64748B', soft: '#E9EDF3', deep: '#475569', icon: 'ic-grid' };
 export const statusOf = (key) => STATUS[key] ?? { label: '확인 필요', cls: 'b-close', join: false };

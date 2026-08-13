@@ -93,8 +93,11 @@ export default function ProgramCard({
         ) : (
           <Icon name={c.icon} size={40} color={c.color} />
         )}
-        {/* group(교내/교외)이 사라져 유형 이름 하나다 — ADR 0014 */}
-        <span className="tag">{c.name}</span>
+        {/* group(교내/교외)이 사라져 유형 이름 하나다 — ADR 0014.
+            배경은 유형색(CAT[].deep) — 사진이 들어와도 유형이 먼저 읽히게 한다(2026-08-13). */}
+        <span className="tag" style={{ background: c.deep }}>
+          {c.name}
+        </span>
         {/* 계열 매칭 배지 — 개인화 표시일 뿐 보상/랭킹 요소가 아니다 (확정 E) */}
         {program.isMatched && (
           <span className="matchbadge">

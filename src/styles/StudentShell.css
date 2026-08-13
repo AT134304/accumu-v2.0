@@ -152,8 +152,10 @@ h2.sec { font-size: clamp(20px, 3.4vw, 23px); font-weight: 800; letter-spacing: 
    .mthumb는 이후 다른 팝업에서도 재사용될 수 있어 .modal 하위에 두고,
    제목 여백 등 참여 팝업 고유 값만 .join-modal로 좁힌다 (알림/캘린더 팝업의 h3에 영향 주지 않도록). */
 .modal .mthumb { height: 120px; display: grid; place-items: center; position: relative; }
+/* 카드의 유형 배너와 같은 규칙(배경 = CAT[].deep 인라인, 흰 글씨). 카드에서 보라색 "대회·공모전"을
+   보고 눌렀는데 팝업만 파란 칩이면 같은 유형으로 안 읽힌다 — 두 화면이 같은 색을 쓴다. */
 .join-modal .mtag {
-  font-size: 11px; font-weight: 700; color: var(--brand-dk); background: var(--brand-soft);
+  font-size: 11px; font-weight: 700; color: #fff;
   padding: 4px 10px; border-radius: 20px; display: inline-block;
 }
 .join-modal h3 { margin: 11px 0 6px; }
@@ -271,9 +273,14 @@ h2.sec { font-size: clamp(20px, 3.4vw, 23px); font-weight: 800; letter-spacing: 
 .pcard:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: var(--line2); }
 .pcard:focus-visible { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-soft); }
 .pcard .thumb { height: 108px; position: relative; display: grid; place-items: center; }
+/* 유형 배너 — 배경색은 인라인(CAT[].deep)이다. 사진이 들어와도 유형이 먼저 읽혀야 해서
+   반투명 흰 알약에서 유형색 알약으로 바꿨다(2026-08-13 케빈 요청).
+   흰 글씨 대비는 deep 값이 보장한다(taxonomy.js 색 3벌 주석). 어두운 사진 위에서 알약 자체가
+   묻히지 않도록 그림자를 얕게 깐다 — 테두리를 두르면 사진 위에서 지저분해진다. */
 .pcard .thumb .tag {
   position: absolute; top: 10px; left: 10px; font-size: 10.5px; font-weight: 700;
-  padding: 4px 9px; border-radius: 20px; background: rgba(255, 255, 255, .92); color: var(--ink2);
+  padding: 4px 9px; border-radius: 20px; color: #fff;
+  box-shadow: 0 1px 5px rgba(22, 33, 62, .3);
 }
 /* 계열 매칭 배지 — brand blue (개인화 표시, 보상 아님) */
 .pcard .thumb .matchbadge {
@@ -287,8 +294,10 @@ h2.sec { font-size: clamp(20px, 3.4vw, 23px); font-weight: 800; letter-spacing: 
    .thumb / .mthumb 는 place-items:center 그리드라 아이콘이 가운데 놓였다. 사진은 그 칸을 꽉 채운다
    (object-fit:cover — 비율이 제각각인 원본을 잘라서라도 카드 높이를 일정하게 유지한다. 카드마다
    높이가 달라지면 가로 스트립이 들쭉날쭉해진다).
-   사진 위에도 .tag / .matchbadge 가 그대로 올라간다 — 밝은 사진에서 흰 태그가 묻히지 않도록
-   위쪽에만 옅은 스크림을 깐다(::before 는 생성 순서상 배지들보다 아래에 그려진다). */
+   사진 위에도 .tag / .matchbadge 가 그대로 올라간다. 글씨 대비는 알약 자체(유형색 + 흰 글씨)가
+   책임지고, 스크림은 **알약과 사진을 분리하는 역할**만 한다 — 흰 배경 사진에서 밝은 알약이
+   떠 보이지 않는 것과, 팝업의 .mclose 가 사진에 묻히는 것을 같이 막는다.
+   (::before 는 생성 순서상 배지들보다 아래에 그려져 z-index 가 필요 없다.) */
 .thumb-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
 .pcard .thumb.has-photo::before,
 .modal .mthumb.has-photo::before {
