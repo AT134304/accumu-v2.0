@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import RotateNotice from './components/RotateNotice';
 import ProtectedRoute from './routes/ProtectedRoute';
 import RootRedirect from './routes/RootRedirect';
 import StudentLayout from './routes/StudentLayout';
@@ -29,6 +30,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <ErrorBoundary>
+        {/* [가로 모드 미지원 안내 — 2026-08-13] Routes 밖에 둔다. 로그인·가입·404 를 포함한 모든
+            화면에서 같아야 하는 셸이고, 라우트마다 붙이면 빠뜨린 화면이 생긴다.
+            순수 CSS 로만 보이고 숨으므로 여기 있어도 평소에는 아무 비용이 없다. */}
+        <RotateNotice />
         <AuthProvider>
           <Routes>
             <Route path="/" element={<RootRedirect />} />

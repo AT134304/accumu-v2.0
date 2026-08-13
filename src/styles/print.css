@@ -32,11 +32,14 @@
     color: #16213E;
   }
 
-  /* 셸·인터랙션 요소 제거 */
+  /* 셸·인터랙션 요소 제거
+     .rotate-notice 는 pointer:coarse 조건 덕에 인쇄에서 이미 빠지지만, 그 조건 하나에 기대지
+     않는다 — 종이에 "화면을 세로로 돌려주세요"가 찍히는 사고는 되돌릴 수 없다. */
   .nav,
   .bottomnav,
   .overlay,
   .toast,
+  .rotate-notice,
   .no-print {
     display: none !important;
   }

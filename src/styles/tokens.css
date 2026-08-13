@@ -95,3 +95,30 @@ img, svg { display: block; }
   color: var(--muted);
   font-size: 14px;
 }
+
+/* ---------- 가로 모드 미지원 안내 (RotateNotice, 2026-08-13) ----------
+   [지원 범위를 높이 축으로도 명시한다] CLAUDE.md 8장의 980/768/600/430 은 전부 **폭**이다.
+   폰을 눕히면 폭은 오히려 넉넉해지고(800px+) 높이가 400px 안팎으로 줄어드는데, 그 구간은
+   설계된 적이 없다 — 튜토리얼 배너·모달이 화면 대부분을 덮는다. 고치는 대신 범위를 좁힌다.
+
+   조건 셋을 모두 만족할 때만 뜬다:
+     orientation: landscape  — 눕혔을 때만
+     max-height: 500px       — 폰 가로(320~430)는 걸리고 태블릿 가로(iPad mini 768)는 안 걸린다
+     pointer: coarse         — 데스크톱 창을 짧게 줄였을 때 "폰을 돌리세요"가 뜨는 것을 막는다
+                               (인쇄 시에도 pointer 가 none 이라 자동으로 빠진다) */
+.rotate-notice { display: none; }
+
+@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+  .rotate-notice {
+    display: flex;
+    /* z-index: 튜토리얼 링/배너(300)와 모달 오버레이(200)보다 위여야 한다 — 이 안내가 떴는데
+       그 위로 모달이 겹치면 "돌리라면서 눌리는 화면"이 된다. */
+    position: fixed; inset: 0; z-index: 9999;
+    flex-direction: column; align-items: center; justify-content: center; gap: 13px;
+    padding: 24px; text-align: center;
+    background: var(--ink); color: #fff;
+  }
+  .rotate-notice .isvg { color: #BCD0FF; }
+  .rotate-notice h2 { font-size: 18px; font-weight: 800; letter-spacing: -.3px; }
+  .rotate-notice p { font-size: 13.5px; line-height: 1.6; color: rgba(255, 255, 255, .78); }
+}
