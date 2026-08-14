@@ -13,6 +13,9 @@ async function fetchOwnProfile(userId) {
   return supabase.from('profiles').select('*').eq('id', userId).single();
 }
 
+/** 학교 이름 비교용 정규화 — 앞뒤 공백과 연속 공백만 정리한다. 그 이상은 보정하지 않는다(loginStudent 주석). */
+const normalizeSchool = (s) => String(s ?? '').trim().replace(/\s+/g, ' ');
+
 /**
  * 학생(학교 계정) 로그인 — 학교 + 학번 + 이름 + 비밀번호 4가지 모두 일치해야 성공.
  * ADR 0002 순서:
@@ -23,8 +26,13 @@ async function fetchOwnProfile(userId) {
  *   5. school 불일치 → 같은 문구 (2026-08-14 추가)
  *
  * [school 검사 — 2026-08-14 케빈 요청]
- *   name 과 같은 성격의 대조다. 틀렸을 때 **어느 항목이 틀렸는지 말하지 않는다** — "학교는 맞고
- *   이름이 틀렸다"고 알려주면 학번 하나로 그 학생의 소속을 확인해 주는 조회 도구가 된다.
+ *   name 과 같은 성격의 대조다. 학생이 가입할 때 직접 적은 값을 로그인에서 다시 적는다.
+ *   틀렸을 때 **어느 항목이 틀렸는지 말하지 않는다** — "학교는 맞고 이름이 틀렸다"고 알려주면
+ *   학번 하나로 그 학생의 소속을 확인해 주는 조회 도구가 된다.
+ *   [공백만 다른 것은 다른 값이 아니다] 앞뒤 공백과 연속 공백을 정리해서 비교한다. "가온 고등학교"를
+ *   "가온  고등학교"로 친 것까지 틀렸다고 하는 건 대조의 목적이 아니다. 그 이상은 보정하지 않는다 —
+ *   "가온고"와 "가온고등학교"는 사람 눈에도 다른 문자열이고, 여기서 같다고 우기기 시작하면
+ *   어디까지 같은지의 규칙이 끝없이 늘어난다.
  *   [학교가 없는 계정] 개인 계정은 이 함수를 타지 않는다(모드가 갈린다). 학교 계정인데 school 이
  *   NULL 인 경우는 백필 이전 데이터뿐이며, 그때는 검사를 건너뛴다 — 값이 없는 것은 학생 잘못이
  *   아니고, 막으면 그 계정은 영영 로그인하지 못한다.
@@ -59,7 +67,7 @@ export async function loginStudent({ studentId, name, password, school }) {
   }
 
   // 학교 대조 — 위 주석의 두 예외(값이 없는 계정 / 화면이 학교를 안 물은 경우)에서는 건너뛴다.
-  if (profile.school && school && profile.school.trim() !== school.trim()) {
+  if (profile.school && school && normalizeSchool(profile.school) !== normalizeSchool(school)) {
     await supabase.auth.signOut();
     throw new Error(STUDENT_CREDENTIAL_ERROR);
   }
@@ -202,8 +210,14 @@ async function signUpWithProfile({ role, code, name, password, invite, careerInt
   return { ok: true, session: Boolean(data?.session) };
 }
 
-/** 학생 가입. invite 가 없으면 개인 계정, 있으면 그 코드의 관리자와 연동된 학교 계정이 된다. */
-export async function signUpStudent({ studentId, name, password, invite, careerInterest }) {
+/**
+ * 학생 가입. invite 가 없으면 개인 계정, 있으면 그 코드의 관리자와 연동된 학교 계정이 된다.
+ *
+ * [school — 2026-08-14] 학교 계정일 때만 의미가 있고 그때는 **필수**다(로그인 4번째 대조 항목).
+ *   개인 계정 경로에서는 트리거가 무시하고 NULL 로 둔다 — 소속이 없는 계정이라서다.
+ *   >>> 초대코드 주인(관리자)의 학교와 같을 필요가 없다. 학생이 적은 값이 그 학생의 학교다.
+ */
+export async function signUpStudent({ studentId, name, password, invite, careerInterest, school }) {
   return signUpWithProfile({
     role: 'student',
     code: studentId,
@@ -211,6 +225,7 @@ export async function signUpStudent({ studentId, name, password, invite, careerI
     password,
     invite,
     careerInterest,
+    school,
   });
 }
 
@@ -224,21 +239,11 @@ export async function signUpAdmin({ code, name, password, invite, school }) {
   return signUpWithProfile({ role: 'admin', code, name, password, invite, school });
 }
 
-/**
- * 로그인 화면의 학교 선택 목록 (20260814160000 school_names RPC).
- *
- * [로그인 전에 부른다] anon 실행이 허용된 함수다 — 나가는 것은 학교 이름 목록뿐이다.
- * [실패를 삼킨다] 마이그레이션 미적용·네트워크 오류에도 로그인 화면이 죽으면 안 된다.
- *   빈 배열이 오면 화면이 드롭다운 대신 직접 입력 칸으로 내려간다(로그인 자체가 막히지 않게).
- */
-export async function fetchSchoolNames() {
-  const { data, error } = await supabase.rpc('school_names');
-  if (error) {
-    console.warn('[authService] 학교 목록 조회 실패 — 직접 입력으로 대체합니다:', error);
-    return [];
-  }
-  return (data ?? []).filter(Boolean);
-}
+// [fetchSchoolNames() 는 삭제됐다 — 2026-08-14]
+//   로그인 화면이 드롭다운 대신 직접 입력을 쓰게 되면서 호출자가 0개가 됐고, 학교가 관리자와
+//   무관해지면서 그 목록은 부분 목록이 됐다("내 학교가 목록에 없다"가 정상 상황이 된다).
+//   서버 함수 school_names() 도 20260814180000 이 drop 한다.
+//   >>> 목록 조회를 되살리려면 그 전에 "학교라는 값의 주인이 누구인가"부터 다시 정할 것.
 
 /* ==========================================================================
    개인 계정 — 학번이 없다 (docs/specs/auth-signup.md 개정 2026-07-31)

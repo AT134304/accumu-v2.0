@@ -37,7 +37,7 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 
 | 구분 | 입력 필드 | Auth 처리 |
 |---|---|---|
-| 학생 (학교 계정) | **학교**·학번·이름·비밀번호 | `{학번}@accumu.local` 가상 이메일로 변환. 학교는 목록에서 고른다(`school_names()`) — 4번째 대조 항목이며 틀려도 어느 항목이 틀렸는지 말하지 않는다 |
+| 학생 (학교 계정) | **학교**·학번·이름·비밀번호 | `{학번}@accumu.local` 가상 이메일로 변환. 학교는 가입 때 적은 값을 **직접 입력해 대조**한다(이름 대조와 같은 성격) — 틀려도 어느 항목이 틀렸는지 말하지 않는다. 비교 전 앞뒤·연속 공백만 정리하고 그 이상은 보정하지 않는다 |
 | 학생 (개인 계정) | 이메일·비밀번호 또는 소셜 | 소속이 없어 학교를 묻지 않는다 |
 | 관리자 | 관리자 코드(예: `ADM-0001`)·비밀번호 | `{코드}@accumu.local` 가상 이메일로 변환 |
 
@@ -57,7 +57,7 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 
 | 테이블 | 주요 필드 | 설명 |
 |---|---|---|
-| `profiles` | id, role, code, name, points_balance, points_total, currency_balance, career_interest, account_type, school | 학생/관리자 공통 계정. `account_type`(school/personal)은 학생 전용 (ADR 0008). `school`(2026-08-14)은 **관리자가 가입 시 입력**하고 학생은 담당 관리자에게서 **상속**받는다(`mentor_students` 트리거) — 학생이 직접 입력하는 경로를 만들지 말 것(오타가 로그인을 막는다). 개인·소셜 계정은 NULL |
+| `profiles` | id, role, code, name, points_balance, points_total, currency_balance, career_interest, account_type, school | 학생/관리자 공통 계정. `account_type`(school/personal)은 학생 전용 (ADR 0008). `school`(2026-08-14)은 **학교 계정 학생과 관리자가 각각 가입 시 직접 입력**한다 — 둘이 일치해야 하는 관계가 아니고, **같은 학교의 관리자가 없어도 성립한다**. 개인·소셜 계정은 NULL. `mentor_students` 트리거는 학생 학교가 **비어 있을 때만** 관리자 값으로 채운다(덮어쓰면 그 학생이 로그인하지 못한다) |
 | `mentor_students` | admin_id, student_id | 관리자-담당학생 매핑. **권한 경계 자체**. 생기는 경로는 시딩 + 학생의 초대코드 입력(`link_school_account`) 2가지, 없어지는 경로는 관리자의 "담당 해제" 1가지뿐(ADR 0015). 그 외 편집 UI 없음 |
 | `invite_codes` | code, kind(school/admin), admin_id, is_active | 가입 초대코드 (ADR 0008). 관리자별 고정 school 코드 + 관리자 승격용 코드. **앱에서 생성 불가**(정책 0개, 시딩/SQL 전용) |
 | `programs` | id, category, title, org, description, date, time, capacity, points, career_track, is_published, created_by, image_url | is_published로 게시/게시중단. `category`·`career_track` 값은 아래 참고. `image_url`(ADR 0022)은 대표 사진 **1장**의 공개 URL — NULL이면 카드가 기존 category 아이콘을 그린다(아이콘은 폐기가 아니라 fallback). 배열/갤러리로 늘리지 말 것 |

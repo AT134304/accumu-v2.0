@@ -3,17 +3,17 @@
 // [2026-07-31 개정 — 개인 계정 / 네이버 로그인 (docs/specs/auth-signup.md, ADR 0009)]
 //   학생 탭 안에서 **학교 계정 / 개인 계정**이 갈린다. 로그인 수단 자체가 다르기 때문이다:
 //     - 학교 계정: 학교 + 학번 + 이름 + 비밀번호 (2026-08-14부터 학교가 4번째 대조 항목이다.
-//       학교는 목록에서 고른다 — 학생은 그 값을 직접 입력한 적이 없고 관리자에게서 상속받으므로,
-//       자유 입력으로 두면 자기 학교 이름의 정확한 표기를 맞혀야 하는 문제가 된다)
+//       가입할 때 학생이 직접 적은 값을 그대로 적으면 통과한다 — 이름 대조와 같은 성격이다.
+//       같은 학교의 관리자가 없어도 성립한다: 학교는 관리자 목록과 무관한 값이다)
 //     - 개인 계정: 이메일 + 비밀번호 (학번이 없다) 또는 네이버 로그인
 //   관리자 탭은 그대로다 — **관리자는 네이버로 로그인할 수 없다.** 네이버로 만들어지는 계정은 언제나
 //   학생·개인이므로(Edge Function + 트리거가 고정) 관리자 탭에 두면 되지 않는 경로를 약속하는 셈이다.
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import SocialLogin from '../components/SocialLogin';
 import AccountHelpModal from '../components/AccountHelpModal';
-import { fetchSchoolNames, loginPersonal } from '../lib/authService';
+import { loginPersonal } from '../lib/authService';
 import '../styles/LoginPage.css';
 
 const emptyStudentForm = { school: '', studentId: '', name: '', password: '' };
@@ -44,19 +44,6 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   // 아이디/비밀번호 찾기 (ADR 0020). 어느 모달인지만 담고, 내용 분기는 AccountHelpModal이 tab/mode로 한다.
   const [helpType, setHelpType] = useState(null); // 'find-id' | 'forgot-password' | null
-  // [학교 목록 — 2026-08-14] 로그인 전이라 anon 으로 부른다(school_names RPC).
-  //   빈 배열이면 드롭다운 대신 직접 입력 칸으로 내려간다 — 마이그레이션 미적용/조회 실패 때
-  //   선택지가 하나도 없는 select 를 띄우면 **로그인 자체가 불가능해진다.**
-  const [schools, setSchools] = useState([]);
-  useEffect(() => {
-    let cancelled = false;
-    fetchSchoolNames().then((rows) => {
-      if (!cancelled) setSchools(rows);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // 이미 로그인 + role 확정 상태면 즉시 자기 role 홈으로 리다이렉트 (ADR 0001 라우트 테이블)
   if (!loading && session && profile) {
@@ -176,32 +163,19 @@ export default function LoginPage() {
             <>
               {/* [학교 — 2026-08-14 케빈 요청] 학번 위에 둔다: 넓은 소속에서 좁은 식별자로 좁혀 가는
                   순서가 종이 서식과 같고, 학번을 치기 전에 "어느 학교의 학번인가"가 정해진다.
-                  [목록이 비면 직접 입력] 마이그레이션 미적용·조회 실패로 선택지가 0개인 select 를
-                  띄우면 로그인이 아예 불가능해진다 — 그때는 텍스트 칸으로 내려간다. 서버 대조는
-                  어느 쪽이든 같은 문자열 비교라 동작이 갈리지 않는다. */}
+                  [드롭다운이 아니라 직접 입력이다 — 같은 날 재변경] 처음에는 관리자가 등록한 학교
+                  목록에서 고르게 했다. 학교가 관리자와 무관해지면서(가입할 때 학생이 직접 적는다)
+                  그 목록은 **부분 목록**이 됐다 — 내 학교가 목록에 없는 상황이 정상이 되므로
+                  드롭다운은 오히려 막다른 길이 된다. 가입 때 적은 값을 그대로 적으면 통과한다
+                  (앞뒤 공백·연속 공백은 서버가 무시한다). */}
               <div className="field">
                 <label htmlFor="in-school">학교</label>
-                {schools.length > 0 ? (
-                  <select
-                    id="in-school"
-                    value={studentForm.school}
-                    onChange={(e) => setStudentForm((f) => ({ ...f, school: e.target.value }))}
-                  >
-                    <option value="">학교를 선택하세요</option>
-                    {schools.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    id="in-school"
-                    placeholder="학교 이름을 입력하세요"
-                    value={studentForm.school}
-                    onChange={(e) => setStudentForm((f) => ({ ...f, school: e.target.value }))}
-                  />
-                )}
+                <input
+                  id="in-school"
+                  placeholder="가입할 때 입력한 학교"
+                  value={studentForm.school}
+                  onChange={(e) => setStudentForm((f) => ({ ...f, school: e.target.value }))}
+                />
               </div>
               <div className="field">
                 <label htmlFor="in-sid">학번</label>

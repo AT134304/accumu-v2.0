@@ -26,7 +26,7 @@ import '../styles/LoginPage.css';
 //   학번은 학교가 부여하는 식별자다. 소속이 없는 계정에 받을 근거가 없고, 받으면 "아무 숫자나 학번처럼
 //   입력된 값"이 unique 공간을 차지한다. 개인 계정의 아이디는 이메일(또는 소셜 계정)이고
 //   profiles.code 는 서버가 P-XXXXXX 로 발급한다(generate_personal_code).
-const emptyStudent = { studentId: '', name: '', password: '', confirm: '', invite: '' };
+const emptyStudent = { studentId: '', name: '', password: '', confirm: '', invite: '', school: '' };
 const emptyPersonal = { email: '', name: '', password: '', confirm: '' };
 const emptyAdmin = { code: '', name: '', password: '', confirm: '', invite: '', school: '' };
 
@@ -94,6 +94,10 @@ export default function SignupPage() {
     // 서버 트리거도 비어 있으면 가입을 거부하지만, 그 예외 문구는 사용자에게 보여줄 수 없다.
     if (tab === 'admin' && !adminForm.school.trim()) return '학교 이름을 입력해주세요.';
     if (tab === 'admin' && !adminForm.invite.trim()) return '관리자 초대코드를 입력해주세요.';
+    // 학교는 학교 계정 학생에게 필수다 — 로그인 4번째 대조 항목이라 비면 그 검사가 없는 계정이 된다.
+    if (tab === 'student' && accountType === 'school' && !studentForm.school.trim()) {
+      return '학교 이름을 입력해주세요.';
+    }
     if (tab === 'student' && accountType === 'school' && !studentForm.invite.trim()) {
       return '학교 계정은 초대코드가 필요합니다. 개인 계정으로 가입할 수도 있어요.';
     }
@@ -139,6 +143,7 @@ export default function SignupPage() {
           password: studentForm.password,
           invite: studentForm.invite,
           careerInterest: track,
+          school: studentForm.school,
         });
       }
 
@@ -231,16 +236,33 @@ export default function SignupPage() {
 
               {/* 학교 계정만 학번을 받는다. 개인 계정은 소속이 없어 학번이라는 값 자체가 없다. */}
               {accountType === 'school' ? (
-                <div className="field">
-                  <label htmlFor="su-sid">학번</label>
-                  <input
-                    id="su-sid"
-                    placeholder="예: 10723"
-                    value={studentForm.studentId}
-                    autoComplete="username"
-                    onChange={(e) => setStudentForm((f) => ({ ...f, studentId: e.target.value }))}
-                  />
-                </div>
+                <>
+                  {/* [학교 — 2026-08-14] 학번 위. 로그인에서 그대로 다시 물으므로 여기서 적은 표기가
+                      곧 로그인 자격의 일부다. 그래서 안내 문구가 "적은 대로 기억하라"고 말한다.
+                      >>> 초대코드 주인(관리자)의 학교와 같을 필요가 없다 — 같은 학교의 관리자가
+                          없어도 가입도 로그인도 된다(케빈 결정 2026-08-14). */}
+                  <div className="field">
+                    <label htmlFor="su-school">학교</label>
+                    <input
+                      id="su-school"
+                      placeholder="예: 가온고등학교"
+                      value={studentForm.school}
+                      maxLength={60}
+                      onChange={(e) => setStudentForm((f) => ({ ...f, school: e.target.value }))}
+                    />
+                    <div className="help">로그인할 때 학번·이름과 함께 다시 입력해요. 적은 그대로 기억해 주세요.</div>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="su-sid">학번</label>
+                    <input
+                      id="su-sid"
+                      placeholder="예: 10723"
+                      value={studentForm.studentId}
+                      autoComplete="username"
+                      onChange={(e) => setStudentForm((f) => ({ ...f, studentId: e.target.value }))}
+                    />
+                  </div>
+                </>
               ) : (
                 <div className="field">
                   <label htmlFor="su-email">이메일</label>
@@ -270,23 +292,19 @@ export default function SignupPage() {
                   onChange={(e) => setAdminForm((f) => ({ ...f, code: e.target.value }))}
                 />
               </div>
-              {/* [학교 — 2026-08-14] 관리자만 입력한다. 이 값이 담당 학생 전원에게 상속되고
-                  (mentor_students_sync_school 트리거) 로그인 화면의 학교 목록이 된다.
-                  >>> 학생 가입 폼에는 넣지 말 것 — 학생이 직접 치면 오타가 계정에 박히고,
-                      로그인할 때 그 오타를 똑같이 재현해야만 통과한다(케빈 결정 2026-08-14). */}
+              {/* [학교 — 2026-08-14] 관리자도 자기 학교를 적는다. 학생 학교와 일치해야 하는 관계는
+                  아니다 — 학생은 가입할 때 자기 학교를 직접 적고, 그 값이 그 학생의 학교다.
+                  이 값은 관리자 마이페이지 표시와, 학교 없이 들어온 학생(개인 → 학교 전환)의
+                  기본값으로만 쓰인다(sync_student_school 트리거는 비어 있을 때만 채운다). */}
               <div className="field">
-                <label htmlFor="su-school">학교</label>
+                <label htmlFor="su-admin-school">학교</label>
                 <input
-                  id="su-school"
+                  id="su-admin-school"
                   placeholder="예: 가온고등학교"
                   value={adminForm.school}
                   maxLength={60}
                   onChange={(e) => setAdminForm((f) => ({ ...f, school: e.target.value }))}
                 />
-                <div className="su-hint">
-                  담당 학생이 초대코드로 가입하면 이 학교로 자동 연결돼요. 학생은 학교를 따로 입력하지
-                  않습니다.
-                </div>
               </div>
             </>
           )}
