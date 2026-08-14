@@ -518,6 +518,9 @@
 .adm-account .nameline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .adm-account .nameline h3 { font-size: 19px; font-weight: 800; letter-spacing: -.4px; }
 .adm-account .code { font-size: 13px; color: var(--muted); font-weight: 600; margin-top: 3px; }
+/* 학교 (2026-08-14) — 관리자 코드 옆에 이어 붙는다. 코드보다 한 톤 진하게: 사람이 읽는 이름이라
+   기계 식별자(코드)보다 먼저 눈에 들어와야 한다. */
+.adm-account .adm-school { color: var(--ink2); font-weight: 700; }
 /* 결정 O — 지표가 아니라 "가는 길". 큰 숫자·타일·그래프를 만들지 않는다. */
 .adm-account .opsline {
   display: inline-flex; align-items: center; gap: 7px; margin-top: 12px;

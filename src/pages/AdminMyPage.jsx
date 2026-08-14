@@ -143,7 +143,13 @@ export default function AdminMyPage() {
             <h3>{profile?.name ?? ''}</h3>
             <span className="adminbadge">관리자</span>
           </div>
-          <div className="code">{profile?.code ?? ''}</div>
+          {/* 학교 (2026-08-14) — 관리자가 가입 때 직접 입력한 값이고, 담당 학생 전원이 이걸 상속받는다.
+              읽기 전용이다: 여기서 바꿀 수 있게 하면 담당 학생 전원의 소속을 한 번에 바꾸는 버튼이
+              되고, 그건 관리자 기능 5종 밖이다(원칙 6). 바꿔야 하면 SQL 로 한다. */}
+          <div className="code">
+            {profile?.code ?? ''}
+            {profile?.school && <span className="adm-school"> · {profile.school}</span>}
+          </div>
 
           {/* 결정 O — 지표가 아니라 "가는 길"이다. 카드·타일·큰 숫자로 만들지 않고, 줄 전체가 링크다.
               [넣지 않는 것] 그래프·추세·전월 대비·증감 화살표, "오늘 진행 프로그램" 수(관리자 홈 담당),

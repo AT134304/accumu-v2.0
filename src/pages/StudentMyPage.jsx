@@ -228,6 +228,14 @@ export default function StudentMyPage() {
                 그 자리에 로그인 아이디(이메일)를 보여준다 — profiles.code(P-XXXXXX)는 서버가 발급한
                 내부 식별자라 외우거나 불러줄 값이 아니다. 이메일이 없는 소셜 계정만 그 값을 대신 쓴다. */}
             <div className="prows">
+              {/* 학교 (2026-08-14) — 학교 계정에만 있는 값이다. 개인 계정은 소속이 없어 NULL 이고,
+                  백필 이전 데이터도 NULL 일 수 있어 값이 있을 때만 줄을 그린다. */}
+              {isSchool && profile?.school && (
+                <div className="prow">
+                  <span className="k">학교</span>
+                  <span className="v">{profile.school}</span>
+                </div>
+              )}
               <div className="prow">
                 <span className="k">{isSchool ? '학번' : '이메일'}</span>
                 <span className="v">

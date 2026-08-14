@@ -28,7 +28,7 @@ import '../styles/LoginPage.css';
 //   profiles.code 는 서버가 P-XXXXXX 로 발급한다(generate_personal_code).
 const emptyStudent = { studentId: '', name: '', password: '', confirm: '', invite: '' };
 const emptyPersonal = { email: '', name: '', password: '', confirm: '' };
-const emptyAdmin = { code: '', name: '', password: '', confirm: '', invite: '' };
+const emptyAdmin = { code: '', name: '', password: '', confirm: '', invite: '', school: '' };
 
 const PASSWORD_MIN = 6; // Supabase Auth 기본 최소 길이
 
@@ -90,6 +90,9 @@ export default function SignupPage() {
     if (!form.name.trim()) return '이름을 입력해주세요.';
     if (form.password.length < PASSWORD_MIN) return `비밀번호는 ${PASSWORD_MIN}자 이상이어야 합니다.`;
     if (form.password !== form.confirm) return '비밀번호가 서로 다릅니다.';
+    // 학교는 관리자에게 필수다 — 이 값이 담당 학생 전원에게 상속되고 로그인 목록이 된다(2026-08-14).
+    // 서버 트리거도 비어 있으면 가입을 거부하지만, 그 예외 문구는 사용자에게 보여줄 수 없다.
+    if (tab === 'admin' && !adminForm.school.trim()) return '학교 이름을 입력해주세요.';
     if (tab === 'admin' && !adminForm.invite.trim()) return '관리자 초대코드를 입력해주세요.';
     if (tab === 'student' && accountType === 'school' && !studentForm.invite.trim()) {
       return '학교 계정은 초대코드가 필요합니다. 개인 계정으로 가입할 수도 있어요.';
@@ -119,6 +122,7 @@ export default function SignupPage() {
           name: adminForm.name,
           password: adminForm.password,
           invite: adminForm.invite,
+          school: adminForm.school,
         });
       } else if (isPersonal) {
         // 학번도 초대코드도 보내지 않는다 = 트리거가 개인 계정으로 만들고 code 를 자동 발급한다.
@@ -255,16 +259,36 @@ export default function SignupPage() {
           )}
 
           {tab === 'admin' && (
-            <div className="field">
-              <label htmlFor="su-code">관리자 코드</label>
-              <input
-                id="su-code"
-                placeholder="예: ADM-0002"
-                value={adminForm.code}
-                autoComplete="username"
-                onChange={(e) => setAdminForm((f) => ({ ...f, code: e.target.value }))}
-              />
-            </div>
+            <>
+              <div className="field">
+                <label htmlFor="su-code">관리자 코드</label>
+                <input
+                  id="su-code"
+                  placeholder="예: ADM-0002"
+                  value={adminForm.code}
+                  autoComplete="username"
+                  onChange={(e) => setAdminForm((f) => ({ ...f, code: e.target.value }))}
+                />
+              </div>
+              {/* [학교 — 2026-08-14] 관리자만 입력한다. 이 값이 담당 학생 전원에게 상속되고
+                  (mentor_students_sync_school 트리거) 로그인 화면의 학교 목록이 된다.
+                  >>> 학생 가입 폼에는 넣지 말 것 — 학생이 직접 치면 오타가 계정에 박히고,
+                      로그인할 때 그 오타를 똑같이 재현해야만 통과한다(케빈 결정 2026-08-14). */}
+              <div className="field">
+                <label htmlFor="su-school">학교</label>
+                <input
+                  id="su-school"
+                  placeholder="예: 가온고등학교"
+                  value={adminForm.school}
+                  maxLength={60}
+                  onChange={(e) => setAdminForm((f) => ({ ...f, school: e.target.value }))}
+                />
+                <div className="su-hint">
+                  담당 학생이 초대코드로 가입하면 이 학교로 자동 연결돼요. 학생은 학교를 따로 입력하지
+                  않습니다.
+                </div>
+              </div>
+            </>
           )}
 
           <div className="field">

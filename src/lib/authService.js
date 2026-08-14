@@ -14,14 +14,22 @@ async function fetchOwnProfile(userId) {
 }
 
 /**
- * 학생 로그인 — 학번 + 이름 + 비밀번호 3가지 모두 일치해야 성공.
+ * 학생(학교 계정) 로그인 — 학교 + 학번 + 이름 + 비밀번호 4가지 모두 일치해야 성공.
  * ADR 0002 순서:
  *   1. signInWithPassword(학번, 비밀번호)
  *   2. profiles 본인 행 조회
  *   3. role !== 'student' → signOut 후 유형 불일치 에러 (이름 검사보다 먼저)
  *   4. name 불일치 → signOut 후 자격증명 오류와 동일 문구
+ *   5. school 불일치 → 같은 문구 (2026-08-14 추가)
+ *
+ * [school 검사 — 2026-08-14 케빈 요청]
+ *   name 과 같은 성격의 대조다. 틀렸을 때 **어느 항목이 틀렸는지 말하지 않는다** — "학교는 맞고
+ *   이름이 틀렸다"고 알려주면 학번 하나로 그 학생의 소속을 확인해 주는 조회 도구가 된다.
+ *   [학교가 없는 계정] 개인 계정은 이 함수를 타지 않는다(모드가 갈린다). 학교 계정인데 school 이
+ *   NULL 인 경우는 백필 이전 데이터뿐이며, 그때는 검사를 건너뛴다 — 값이 없는 것은 학생 잘못이
+ *   아니고, 막으면 그 계정은 영영 로그인하지 못한다.
  */
-export async function loginStudent({ studentId, name, password }) {
+export async function loginStudent({ studentId, name, password, school }) {
   const email = buildVirtualEmail(studentId);
 
   const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
@@ -46,6 +54,12 @@ export async function loginStudent({ studentId, name, password }) {
   }
 
   if (profile.name.trim() !== name.trim()) {
+    await supabase.auth.signOut();
+    throw new Error(STUDENT_CREDENTIAL_ERROR);
+  }
+
+  // 학교 대조 — 위 주석의 두 예외(값이 없는 계정 / 화면이 학교를 안 물은 경우)에서는 건너뛴다.
+  if (profile.school && school && profile.school.trim() !== school.trim()) {
     await supabase.auth.signOut();
     throw new Error(STUDENT_CREDENTIAL_ERROR);
   }
@@ -143,7 +157,7 @@ export async function checkSignupAvailability({ role, code, invite }) {
  *   session=false 는 "가입은 됐는데 세션이 없다" = Supabase 의 Confirm email 설정이 켜진 경우다.
  *   가상 이메일이라 확인 메일을 받을 수 없으므로 화면은 로그인 화면으로 안내한다.
  */
-async function signUpWithProfile({ role, code, name, password, invite, careerInterest }) {
+async function signUpWithProfile({ role, code, name, password, invite, careerInterest, school }) {
   const pre = await checkSignupAvailability({ role, code, invite });
   if (!pre.ok) return { ok: false, reason: pre.reason };
 
@@ -152,12 +166,15 @@ async function signUpWithProfile({ role, code, name, password, invite, careerInt
     password,
     options: {
       // 트리거가 읽는 값. role 은 신청이고 invite 가 그 신청의 근거다(위 주석 참고).
+      // [school 은 관리자 가입에서만 의미가 있다 — 2026-08-14] 학생이 보내도 트리거가 무시한다:
+      //   학생의 학교는 담당 관리자에게서 상속되는 것이 유일한 경로다(20260814160000).
       data: {
         role,
         code: code.trim(),
         name: name.trim(),
         invite: invite ? invite.trim() : null,
         career_interest: careerInterest || null,
+        school: school ? school.trim() : null,
       },
     },
   });
@@ -197,9 +214,30 @@ export async function signUpStudent({ studentId, name, password, invite, careerI
   });
 }
 
-/** 관리자 가입. 관리자 초대코드가 필수이며, 틀리면 학생으로 대신 만들어주지 않는다(fail-closed). */
-export async function signUpAdmin({ code, name, password, invite }) {
-  return signUpWithProfile({ role: 'admin', code, name, password, invite });
+/**
+ * 관리자 가입. 관리자 초대코드가 필수이며, 틀리면 학생으로 대신 만들어주지 않는다(fail-closed).
+ *
+ * [school 이 필수다 — 2026-08-14] 관리자는 학교의 주인이다. 이 값이 담당 학생 전원에게 상속되고
+ *   로그인 화면의 학교 목록이 되므로, 비어 있으면 트리거가 가입 자체를 거부한다(22023).
+ */
+export async function signUpAdmin({ code, name, password, invite, school }) {
+  return signUpWithProfile({ role: 'admin', code, name, password, invite, school });
+}
+
+/**
+ * 로그인 화면의 학교 선택 목록 (20260814160000 school_names RPC).
+ *
+ * [로그인 전에 부른다] anon 실행이 허용된 함수다 — 나가는 것은 학교 이름 목록뿐이다.
+ * [실패를 삼킨다] 마이그레이션 미적용·네트워크 오류에도 로그인 화면이 죽으면 안 된다.
+ *   빈 배열이 오면 화면이 드롭다운 대신 직접 입력 칸으로 내려간다(로그인 자체가 막히지 않게).
+ */
+export async function fetchSchoolNames() {
+  const { data, error } = await supabase.rpc('school_names');
+  if (error) {
+    console.warn('[authService] 학교 목록 조회 실패 — 직접 입력으로 대체합니다:', error);
+    return [];
+  }
+  return (data ?? []).filter(Boolean);
 }
 
 /* ==========================================================================

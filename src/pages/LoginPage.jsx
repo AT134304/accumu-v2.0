@@ -2,19 +2,21 @@
 //
 // [2026-07-31 개정 — 개인 계정 / 네이버 로그인 (docs/specs/auth-signup.md, ADR 0009)]
 //   학생 탭 안에서 **학교 계정 / 개인 계정**이 갈린다. 로그인 수단 자체가 다르기 때문이다:
-//     - 학교 계정: 학번 + 이름 + 비밀번호 (기존 3-factor. loginStudent 는 한 줄도 바뀌지 않았다)
+//     - 학교 계정: 학교 + 학번 + 이름 + 비밀번호 (2026-08-14부터 학교가 4번째 대조 항목이다.
+//       학교는 목록에서 고른다 — 학생은 그 값을 직접 입력한 적이 없고 관리자에게서 상속받으므로,
+//       자유 입력으로 두면 자기 학교 이름의 정확한 표기를 맞혀야 하는 문제가 된다)
 //     - 개인 계정: 이메일 + 비밀번호 (학번이 없다) 또는 네이버 로그인
 //   관리자 탭은 그대로다 — **관리자는 네이버로 로그인할 수 없다.** 네이버로 만들어지는 계정은 언제나
 //   학생·개인이므로(Edge Function + 트리거가 고정) 관리자 탭에 두면 되지 않는 경로를 약속하는 셈이다.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import SocialLogin from '../components/SocialLogin';
 import AccountHelpModal from '../components/AccountHelpModal';
-import { loginPersonal } from '../lib/authService';
+import { fetchSchoolNames, loginPersonal } from '../lib/authService';
 import '../styles/LoginPage.css';
 
-const emptyStudentForm = { studentId: '', name: '', password: '' };
+const emptyStudentForm = { school: '', studentId: '', name: '', password: '' };
 const emptyPersonalForm = { email: '', password: '' };
 const emptyAdminForm = { code: '', password: '' };
 
@@ -42,6 +44,19 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   // 아이디/비밀번호 찾기 (ADR 0020). 어느 모달인지만 담고, 내용 분기는 AccountHelpModal이 tab/mode로 한다.
   const [helpType, setHelpType] = useState(null); // 'find-id' | 'forgot-password' | null
+  // [학교 목록 — 2026-08-14] 로그인 전이라 anon 으로 부른다(school_names RPC).
+  //   빈 배열이면 드롭다운 대신 직접 입력 칸으로 내려간다 — 마이그레이션 미적용/조회 실패 때
+  //   선택지가 하나도 없는 select 를 띄우면 **로그인 자체가 불가능해진다.**
+  const [schools, setSchools] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchSchoolNames().then((rows) => {
+      if (!cancelled) setSchools(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 이미 로그인 + role 확정 상태면 즉시 자기 role 홈으로 리다이렉트 (ADR 0001 라우트 테이블)
   if (!loading && session && profile) {
@@ -81,6 +96,7 @@ export default function LoginPage() {
         await refreshProfile();
       } else {
         await signInStudent({
+          school: studentForm.school,
           studentId: studentForm.studentId,
           name: studentForm.name,
           password: studentForm.password,
@@ -158,6 +174,35 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit}>
           {tab === 'student' && mode === 'school' && (
             <>
+              {/* [학교 — 2026-08-14 케빈 요청] 학번 위에 둔다: 넓은 소속에서 좁은 식별자로 좁혀 가는
+                  순서가 종이 서식과 같고, 학번을 치기 전에 "어느 학교의 학번인가"가 정해진다.
+                  [목록이 비면 직접 입력] 마이그레이션 미적용·조회 실패로 선택지가 0개인 select 를
+                  띄우면 로그인이 아예 불가능해진다 — 그때는 텍스트 칸으로 내려간다. 서버 대조는
+                  어느 쪽이든 같은 문자열 비교라 동작이 갈리지 않는다. */}
+              <div className="field">
+                <label htmlFor="in-school">학교</label>
+                {schools.length > 0 ? (
+                  <select
+                    id="in-school"
+                    value={studentForm.school}
+                    onChange={(e) => setStudentForm((f) => ({ ...f, school: e.target.value }))}
+                  >
+                    <option value="">학교를 선택하세요</option>
+                    {schools.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id="in-school"
+                    placeholder="학교 이름을 입력하세요"
+                    value={studentForm.school}
+                    onChange={(e) => setStudentForm((f) => ({ ...f, school: e.target.value }))}
+                  />
+                )}
+              </div>
               <div className="field">
                 <label htmlFor="in-sid">학번</label>
                 <input

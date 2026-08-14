@@ -73,8 +73,9 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const signInStudent = useCallback(async ({ studentId, name, password }) => {
-    const p = await loginStudent({ studentId, name, password });
+  // school 은 학교 계정 로그인의 4번째 대조 항목이다(2026-08-14). 개인 계정 경로는 이 함수를 타지 않는다.
+  const signInStudent = useCallback(async ({ studentId, name, password, school }) => {
+    const p = await loginStudent({ studentId, name, password, school });
     const { data } = await supabase.auth.getSession();
     setSession(data?.session ?? null);
     setProfile(p);
