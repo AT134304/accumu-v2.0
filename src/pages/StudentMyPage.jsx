@@ -24,6 +24,7 @@ import Toast from '../components/Toast';
 import QrCenterModal from '../components/student/QrCenterModal';
 import PointLedger from '../components/student/PointLedger';
 import PasswordChangeForm from '../components/PasswordChangeForm';
+import SchoolChangeForm from '../components/SchoolChangeForm';
 import { TRACK } from '../lib/taxonomy';
 import { describePending, fetchMyPointLedger, settleMyPoints } from '../lib/pointService';
 import { linkSchoolAccount, setCareerInterest } from '../lib/profileService';
@@ -236,6 +237,10 @@ export default function StudentMyPage() {
                   <span className="v">{profile.school}</span>
                 </div>
               )}
+              {/* 학교 변경 (2026-08-14) — 학교 계정만. 개인 계정은 소속이 없어 서버도 거부한다.
+                  [줄 밖에 두는 이유] .prow 는 "라벨 + 값" 두 칸 구조라 폼이 들어갈 자리가 없다.
+                  값 바로 아래에 붙여 무엇을 고치는지가 눈에 이어지게 한다. */}
+              {isSchool && <SchoolChangeForm />}
               <div className="prow">
                 <span className="k">{isSchool ? '학번' : '이메일'}</span>
                 <span className="v">

@@ -23,6 +23,24 @@ export async function setCareerInterest(track) {
   return data ?? { ok: true, career_interest: track || null };
 }
 
+/**
+ * 본인 학교 변경 (20260814200000 set_my_school RPC).
+ *
+ * [★ 학교 계정 학생에게 이 값은 로그인 자격의 일부다] 학번·이름·비밀번호·학교 4가지로 로그인한다.
+ *   바꾸면 **다음 로그인부터 새 값을 입력해야 한다** — 호출부는 그 사실을 먼저 고지할 것.
+ * [개인 계정은 거부된다] 소속이 없는 계정이라 학교라는 값이 성립하지 않는다. 학교에 속하려면
+ *   초대코드로 linkSchoolAccount() 를 타야 한다 — 그 경로를 우회하는 뒷문을 만들지 않는다.
+ *
+ * @param {string} school
+ * @returns {Promise<{ok:true, school:string} | {ok:false, reason:'empty'|'too_long'|'not_school_account'}>}
+ * @throws 권한(42501)·네트워크 오류만 던진다 — 위 reason 들은 정상적으로 발생하는 흐름이라 throw 하지 않는다.
+ */
+export async function setMySchool(school) {
+  const { data, error } = await supabase.rpc('set_my_school', { p_school: school });
+  if (error) throw error;
+  return data ?? { ok: false, reason: 'unknown' };
+}
+
 /* ==========================================================================
    계정 연동 (docs/specs/auth-signup.md 확정 D / ADR 0008 결정 5)
    ========================================================================== */

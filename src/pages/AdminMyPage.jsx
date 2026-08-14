@@ -23,6 +23,7 @@ import { fetchMentoredStudents } from '../lib/archiveService';
 import { fetchAdminPrograms } from '../lib/programService';
 import { fetchMyInviteCode } from '../lib/profileService';
 import PasswordChangeForm from '../components/PasswordChangeForm';
+import SchoolChangeForm from '../components/SchoolChangeForm';
 import '../styles/AdminShell.css';
 
 export default function AdminMyPage() {
@@ -194,6 +195,13 @@ export default function AdminMyPage() {
               학생이 회원가입 시 이 코드를 입력하면 담당 학생으로 연동됩니다.
             </div>
           )}
+
+          {/* 학교 변경 (2026-08-14) — 학생 마이페이지와 같은 컴포넌트.
+              [원칙 6과 충돌하지 않는다] 바꾸는 대상이 **자기 계정 정보**다. 남의 학교를 바꾸는
+              인자가 없고(set_my_school 은 auth.uid() 로 자기 행만 잠근다), 담당 학생의 소속에
+              영향을 주지 않는다 — 학생의 학교는 학생 본인이 가입 때 적은 값이다.
+              비밀번호 변경(ADR 0020)이 5종에 포함되지 않는 것과 같은 성격이다. */}
+          <SchoolChangeForm />
 
           {/* 비밀번호 변경 (ADR 0020) — 학생 마이페이지와 같은 컴포넌트. */}
           <PasswordChangeForm />
