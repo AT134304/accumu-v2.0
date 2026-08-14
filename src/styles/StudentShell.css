@@ -316,6 +316,19 @@ h2.sec { font-size: clamp(20px, 3.4vw, 23px); font-weight: 800; letter-spacing: 
   background: var(--brand); color: #fff;
 }
 .pcard .thumb .matchbadge .isvg { color: #fff; }
+/* 진로 계열 칩 (2026-08-14) — 유형 칩과 **다른 축**이라 일부러 다른 모양을 준다.
+   왼쪽 아래 구석: 위 줄은 유형(좌)·매칭 배지(우)가 이미 쓴다.
+   흰 알약 + 계열색 점 — 진한 알약 두 개가 나란히 있으면 축 구분이 흐려지고, TRACK 색 중에는
+   흰 글씨 대비가 모자란 값이 있다(sci #0EA5E9). 색은 글자가 아니라 점이 나른다. */
+.pcard .thumb .trackchip {
+  position: absolute; left: 10px; bottom: 10px; z-index: 2;
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: -.2px;
+  padding: 4px 9px; border-radius: 20px;
+  background: rgba(255, 255, 255, .95); color: var(--ink2);
+  box-shadow: 0 1px 5px rgba(22, 33, 62, .18);
+}
+.pcard .thumb .trackchip i { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 
 /* ---------- 대표 사진 (ADR 0022) ----------
    [★ position:absolute 를 반드시 유지할 것 — 2026-08-13 버그 수정]

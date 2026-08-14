@@ -19,7 +19,7 @@ import { useState } from 'react';
 import Modal from '../Modal';
 import Icon from '../Icon';
 import { useTutorial } from '../../context/TutorialContext';
-import { catOf, statusOf } from '../../lib/taxonomy';
+import { catOf, statusOf, TRACK } from '../../lib/taxonomy';
 import { fmtDateRange, todayISO } from '../../lib/date';
 
 /**
@@ -31,6 +31,9 @@ import { fmtDateRange, todayISO } from '../../lib/date';
  *   케빈 요청(2026-08-10) "신청자 수를 보이게 해" — program_applicant_counts() RPC (ADR 0016).
  * @param {number|null} waitlistPosition 내가 대기 중이면 몇 번째인지(1부터). ADR 0018 —
  *   my_waitlist_positions() RPC. 대기 중이 아니면 null.
+ * @param {string|null} adminName 이 프로그램을 올린 관리자 이름 (ADR 0023 — program_admin_names() RPC).
+ *   null 이면 그 칸을 렌더하지 않는다. "-" 나 "미정" 으로 채우지 말 것 — created_by 가 없는 행과
+ *   조회 실패를 구분할 수 없는데, 둘 다 "담당자가 없다"는 사실이 아니다.
  * @param {Function} onClose         팝업 닫기
  * @param {Function} onApply         async (program) => 'created' | 'waitlisted' | 'duplicate'. 실패 시 throw.
  * @param {Function} onCancel        async (participationId) => {ok:true,promoted:boolean} | {ok:false,reason}.
@@ -41,12 +44,15 @@ export default function JoinModal({
   participation,
   applicantCount = 0,
   waitlistPosition = null,
+  adminName = null,
   onClose,
   onApply,
   onCancel,
 }) {
   const c = catOf(program.category);
   const st = statusOf(program.status);
+  // 진로 계열 (ADR 0014 — category 와 별개 축). 카드의 계열 칩과 같은 값을 팝업에서도 보여준다.
+  const track = TRACK[program.career_track] ?? null;
   const tutorial = useTutorial();
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -173,6 +179,31 @@ export default function JoinModal({
             {/* time은 자유 텍스트라 파싱 없이 그대로 출력 */}
             <div className="v">{program.time}</div>
           </div>
+          {/* [진로 계열 — 케빈 요청 2026-08-14] 카드의 계열 칩과 같은 값. 팝업에서는 색 점 대신
+              글자에 계열색을 준다 — 흰 패널 위라 대비가 확보되고(칩은 사진 위라 그럴 수 없었다),
+              무엇보다 이 칸은 "값"이 주인공인 자리다. TRACK 에 없는 키면 칸을 렌더하지 않는다. */}
+          {track && (
+            <div className="it">
+              <div className="k">
+                <Icon name="ic-target" size={14} /> 진로 계열
+              </div>
+              <div className="v" style={{ color: track.color }}>
+                {track.name}
+              </div>
+            </div>
+          )}
+          {/* [담당 관리자 — 케빈 요청 2026-08-14, ADR 0023] "주최"(org, 위 statusline)는 기관이고
+              이건 사람이다 — 둘은 다른 정보라 한 줄로 합치지 않는다.
+              [없으면 칸 자체를 숨긴다] created_by 가 NULL 인 행과 RPC 조회 실패를 프런트가 구분할
+              수 없다. 둘 다 "담당자가 없다"는 사실이 아니므로 '-' 로 채우면 거짓말이 된다. */}
+          {adminName && (
+            <div className="it">
+              <div className="k">
+                <Icon name="ic-user" size={14} /> 담당 관리자
+              </div>
+              <div className="v">{adminName}</div>
+            </div>
+          )}
           {/* 포인트 amber는 이 1칸에서만 (절대 원칙 4 — 큰 포인트 배너 금지).
               [원칙 3] "지급 예정"이다 — 신청만으로는 1P도 지급되지 않고, 지급 시점은 QR 퇴장 인증이다.
               "지역화폐 전환 가능"은 안내 문구일 뿐 전환 동작이 아니다(전환은 마이페이지 시뮬레이션 몫). */}

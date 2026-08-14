@@ -7,7 +7,7 @@
 //   순위가 아니라 단순 카운트/내 상황이라 ADR 0016·0018로 예외를 열었다(케빈 요청).
 import { useState } from 'react';
 import Icon from '../Icon';
-import { catOf, statusOf } from '../../lib/taxonomy';
+import { catOf, statusOf, TRACK } from '../../lib/taxonomy';
 import { fmtDateRange } from '../../lib/date';
 import { useTutorial } from '../../context/TutorialContext';
 
@@ -31,6 +31,10 @@ export default function ProgramCard({
 }) {
   const c = catOf(program.category);
   const st = statusOf(program.status);
+  // [진로 계열 — 케빈 요청 2026-08-14] category(무엇을 하는가)와 career_track(어느 계열인가)은
+  // 완전히 별개 축인데(ADR 0014) 지금까지 카드에는 category 만 찍혔다. 계열을 보고 고르는 학생은
+  // 카드를 하나하나 열어봐야 했다. TRACK 에 없는 키(데이터 이상)면 칩 자체를 렌더하지 않는다.
+  const track = TRACK[program.career_track] ?? null;
   const tutorial = useTutorial();
   // [사진이 깨졌을 때 아이콘으로 되돌린다 — ADR 0022] image_url 은 스토리지 오브젝트를 가리키는데
   // DB 행과 파일의 수명이 분리돼 있다(앱은 오브젝트를 지우지 않지만 대시보드에서는 지울 수 있다).
@@ -103,6 +107,17 @@ export default function ProgramCard({
           <span className="matchbadge">
             <Icon name="ic-target" size={12} />
             내 관심 계열
+          </span>
+        )}
+        {/* [진로 계열 칩 — 2026-08-14] 왼쪽 **아래** 구석이다. 위 줄은 이미 유형(좌)과 매칭 배지(우)가
+            쓰고 있어서, 236px 카드에서 셋을 한 줄에 넣으면 서로 겹친다.
+            [흰 알약 + 색 점] 유형 칩처럼 계열색을 배경으로 깔지 않는다. 두 개의 진한 알약이 나란히
+            있으면 어느 쪽이 무슨 축인지 흐려지고, 무엇보다 TRACK 색 중에는 흰 글씨 대비가
+            모자란 값이 있다(sci #0EA5E9). 흰 배경은 사진 위에서도 항상 읽히고, 색은 점이 나른다. */}
+        {track && (
+          <span className="trackchip">
+            <i style={{ background: track.color }} />
+            {track.name}
           </span>
         )}
       </div>

@@ -184,6 +184,28 @@ export async function fetchApplicantCounts() {
 }
 
 /**
+ * 프로그램별 담당 관리자 이름 (ADR 0023 / 20260814140000).
+ *
+ * [왜 조인이 아니라 RPC 인가] 학생에게는 profiles 를 읽는 정책이 없다(본인 행뿐). programs 에
+ *   embed 조인을 걸면 에러가 아니라 조용히 null 이 와서 "늘 비어 있는 이름 칸"이 된다.
+ *   RLS 정책을 새로 열지 않은 이유는 마이그레이션 주석에 있다 — 행 단위로 열리면 관리자의
+ *   `code`(= 로그인 아이디)까지 함께 나간다. 서버 함수가 이름 하나만 골라 내보낸다.
+ *
+ * @returns {Promise<Map<string, string>>} program_id -> 관리자 이름.
+ *   created_by 가 NULL 인 프로그램은 키 자체가 없다. 조회 실패 시 빈 Map(열화 표시) —
+ *   fetchApplicantCounts() 와 같은 태도다. 이름이 없으면 팝업이 그 줄을 통째로 숨긴다
+ *   ("모르는 것을 안다고 말하지 않는다").
+ */
+export async function fetchProgramAdminNames() {
+  const { data, error } = await supabase.rpc('program_admin_names');
+  if (error) {
+    console.warn('[programService] 담당 관리자 조회 실패 — 표시 없이 진행합니다:', error);
+    return new Map();
+  }
+  return new Map((data ?? []).filter((row) => row.admin_name).map((row) => [row.program_id, row.admin_name]));
+}
+
+/**
  * 내가 대기 중인 프로그램마다 몇 번째로 대기 중인지 (ADR 0018).
  *
  * [순번을 보여주는 이유] ADR 0016 때는 "순번은 순위처럼 읽힐 수 있다"며 의도적으로 숨겼지만, 케빈이

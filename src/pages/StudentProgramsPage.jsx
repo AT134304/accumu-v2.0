@@ -24,6 +24,7 @@ import {
   fetchApplicantCounts,
   fetchMyParticipationsByProgram,
   fetchMyWaitlistPositions,
+  fetchProgramAdminNames,
 } from '../lib/programService';
 import '../styles/StudentPrograms.css';
 
@@ -60,6 +61,10 @@ export default function StudentProgramsPage() {
   const [applicantCounts, setApplicantCounts] = useState(() => new Map());
   // program_id -> 내 대기 순번(1부터). ADR 0018 — my_waitlist_positions() RPC.
   const [waitlistPositions, setWaitlistPositions] = useState(() => new Map());
+  // program_id -> 담당 관리자 이름. ADR 0023 — program_admin_names() RPC.
+  // [신청/취소 후 다시 읽지 않는다] 위 세 Map 과 달리 이 값은 내 행동으로 바뀌지 않는다 —
+  // 프로그램을 올린 사람은 내가 신청한다고 달라지지 않는다. 첫 로드 때 한 번만 읽는다.
+  const [adminNames, setAdminNames] = useState(() => new Map());
   const [state, setState] = useState('loading'); // 'loading' | 'ready' | 'error'
 
   const [query, setQuery] = useState('');
@@ -76,20 +81,23 @@ export default function StudentProgramsPage() {
     (async () => {
       setState('loading');
       try {
-        // 병렬 4쿼리 (ADR 0004 5번 — 조인 뷰/embed 기각).
-        // fetchMyParticipationsByProgram/fetchApplicantCounts/fetchMyWaitlistPositions는 조회 실패를
-        // 빈 Map으로 축약하므로, 마이그레이션 미적용 환경에서도 목록 자체는 뜬다.
-        const [rows, participation, counts, positions] = await Promise.all([
+        // 병렬 5쿼리 (ADR 0004 5번 — 조인 뷰/embed 기각).
+        // fetchMyParticipationsByProgram/fetchApplicantCounts/fetchMyWaitlistPositions/
+        // fetchProgramAdminNames는 조회 실패를 빈 Map으로 축약하므로, 마이그레이션 미적용
+        // 환경에서도 목록 자체는 뜬다(담당 관리자 칸만 안 보인다).
+        const [rows, participation, counts, positions, admins] = await Promise.all([
           fetchAllPrograms(),
           fetchMyParticipationsByProgram(),
           fetchApplicantCounts(),
           fetchMyWaitlistPositions(),
+          fetchProgramAdminNames(),
         ]);
         if (cancelled) return;
         setPrograms(rows);
         setParticipationByProgram(participation);
         setApplicantCounts(counts);
         setWaitlistPositions(positions);
+        setAdminNames(admins);
         setState('ready');
       } catch (err) {
         if (cancelled) return;
@@ -351,6 +359,7 @@ export default function StudentProgramsPage() {
           participation={participationByProgram.get(openProgram.id)}
           applicantCount={applicantCounts.get(openProgram.id) ?? 0}
           waitlistPosition={waitlistPositions.get(openProgram.id) ?? null}
+          adminName={adminNames.get(openProgram.id) ?? null}
           onClose={() => setOpenProgram(null)}
           onApply={handleApply}
           onCancel={handleCancel}
