@@ -241,10 +241,13 @@ export default function StudentMyPage() {
                 <Icon name="ic-target" size={14} color="var(--brand)" />
                 관심 진로 계열
               </div>
+              {/* [" · 설정하기" 를 뺐다 — 2026-08-14]
+                  누를 수 있는 링크처럼 생겼는데 그냥 글자였다. 진짜 설정 수단은 바로 아래 칩들이라
+                  가리킬 목적지도 없다 — 안내는 "아래에서 고르면 된다"는 사실만 말하면 된다. */}
               <div className="tp-note">
                 {currentTrack
                   ? '선택한 계열은 메인 화면 추천에 바로 반영돼요'
-                  : '아직 설정하지 않았어요 · 설정하기'}
+                  : '아래에서 계열을 고르면 메인 화면 추천에 바로 반영돼요'}
               </div>
               <div className="chiprow">
                 {Object.entries(TRACK).map(([key, t]) => (

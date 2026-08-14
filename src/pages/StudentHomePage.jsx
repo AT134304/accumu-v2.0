@@ -26,6 +26,29 @@ import { fetchCompletedActivities } from '../lib/participationService';
 import '../styles/StudentHome.css';
 import '../styles/Tutorial.css';
 
+// 가이드 시작 팝업을 닫았는지 — 계정별, **탭 세션 단위**로 기억한다(ADR 0021 후속, 2026-08-14).
+//   localStorage 가 아닌 이유: 완료 전까지 권유를 유지하는 것이 원래 의도이고, 인라인 카드가 그
+//   역할을 이미 한다. 팝업까지 영구히 죽이면 다음 시연에서 이 온보딩을 보여줄 방법이 없어진다.
+const TUT_MODAL_KEY = 'accumu.tut-start-dismissed';
+
+function readTutModalDismissed(profileId) {
+  if (!profileId) return false;
+  try {
+    return sessionStorage.getItem(`${TUT_MODAL_KEY}.${profileId}`) === '1';
+  } catch {
+    return false; // 프라이빗 모드 등 — 이번 방문 동안만 숨는 예전 동작으로 자연스럽게 되돌아간다.
+  }
+}
+
+function writeTutModalDismissed(profileId) {
+  if (!profileId) return;
+  try {
+    sessionStorage.setItem(`${TUT_MODAL_KEY}.${profileId}`, '1');
+  } catch {
+    // 저장이 막혀도 화면 상태(modalDismissed)는 이미 바뀌었다 — 무시한다.
+  }
+}
+
 export default function StudentHomePage() {
   const { profile, session } = useAuth();
   const navigate = useNavigate();
@@ -50,12 +73,13 @@ export default function StudentHomePage() {
   // [ADR 0021] 신규 학생 가이드 트래커 시작 CTA. 튜토리얼 프로그램에 아직 참여 이력이 없을 때만 보인다 —
   // 이미 한 번이라도 신청했다면(완료 전이든 후든) 다시 권하지 않는다(participations는 1인 1회 unique다).
   const [tutorialCta, setTutorialCta] = useState(null); // {id, title} | null
-  // [2026-08-11 개정] "눈에 띄게 + 필수적으로" — 팝업(Modal)으로 먼저 보여준다. "다음에 할게요"로
-  // 닫아도 완전히 사라지지 않는다 — 이 state는 이번 마운트(=이번 홈 방문)에서만 팝업을 숨기고,
-  // 아래 인라인 카드(.tut-cta)는 계속 남아 있다. 홈에 다시 오거나 재로그인하면 팝업이 또 뜬다 —
-  // 완료하기 전까진 계속 눈에 밟히게 하려는 의도다(완전한 강제는 아니다 — 데모 시연 유연성을 위해
-  // 언제든 건너뛸 수는 있어야 한다).
-  const [modalDismissed, setModalDismissed] = useState(false);
+  // [2026-08-11] "눈에 띄게 + 필수적으로" — 팝업(Modal)으로 먼저 보여준다. 닫아도 아래 인라인
+  // 카드(.tut-cta)가 남아 권유 자체는 완료 전까지 계속 보인다.
+  // [2026-08-14 수정 — 닫은 기록을 탭에 남긴다] 원래는 그냥 useState(false) 라 **홈에 올 때마다**
+  //   다시 떴다. 프로그램 탭 한 번 갔다 오면 또, 아카이브 갔다 오면 또 — "다음에 할게요"가 사실상
+  //   아무 의미가 없었다. sessionStorage 를 쓰므로 탭을 새로 열면(= 시연을 처음부터 다시 하면)
+  //   다시 뜬다. 계정별로 키를 나눠 학생 계정을 바꿔 가며 시연할 때 서로 섞이지 않게 한다.
+  const [modalDismissed, setModalDismissed] = useState(() => readTutModalDismissed(profile?.id));
 
   // 추천 목록 + 팝업이 쓰는 부수 정보를 한 번에 읽는다.
   // [신청 후에도 다시 부른다] 방금 신청한 프로그램은 추천에서 빠져야 한다(확정 D-1) — 안 그러면
@@ -183,6 +207,18 @@ export default function StudentHomePage() {
     [session?.user?.id, loadRecommended]
   );
 
+  // 가이드 권유를 보여줄지 / 그중 팝업까지 띄울지.
+  // [둘을 동시에 그리지 않는다 — 2026-08-14] 이 앱의 모달에는 **배경 딤이 없다**(StudentShell.css 112줄).
+  //   그래서 팝업이 떠 있는 동안 뒤의 인라인 카드가 그대로 보였다 — 같은 문구가 한 화면에 두 번
+  //   찍혀 있었던 것이다. 팝업이 떠 있으면 카드를 접는다(팝업을 닫는 순간 카드가 자리를 잇는다).
+  const showTutStart = Boolean(tutorialCta) && !tutorial.active;
+  const showTutModal = showTutStart && !modalDismissed;
+
+  const dismissTutModal = useCallback(() => {
+    setModalDismissed(true);
+    writeTutModalDismissed(profile?.id);
+  }, [profile?.id]);
+
   // career_interest가 없으면 추천이 최신순 fallback으로 동작하므로(확정 E) 카피도 사실대로 바꾼다.
   const hasInterest = Boolean(profile?.career_interest);
   const recoSub = hasInterest
@@ -194,7 +230,7 @@ export default function StudentHomePage() {
       {/* ===== 신규 학생 가이드 트래커 시작 CTA (ADR 0021) =====
           [트래커가 이미 켜져 있으면 다시 안 보여준다] 배너 자체가 "시작해볼까요?" 권유라, 이미
           시작한 학생에게 또 보이면 이중 초대가 된다. */}
-      {tutorialCta && !tutorial.active && (
+      {showTutStart && !showTutModal && (
         <div className="tut-cta">
           <div className="tut-cta-ic" aria-hidden="true">
             <Icon name="ic-compass" size={20} color="var(--brand)" />
@@ -216,10 +252,11 @@ export default function StudentHomePage() {
         </div>
       )}
 
-      {/* [2026-08-11] 팝업 버전 — 홈에 올 때마다(완료 전까지) 눈에 띄게 먼저 띄운다. 위 인라인
-          카드와 같은 조건에 modalDismissed(이번 방문 한정)만 더 본다. */}
-      {tutorialCta && !tutorial.active && !modalDismissed && (
-        <Modal onClose={() => setModalDismissed(true)} labelledBy="tut-start-title" className="confirm-modal">
+      {/* [2026-08-11] 팝업 버전 — 처음 한 번은 눈에 띄게 먼저 띄운다.
+          [2026-08-14] 닫으면 이 탭 세션 동안 다시 뜨지 않는다(위 dismissTutModal). 권유가 사라지는
+          것은 아니다 — 바로 위 인라인 카드가 그 자리를 잇는다. */}
+      {showTutModal && (
+        <Modal onClose={dismissTutModal} labelledBy="tut-start-title" className="confirm-modal">
           <div className="mbody tut-start-modal">
             <div className="tut-cta-ic lg" aria-hidden="true">
               <Icon name="ic-compass" size={28} color="var(--brand)" />
@@ -235,12 +272,12 @@ export default function StudentHomePage() {
               onClick={() => {
                 tutorial.start();
                 setTutorialCta(null);
-                setModalDismissed(true);
+                dismissTutModal();
               }}
             >
               지금 시작하기
             </button>
-            <button type="button" className="tut-start-later" onClick={() => setModalDismissed(true)}>
+            <button type="button" className="tut-start-later" onClick={dismissTutModal}>
               다음에 할게요
             </button>
           </div>

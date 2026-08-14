@@ -231,11 +231,21 @@ export default function QrCenterModal({ onClose }) {
       ) : (
         <div className="mbody">
           <span className="qtag exit">QR 인증</span>
+          {/* [제목이 "발급된 QR"이 아닌 이유 — 2026-08-14 수정]
+              이 화면에는 QR이 하나도 없다. 참여 중인 활동 목록이고, 버튼을 눌러야 그때 서버가
+              토큰을 발급한다(issue_participation_qr). "발급된 QR"이라고 써 두면 제목과 화면이
+              어긋나 학생이 "QR이 어디 있지"부터 찾는다. */}
           <h3 id="qr-title" style={{ marginBottom: 4 }}>
-            발급된 QR
+            입·퇴장 인증
           </h3>
+          {/* [현장 리더기가 아니다 — 같은 날 수정] 무인 단말기는 없다. 관리자가 자기 휴대폰
+              카메라로 스캔한다(AdminScanPage). 튜토리얼 5단계는 이미 "관리자가 카메라로 스캔해"라고
+              바르게 말하고 있어서, 이 줄만 앱 안에서 다른 이야기를 하고 있었다.
+              >>> 이 문구를 고칠 일이 생기면 TutorialContext 5·6단계와 함께 볼 것 — 같은 사실을
+                  말하는 두 자리다. */}
           <p className="qr-lead">
-            버튼을 누르면 해당 프로그램의 QR이 표시됩니다. 현장 리더기에 인식시키면 입장·퇴장이 인증됩니다.
+            참여 중인 활동 목록이에요. 버튼을 누르면 QR이 만들어지고, 그 화면을 관리자에게 보여주면
+            카메라로 스캔해 입장·퇴장이 인증됩니다.
           </p>
 
           {notice && <div className="qr-notice">{notice}</div>}
@@ -252,11 +262,12 @@ export default function QrCenterModal({ onClose }) {
 
           {state === 'ready' &&
             (items.length === 0 ? (
-              // 빈 상태 카피는 프로토타입 1005줄 그대로 (이모지 없음)
+              // 빈 상태도 같은 오해를 반복했다("발급된 QR이 없습니다") — 발급 전이라 없는 게 아니라
+              // **인증할 활동이 없는** 것이다. 이모지 없음은 프로토타입 1005줄 규율 그대로.
               <div className="empty">
-                발급된 QR이 없습니다.
+                인증할 활동이 없습니다.
                 <br />
-                프로그램에 참여하면 입퇴장 QR이 발급됩니다.
+                프로그램에 신청하면 여기에서 입·퇴장을 인증할 수 있어요.
               </div>
             ) : (
               <div className="qrlist">
@@ -623,7 +634,9 @@ function QrView({ participation, type, issued: initialIssued, period, onBack, on
           {v.title}
         </h3>
         <div className="desc">
-          {isTutorial ? '잠시만 기다려 주세요, 자동으로 인증됩니다.' : '현장의 QR 리더기에 인식시켜 주세요.'}
+          {/* "현장의 QR 리더기에 인식시켜 주세요" 였다 — 무인 단말기는 없다(2026-08-14 수정).
+              QR 을 실제로 읽는 주체는 관리자의 휴대폰 카메라다(AdminScanPage). */}
+          {isTutorial ? '잠시만 기다려 주세요, 자동으로 인증됩니다.' : '관리자에게 이 화면을 보여주세요.'}
         </div>
 
         {/* [ADR 0021 — 튜토리얼 전용 안내] "QR 옆에" 자동 인증 사실을 명시한다. 실제 참여의 카운트다운/
