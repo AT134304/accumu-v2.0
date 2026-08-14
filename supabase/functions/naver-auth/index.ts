@@ -107,11 +107,27 @@ Deno.serve(async (req) => {
   const found = existing.users.find((u) => u.email === email);
   if (found) {
     userId = found.id;
+    // [auth_provider 소급 기록 — 2026-08-14] 아래 createUser 주석 참고. 이 표식이 생기기 전에
+    // 만들어진 계정은 아직 없으므로 다음 로그인 때 한 번 채워 준다(이미 있으면 건너뛴다).
+    if (found.user_metadata?.auth_provider !== 'naver') {
+      const { error: markError } = await admin.auth.admin.updateUserById(found.id, {
+        user_metadata: { ...found.user_metadata, auth_provider: 'naver' },
+      });
+      // 실패해도 로그인은 계속한다 — 이 값은 화면 표시용이지 권한 경계가 아니다.
+      if (markError) console.error('[naver-auth] auth_provider 기록 실패:', markError);
+    }
   } else {
     const { data: created, error: createError } = await admin.auth.admin.createUser({
       email,
       email_confirm: true, // 가상 주소일 수 있어 확인 메일을 보낼 수 없다(보내서도 안 된다)
-      user_metadata: { name },
+      // [auth_provider 는 클라이언트 인자가 아니라 서버가 아는 사실이다 — 2026-08-14]
+      //   위 "metadata 는 name 하나뿐" 규율의 취지는 **클라이언트가 보낸 값으로 권한을 정하지
+      //   않는다**는 것이다(ADR 0009 결정 3). 이 값은 요청 본문에서 오지 않고 이 함수가 어느
+      //   제공자인지로 결정하므로 그 가드에 걸리지 않는다. role/code/invite 는 여전히 금지다.
+      //   [왜 필요한가] 소셜 계정은 admin.createUser 로 만들어져 provider 가 'email' 로 보인다 —
+      //   프런트에서 이메일/비밀번호 개인 계정과 구분할 방법이 이것 말고 없다. 마이페이지가 이
+      //   값을 보고 "비밀번호 변경" 칸을 숨긴다(소셜 계정에는 바꿀 비밀번호가 없다).
+      user_metadata: { name, auth_provider: 'naver' },
     });
     if (createError || !created?.user) {
       console.error('[naver-auth] 계정 생성 실패:', createError);

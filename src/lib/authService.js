@@ -479,13 +479,17 @@ export async function completeGoogleLogin({ code, state }) {
    ========================================================================== */
 
 /**
- * 본인 비밀번호 변경 — 로그인된 세션에서만 호출한다.
+ * 세션만으로 비밀번호를 덮어쓴다 — **옛 비밀번호를 모르는 경로 전용.**
  *
- * [현재 비밀번호를 다시 묻지 않는다] Supabase Auth는 이미 유효한 세션을 신뢰의 근거로 삼는다 —
- *   같은 신뢰 모델을 이 함수도 그대로 따른다(로그인 상태 자체가 "본인 확인"을 대신한다).
- * [두 화면이 이 함수 하나를 공유한다] 마이페이지의 "비밀번호 변경"과, 이메일 재설정 링크를 타고 온
- *   /auth/reset-password 화면의 "새 비밀번호 설정"이 둘 다 이 함수를 부른다 — 후자도 결국
- *   `verifyOtp`로 세션을 만든 뒤의 "로그인된 상태에서 비밀번호를 바꾸는" 같은 동작이라서다.
+ * [현재 비밀번호를 묻지 않는 것이 여기서는 맞다] 이 함수를 쓰는 곳은 두 군데이고 둘 다 "옛
+ *   비밀번호를 알 수 없는" 상황이다:
+ *     1. /auth/reset-password — 이메일 재설정 링크로 들어온 recovery 세션 (ADR 0020)
+ *     2. (서버) admin-reset-student-password — 관리자 초기화 (ADR 0019)
+ *   비밀번호를 잊어버려서 온 사람에게 옛 비밀번호를 물으면 그 경로 자체가 성립하지 않는다.
+ *
+ * >>> **마이페이지의 "비밀번호 변경"은 이 함수를 쓰지 않는다.** 2026-08-14부터
+ *     changeMyPasswordWithCurrent() 로 옮겼다 — 아래 그 함수의 주석에 이유가 있다.
+ *     여기로 되돌리지 말 것: 로그인된 화면을 잠깐 만진 사람이 계정을 통째로 가져가는 경로가 열린다.
  *
  * @param {string} newPassword
  * @throws Supabase Auth 에러(세션 없음 등) 그대로.
@@ -493,6 +497,69 @@ export async function completeGoogleLogin({ code, state }) {
 export async function updateMyPassword(newPassword) {
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) throw error;
+}
+
+export const CURRENT_PASSWORD_ERROR = '현재 비밀번호가 올바르지 않아요.';
+export const PASSWORD_RATE_LIMIT_ERROR = '시도가 너무 잦아요. 잠시 후 다시 시도해 주세요.';
+
+/**
+ * 마이페이지의 비밀번호 변경 — **현재 비밀번호를 확인한 뒤** 새 비밀번호로 바꾼다 (2026-08-14).
+ *
+ * [왜 세션만으로는 부족한가] "로그인된 세션 = 본인"이라는 전제는 *계정 주인 확인*에는 맞지만,
+ *   이 확인이 진짜로 막는 위협은 그게 아니다 — **로그인된 화면을 잠깐 만진 사람이 계정을 영구히
+ *   가져가는 것**이다. 학교 공용 PC에 로그아웃하지 않고 자리를 뜨거나, 폰을 잠깐 빌려주거나,
+ *   토큰이 새는 경우. 현재 비밀번호를 모르면 그 사람은 비밀번호를 바꿀 수 없고, 원래 주인은
+ *   계정을 잃지 않는다. 이 앱은 **학번이 로그인 아이디**라 아이디 쪽은 이미 반쯤 공개돼 있어서
+ *   이 장벽이 더 중요하다. (표준 관행이기도 하다 — OWASP ASVS가 명시적으로 요구한다.)
+ *
+ * [확인 방법 = 같은 이메일로 다시 로그인] Supabase는 "현재 비밀번호 검증" API를 따로 주지 않는다.
+ *   reauthenticate()는 확인 코드를 **메일로 보내는** 방식이라 학번/관리자코드 계정(@accumu.local
+ *   가상 주소)에서는 쓸 수 없다. 그래서 세션의 이메일로 signInWithPassword를 한 번 더 한다.
+ *   - 실패해도 기존 세션은 그대로 남는다(로그아웃되지 않는다).
+ *   - 성공하면 같은 사용자의 세션이 새로 발급되며 교체된다. AuthContext의 onAuthStateChange는
+ *     `profileIdRef.current === userId`면 프로필을 다시 읽지 않으므로 화면이 흔들리지 않는다.
+ *   - 세션의 이메일을 쓰므로 학번(20250001@accumu.local)·관리자코드·실제 이메일이 모두 같은 경로다.
+ *
+ * >>> 소셜 계정(네이버/구글)에는 애초에 비밀번호가 없어 이 함수가 성립하지 않는다.
+ *     화면에서 진입 자체를 막는다(PasswordChangeForm의 socialProviderOf 분기).
+ *
+ * @param {string} currentPassword
+ * @param {string} newPassword
+ * @throws {Error} CURRENT_PASSWORD_ERROR / PASSWORD_RATE_LIMIT_ERROR 또는 Supabase 에러
+ */
+export async function changeMyPasswordWithCurrent(currentPassword, newPassword) {
+  const { data } = await supabase.auth.getSession();
+  const email = data?.session?.user?.email;
+  if (!email) throw new Error('로그인 정보를 확인할 수 없어요. 다시 로그인해 주세요.');
+
+  const { error: verifyError } = await supabase.auth.signInWithPassword({
+    email,
+    password: currentPassword,
+  });
+  if (verifyError) {
+    // 429는 "틀렸다"가 아니라 "너무 자주 시도했다"이다 — 같은 문구로 뭉개면 맞는 비밀번호를 넣고도
+    // 계속 틀렸다는 말을 듣게 된다.
+    if (verifyError.status === 429) throw new Error(PASSWORD_RATE_LIMIT_ERROR);
+    throw new Error(CURRENT_PASSWORD_ERROR);
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}
+
+/**
+ * 소셜 로그인으로 만들어진 계정인지 — 맞으면 'naver' | 'google', 아니면 null.
+ *
+ * [provider 로는 알 수 없다] 두 Edge Function 이 admin.createUser 로 계정을 만들기 때문에
+ *   Supabase 가 보는 provider 는 'email' 이다. 게다가 제공자가 준 **실제 이메일**을 그대로 쓰므로
+ *   (naver-auth 96줄 / google-auth 117줄) 이메일 모양으로도 개인 계정과 구분되지 않는다.
+ *   그래서 두 함수가 user_metadata.auth_provider 를 직접 심는다 — 그 값을 읽는 곳이 여기다.
+ * [값이 없으면 null 로 본다] 표식을 심기 전에 만들어진 소셜 계정은 다음 로그인 때 채워진다.
+ *   그전까지는 비밀번호 변경 칸이 보이지만, 현재 비밀번호를 모르니 바꾸지는 못한다(안전한 쪽).
+ */
+export function socialProviderOf(user) {
+  const p = user?.user_metadata?.auth_provider;
+  return p === 'naver' || p === 'google' ? p : null;
 }
 
 /**

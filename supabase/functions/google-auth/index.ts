@@ -128,11 +128,24 @@ Deno.serve(async (req) => {
   const found = existing.users.find((u) => u.email === email);
   if (found) {
     userId = found.id;
+    // [auth_provider 소급 기록 — 2026-08-14] naver-auth 와 같은 처리. 두 함수는 같은 모양이니
+    // 한쪽을 고치면 다른 쪽도 같이 볼 것(CLAUDE.md 4장).
+    if (found.user_metadata?.auth_provider !== 'google') {
+      const { error: markError } = await admin.auth.admin.updateUserById(found.id, {
+        user_metadata: { ...found.user_metadata, auth_provider: 'google' },
+      });
+      if (markError) console.error('[google-auth] auth_provider 기록 실패:', markError);
+    }
   } else {
     const { data: created, error: createError } = await admin.auth.admin.createUser({
       email,
       email_confirm: true, // 가상 주소일 수 있어 확인 메일을 보낼 수 없다(보내서도 안 된다)
-      user_metadata: { name },
+      // [auth_provider 는 클라이언트 인자가 아니라 서버가 아는 사실이다 — 2026-08-14]
+      //   naver-auth 와 같은 이유·같은 판단이다(그쪽 주석에 근거를 적어 뒀다). 요약하면:
+      //   소셜 계정은 admin.createUser 로 만들어져 provider 가 'email' 로 보이기 때문에,
+      //   프런트가 이메일/비밀번호 개인 계정과 구분할 수단이 이 표식뿐이다.
+      //   role/code/invite 를 metadata 에 넣지 않는 규율은 그대로다.
+      user_metadata: { name, auth_provider: 'google' },
     });
     if (createError || !created?.user) {
       console.error('[google-auth] 계정 생성 실패:', createError);
