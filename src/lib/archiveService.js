@@ -389,8 +389,9 @@ export function summarizeActivities(activities = []) {
 /**
  * 진로 계열별 참여 건수 (확정 M-2 — 레이더 차트의 유일한 데이터 소스).
  *
- * [축은 TRACK 5종이지 CAT 8종이 아니다] "계열"은 `programs.career_track`(이공계/IT/인문/경영/예술)이고,
- *   `programs.category`(방과후·동아리·봉사…)는 활동 "유형"이다. 둘은 별개 축이다(taxonomy.js).
+ * [축은 TRACK 7종이지 CAT 4종이 아니다 — 숫자는 ADR 0014 재편 기준] "계열"은 `programs.career_track`
+ *   (인문·어학/사회·교육/상경·경영/자연과학/공학·IT/의약·보건/예술·체육)이고, `programs.category`
+ *   (교내 활동·대회·공모전·봉사활동·진로 체험)는 활동 "유형"이다. 둘은 별개 축이다(taxonomy.js).
  *   유형 분포는 summarizeActivities().byCat 이 이미 텍스트로 담당한다 — 여기서 겹쳐 세지 않는다.
  *
  * [축 순서 고정] TRACK 객체의 선언 순서를 그대로 쓴다. 값 크기순으로 정렬하면 그 순간 순위표가 되고

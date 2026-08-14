@@ -55,6 +55,25 @@
 .catgroup.past > .gl .isvg { color: var(--muted); }
 .catgroup.past .pcard { opacity: .82; }
 .catgroup.past .pcard:hover { opacity: 1; }
+/* 접기 토글 (2026-08-14) — 머리글 줄 전체가 버튼이다.
+   .gl 을 그대로 상속받되 버튼이 되면서 필요한 것만 덧붙인다: 전체 폭, 왼쪽 정렬, 아래 여백 0
+   (접혔을 때 머리글만 남는데 14px 이 떠 있으면 빈 칸처럼 보인다 — 펼쳤을 때만 준다). */
+.catgroup.past > .gl-toggle { width: 100%; text-align: left; margin-bottom: 0; }
+.catgroup.past > .gl-toggle[aria-expanded='true'] { margin-bottom: 14px; }
+.catgroup.past > .gl-toggle:hover { color: var(--ink2); }
+.catgroup.past > .gl-toggle:hover .isvg { color: var(--ink2); }
+.catgroup.past > .gl-toggle:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; border-radius: 6px; }
+/* ::after(늘어나는 가로선)가 마지막 자식이라 '펼치기'가 그 뒤로 밀린다 — 선을 끄고 margin-left:auto 로
+   오른쪽 끝에 붙인다. .catgroup.past 는 이미 border-top 이 있어 구분선이 따로 필요 없다. */
+.catgroup.past > .gl-toggle::after { display: none; }
+.catgroup.past > .gl-toggle .gl-cnt {
+  font-size: 11.5px; font-weight: 800; letter-spacing: 0;
+  padding: 2px 8px; border-radius: 20px; background: var(--bg2); color: var(--ink2);
+}
+.catgroup.past > .gl-toggle .gl-more {
+  margin-left: auto; font-size: 12px; font-weight: 700; letter-spacing: 0;
+  text-transform: none; color: var(--brand-dk);
+}
 
 .catrow { margin-bottom: 22px; }
 .catrow .ch { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 11px; }
@@ -71,6 +90,28 @@
 .strip::-webkit-scrollbar { height: 7px; }
 .strip::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 10px; }
 .strip .pcard { min-width: 236px; max-width: 236px; scroll-snap-align: start; }
+
+/* [769px 이상에서는 가로 스크롤을 쓰지 않는다 — 2026-08-14 케빈 지적]
+   유형 4종이 각각 자기 스트립을 가지므로 데스크톱에서는 **가로 스크롤바가 한 화면에 4개** 생겼다.
+   마우스로 가로 스크롤은 원래 불편한 인터랙션인데(드래그를 지원해도 "여기는 끌어야 한다"를 먼저
+   알아야 한다), 세로 스크롤과 섞이면 더 나빠진다. 폭이 남는 화면에서 굳이 숨길 이유가 없다 —
+   홈(.cards-row)이 이미 쓰는 줄바꿈 그리드로 바꿔 전부 보여준다.
+   가로 스트립은 768px 이하에 남는다. 거기선 손가락으로 옆으로 넘기는 게 자연스럽고,
+   좁은 폭에서 그리드로 펼치면 세로로 한없이 길어진다.
+   >>> Strip 의 드래그 핸들러도 scrollWidth <= clientWidth 이면 빠진다(StudentProgramsPage.jsx).
+   >>> 둘 중 하나만 바꾸면 "안 움직이는데 클릭이 씹히는" 상태가 된다. */
+@media (min-width: 769px) {
+  .strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(218px, 1fr));
+    gap: 16px;
+    overflow-x: visible;
+    scroll-snap-type: none;
+    cursor: default;
+    padding: 4px 2px;
+  }
+  .strip .pcard { min-width: 0; max-width: none; }
+}
 
 /* ============ RESPONSIVE (CLAUDE.md 8장: 980/768/600/430) ============ */
 @media (max-width: 600px) {

@@ -4,26 +4,47 @@
 // [절대 원칙 4 — 포트폴리오 > 포인트] 성장/포트폴리오 서사(히어로·마일스톤·추천)를 brand blue로 상단에 두고,
 //   포인트 amber는 (1) 나브 우측 구석, (2) 개요 카드 3장 중 1장, (3) 카드 +NNN P 뱃지에서만 노출한다.
 //   홈에는 큰 포인트 잔액 배너/대시보드를 두지 않는다 (그건 마이페이지 몫).
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTutorial } from '../context/TutorialContext';
 import Icon from '../components/Icon';
 import Modal from '../components/Modal';
+import Toast from '../components/Toast';
 import StackViz from '../components/student/StackViz';
 import ProgramCard from '../components/student/ProgramCard';
-import { fetchAppliedProgramIds, fetchRecommendedPrograms, fetchTutorialProgram } from '../lib/programService';
+import JoinModal from '../components/student/JoinModal';
+import {
+  applyToProgram,
+  fetchApplicantCounts,
+  fetchAppliedProgramIds,
+  fetchProgramAdminNames,
+  fetchRecommendedPrograms,
+  fetchTutorialProgram,
+} from '../lib/programService';
 import { fetchCompletedActivities } from '../lib/participationService';
 import '../styles/StudentHome.css';
 import '../styles/Tutorial.css';
 
 export default function StudentHomePage() {
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
   const navigate = useNavigate();
   const tutorial = useTutorial();
 
   const [programs, setPrograms] = useState([]);
   const [state, setState] = useState('loading'); // 'loading' | 'ready' | 'error'
+  // [카드에서 바로 참여 팝업을 연다 — 2026-08-14 케빈 지적]
+  //   전에는 추천 카드를 눌러도 onOpen 이 프로그램 선택 화면으로 이동만 시켰다. 카드에 "참여" 버튼까지
+  //   달아 놓고 정작 그 자리에서 고를 수 없어, 학생이 방금 본 카드를 목록에서 다시 찾아야 했다.
+  //   [프로그램 선택 화면보다 상태가 단순한 이유] 홈 추천은 **이미 신청한 프로그램을 애초에 제외**한다
+  //   (확정 D-1 / fetchAppliedProgramIds). 그래서 여기 뜨는 카드는 언제나 "아직 신청 안 한" 것이고,
+  //   participation·대기 순번·취소 경로가 성립하지 않는다 — 그 세 가지를 조회하지 않는다.
+  const [openProgram, setOpenProgram] = useState(null);
+  // program_id -> 신청자 수 (ADR 0016). 팝업의 "신청 현황"과 정원 안내에 쓴다.
+  const [applicantCounts, setApplicantCounts] = useState(() => new Map());
+  // program_id -> 담당 관리자 이름 (ADR 0023).
+  const [adminNames, setAdminNames] = useState(() => new Map());
+  const [toast, setToast] = useState(null); // { id, message }
   // 마일스톤 스택 데이터 (확정 B-1). 추천 조회와 독립적으로 실패해도 홈 전체가 죽지 않아야 한다.
   const [completed, setCompleted] = useState([]);
   // [ADR 0021] 신규 학생 가이드 트래커 시작 CTA. 튜토리얼 프로그램에 아직 참여 이력이 없을 때만 보인다 —
@@ -36,15 +57,31 @@ export default function StudentHomePage() {
   // 언제든 건너뛸 수는 있어야 한다).
   const [modalDismissed, setModalDismissed] = useState(false);
 
+  // 추천 목록 + 팝업이 쓰는 부수 정보를 한 번에 읽는다.
+  // [신청 후에도 다시 부른다] 방금 신청한 프로그램은 추천에서 빠져야 한다(확정 D-1) — 안 그러면
+  // 신청한 활동이 "참여" 버튼을 단 채 홈에 남는다. 신청자 수도 그 신청만큼 늘어야 한다.
+  // 담당 관리자 이름은 내 행동으로 바뀌지 않으므로 여기서 같이 읽되 갱신 대상은 아니다(ADR 0023 결정 4).
+  const loadRecommended = useCallback(async () => {
+    // fetchApplicantCounts/fetchProgramAdminNames 는 실패를 빈 Map 으로 축약하므로 추천만 throw 한다.
+    const [rows, counts, admins] = await Promise.all([
+      fetchRecommendedPrograms(profile, 8),
+      fetchApplicantCounts(),
+      fetchProgramAdminNames(),
+    ]);
+    return { rows, counts, admins };
+  }, [profile]);
+
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       setState('loading');
       try {
-        const rows = await fetchRecommendedPrograms(profile, 8);
+        const { rows, counts, admins } = await loadRecommended();
         if (cancelled) return;
         setPrograms(rows);
+        setApplicantCounts(counts);
+        setAdminNames(admins);
         setState('ready');
       } catch (err) {
         if (cancelled) return;
@@ -58,7 +95,7 @@ export default function StudentHomePage() {
     return () => {
       cancelled = true;
     };
-  }, [profile]);
+  }, [loadRecommended]);
 
   // 마일스톤 스택 — 완료된 활동만 (participations_select_own 으로 조회. 새 RLS 정책 0개)
   useEffect(() => {
@@ -98,8 +135,53 @@ export default function StudentHomePage() {
     };
   }, []);
 
-  // 확정 B: 카드/전체 보기 클릭 -> 프로그램 선택 화면 경로로 라우팅 (대상은 아직 placeholder).
+  // 히어로 CTA·"전체 보기 →" 전용. 카드 클릭은 더 이상 여기로 오지 않는다(그 자리에서 팝업이 열린다).
   const goPrograms = () => navigate('/student/programs');
+
+  // 안정된 참조여야 Toast 내부의 자동 닫힘 타이머가 부모 리렌더마다 초기화되지 않는다.
+  const dismissToast = useCallback(() => setToast(null), []);
+
+  // 신청 — 프로그램 선택 화면의 handleApply 와 같은 결과 처리(문구까지 동일하게 맞춘다. 두 화면이
+  // 같은 동작에 다른 말을 하면 학생은 다른 일이 일어났다고 읽는다).
+  // [취소 경로는 없다] 위 주석대로 홈 카드는 언제나 미신청 상태라 JoinModal 의 취소 버튼이 뜨지 않는다.
+  const handleApply = useCallback(
+    async (program) => {
+      const studentId = session?.user?.id;
+      if (!studentId) throw new Error('로그인 세션이 없어 신청할 수 없습니다.');
+      try {
+        const result = await applyToProgram({ studentId, programId: program.id });
+        setOpenProgram(null);
+        // 튜토리얼 프로그램을 여기서 신청했다면 "처음이신가요?" 권유는 더 이상 맞지 않는다
+        // (다음 로드에서 어차피 빠지지만, 지금 화면에서도 바로 사라져야 말이 된다).
+        setTutorialCta((prev) => (prev && prev.id === program.id ? null : prev));
+        setToast({
+          id: Date.now(),
+          message:
+            result === 'duplicate'
+              ? '이미 신청한 프로그램이에요'
+              : result === 'waitlisted'
+                ? '정원이 가득 차 대기 명단에 등록됐어요'
+                : '신청이 완료되었어요 · 마이페이지에서 QR을 확인하세요',
+        });
+
+        // 목록 갱신 실패가 "신청 실패"로 보이면 안 된다 — 신청 자체는 이미 성공했다.
+        try {
+          const { rows, counts, admins } = await loadRecommended();
+          setPrograms(rows);
+          setApplicantCounts(counts);
+          setAdminNames(admins);
+        } catch (err) {
+          console.warn('[StudentHome] 신청 후 추천 갱신 실패 — 목록이 잠시 낡을 수 있습니다:', err);
+        }
+        return result;
+      } catch (err) {
+        // 팝업이 사용자에게 실패를 알리도록 다시 던진다(원본은 여기서 콘솔에 남긴다).
+        console.error('[StudentHome] 신청 실패:', err);
+        throw err;
+      }
+    },
+    [session?.user?.id, loadRecommended]
+  );
 
   // career_interest가 없으면 추천이 최신순 fallback으로 동작하므로(확정 E) 카피도 사실대로 바꾼다.
   const hasInterest = Boolean(profile?.career_interest);
@@ -200,7 +282,13 @@ export default function StudentHomePage() {
             <Icon name="ic-target" size={22} color="var(--brand)" />
           </div>
           <h4>활동을 찾고 참여</h4>
-          <p>방과후·동아리·봉사·기업 프로그램까지, 진로에 도움되는 활동을 카테고리별로 모아봅니다.</p>
+          {/* [문구가 실제 유형 4종을 따라간다 — 2026-08-14 수정]
+              예전 문구는 "방과후·동아리·봉사·기업 프로그램까지" 였다. 방과후는 ADR 0014 가 **의도적으로
+              뺀** 것이다 — 참여에 비용이 드는 활동을 포인트로 보상하면 "돈 내고 포인트 사는" 구조가 된다.
+              앱의 첫 화면이 없는 것을, 그것도 원칙상 배제한 것을 광고하고 있었다.
+              >>> 이 줄은 CAT 4종(교내 활동 · 대회·공모전 · 봉사활동 · 진로 체험)을 풀어 쓴 것이다.
+                  taxonomy.js 의 CAT 이 바뀌면 여기도 같이 볼 것. */}
+          <p>동아리·대회·봉사부터 기업·대학 진로 체험까지, 진로에 도움되는 활동을 유형별로 모아봅니다.</p>
         </div>
         <div className="ov">
           <div className="ic" style={{ background: 'var(--amber-soft)' }}>
@@ -250,10 +338,31 @@ export default function StudentHomePage() {
         ) : (
           <div className="cards-row">
             {programs.map((p) => (
-              <ProgramCard key={p.id} program={p} onOpen={goPrograms} />
+              // applicantCount 를 넘긴다 — 넘기지 않으면 카드가 "N명 신청" 줄을 통째로 숨긴다(기본값 null).
+              // 팝업에서 신청 현황을 보여주면서 카드에서만 감출 이유가 없다.
+              <ProgramCard
+                key={p.id}
+                program={p}
+                applicantCount={applicantCounts.get(p.id) ?? 0}
+                onOpen={() => setOpenProgram(p)}
+              />
             ))}
           </div>
         ))}
+
+      {/* 참여 팝업 — 프로그램 선택 화면과 같은 컴포넌트다(문구·규칙이 갈라지지 않게).
+          participation/waitlistPosition/onCancel 을 넘기지 않는 이유는 위 state 선언부 주석 참고. */}
+      {openProgram && (
+        <JoinModal
+          program={openProgram}
+          applicantCount={applicantCounts.get(openProgram.id) ?? 0}
+          adminName={adminNames.get(openProgram.id) ?? null}
+          onClose={() => setOpenProgram(null)}
+          onApply={handleApply}
+        />
+      )}
+
+      {toast && <Toast key={toast.id} message={toast.message} onDone={dismissToast} />}
     </section>
   );
 }

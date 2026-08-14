@@ -74,6 +74,12 @@ export default function StudentProgramsPage() {
 
   const [openProgram, setOpenProgram] = useState(null);
   const [toast, setToast] = useState(null); // { id, message }
+  // [지난 프로그램은 접어 둔다 — 2026-08-14 케빈 지적]
+  //   신청할 수 없는 카드들이라 펼쳐 두면 스크롤만 길어지고, 프로그램이 쌓일수록 심해진다.
+  //   지우거나 숨기지 않는 이유는 "그때 뭐가 있었는지" 를 보는 것도 실제 쓰임이라서다 — 접기다.
+  //   [검색 결과가 지난 것뿐일 때도 접힌 채로 둔다] 그래도 "결과 없음"으로 보이지 않는다 —
+  //   접힌 머리글이 개수를 달고 있어서 그 자체가 결과 표시다(아래 total === 0 분기도 안 탄다).
+  const [pastOpen, setPastOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,14 +120,22 @@ export default function StudentProgramsPage() {
   }, []);
 
   // ---- 검색 / 필터 / 정렬 -> 그룹별 카테고리 행 ----
-  const { upcomingRows, pastRows, total } = useMemo(() => {
+  const { upcomingRows, pastRows, pastTotal, total } = useMemo(() => {
     const q = query.trim().toLowerCase();
     const today = todayISO(); // 로컬(KST) 기준. toISOString()은 오전 9시 이전에 하루 밀린다.
 
-    // 검색 대상은 제목 + 주최 + 카테고리 표시명 (프로토타입 905줄). 설명은 대상이 아니다.
+    // 검색 대상은 제목 + 주최 + 유형 표시명 + 계열 표시명. 설명은 대상이 아니다(프로토타입 905줄).
     // 줄바꿈으로 잇는다 — 그냥 이어붙이면 제목 끝과 주최 시작에 걸친 문자열이 우연히 매칭되는 오탐이 난다.
+    // [계열이 검색 대상이 된 이유 — 2026-08-14] 카드에 계열 칩이 생기면서(ADR 0023) 화면에 "공학·IT"가
+    //   보이는데 그걸로 검색하면 결과가 0이었다. **보이는 값은 검색되어야 한다** — 필터 칩이 따로 있다는
+    //   것은 답이 되지 않는다(학생은 눈에 보이는 글자를 그대로 쳐 본다).
+    //   join 은 undefined 를 빈 문자열로 바꾸므로 TRACK 에 없는 키여도 안전하다.
     const match = (p) =>
-      !q || [p.title, p.org, catOf(p.category).name].join('\n').toLowerCase().includes(q);
+      !q ||
+      [p.title, p.org, catOf(p.category).name, TRACK[p.career_track]?.name]
+        .join('\n')
+        .toLowerCase()
+        .includes(q);
     const trackOk = (p) => trackFilter === 'all' || p.career_track === trackFilter;
 
     const visible = programs.filter((p) => match(p) && trackOk(p));
@@ -145,11 +159,15 @@ export default function StudentProgramsPage() {
     const nextUpcomingRows = buildRows(visible.filter((p) => !isPastProgram(p)));
     const nextPastRows = buildRows(visible.filter((p) => isPastProgram(p)));
 
-    const count =
-      nextUpcomingRows.reduce((m, r) => m + r.list.length, 0) +
-      nextPastRows.reduce((m, r) => m + r.list.length, 0);
+    const upcomingCount = nextUpcomingRows.reduce((m, r) => m + r.list.length, 0);
+    const pastCount = nextPastRows.reduce((m, r) => m + r.list.length, 0);
 
-    return { upcomingRows: nextUpcomingRows, pastRows: nextPastRows, total: count };
+    return {
+      upcomingRows: nextUpcomingRows,
+      pastRows: nextPastRows,
+      pastTotal: pastCount,
+      total: upcomingCount + pastCount,
+    };
   }, [programs, query, sortMode, typeFilter, trackFilter]);
 
   // 빈 상태 문구 (프로토타입 939줄 카피). 선택한 조건을 ` · `로 연결해 앞에 붙인다.
@@ -254,7 +272,10 @@ export default function StudentProgramsPage() {
         <div>
           <div className="eyebrow">Explore</div>
           <h2 className="sec">프로그램 선택</h2>
-          <div className="sec-sub">카테고리를 가로로 넘기며 둘러보세요</div>
+          {/* [폭에 따라 레이아웃이 달라져서 문구도 바꿨다 — 2026-08-14] 769px 이상에서는 카드가
+              줄바꿈 그리드로 전부 펼쳐지므로 "가로로 넘기며"가 거짓이 된다. 두 레이아웃에서 모두
+              참인 문장으로 바꾼다(필터바는 어느 폭에서든 같은 자리에 있다). */}
+          <div className="sec-sub">유형과 진로 계열로 좁혀서 찾아보세요</div>
         </div>
       </div>
 
@@ -335,21 +356,32 @@ export default function StudentProgramsPage() {
 
       {state === 'ready' && pastRows.length > 0 && (
         <div className="catgroup past">
-          <div className="gl">
+          {/* 머리글이 곧 토글이다 — 옆에 작은 화살표 버튼을 따로 두면 모바일에서 누르기 어렵고,
+              "여기를 눌러도 되나" 를 한 번 더 생각하게 만든다. 줄 전체가 누를 자리다. */}
+          <button
+            type="button"
+            className="gl gl-toggle"
+            aria-expanded={pastOpen}
+            onClick={() => setPastOpen((v) => !v)}
+          >
             <Icon name="ic-clock" size={16} />
             날짜 지난 프로그램
-          </div>
-          {pastRows.map((row) => (
-            <CatRow
-              key={row.catKey}
-              row={row}
-              participationByProgram={participationByProgram}
-              applicantCounts={applicantCounts}
-              waitlistPositions={waitlistPositions}
-              onOpen={handleOpenProgram}
-              past
-            />
-          ))}
+            {/* 개수는 순위가 아니라 "접힌 안에 몇 개가 있는가" 다 — 접기 UI 에는 필수 정보다(원칙 1). */}
+            <span className="gl-cnt">{pastTotal}</span>
+            <span className="gl-more">{pastOpen ? '접기' : '펼치기'}</span>
+          </button>
+          {pastOpen &&
+            pastRows.map((row) => (
+              <CatRow
+                key={row.catKey}
+                row={row}
+                participationByProgram={participationByProgram}
+                applicantCounts={applicantCounts}
+                waitlistPositions={waitlistPositions}
+                onOpen={handleOpenProgram}
+                past
+              />
+            ))}
         </div>
       )}
 
@@ -504,6 +536,12 @@ function Strip({ children }) {
       //   않고, moved=true 가 그대로 남는다. 그러면 그 다음 정상 클릭 1회가 capture 단계에서 삼켜져
       //   팝업이 안 열린다. 모든 클릭에는 mousedown이 선행하므로 여기서 리셋하면 stale 상태가 항상 정리된다.
       moved = false;
+      // [넘칠 게 없으면 드래그 자체를 켜지 않는다 — 2026-08-14]
+      //   769px 이상에서 .strip 은 가로 스크롤이 아니라 줄바꿈 그리드다(StudentPrograms.css). 카드가
+      //   1~2장이라 안 넘치는 행도 마찬가지다. 그때도 드래그를 잡으면 scrollLeft 대입은 무의미한데
+      //   moved=true 는 그대로 남아서, **카드를 누르며 마우스가 5px 흔들린 클릭이 통째로 삼켜진다**
+      //   (아래 onClickCapture). 스크롤할 게 있을 때만 드래그가 존재해야 한다.
+      if (el.scrollWidth <= el.clientWidth) return;
       // 버튼 위에서 시작한 드래그는 무시한다 (프로토타입 946줄) — '참여' 버튼 클릭을 방해하지 않도록.
       if (e.button !== 0 || e.target.closest('button')) return;
       down = true;

@@ -47,7 +47,10 @@ export default function JoinModal({
   adminName = null,
   onClose,
   onApply,
-  onCancel,
+  // [기본값이 있는 이유] 홈(StudentHomePage)은 취소 경로가 없다 — 홈 추천은 이미 신청한 프로그램을
+  // 애초에 제외하므로(확정 D-1) participation 이 항상 undefined 이고 canCancel 이 false 다.
+  // 아래 handleCancel 의 가드가 이미 막지만, "안 넘겨도 되는 prop"이라는 사실을 시그니처에 적어둔다.
+  onCancel = null,
 }) {
   const c = catOf(program.category);
   const st = statusOf(program.status);

@@ -33,6 +33,14 @@ const CARD_FIELDS =
 //   홈(fetchRecommendedPrograms)은 popularity 를 계속 가져오지 않는다 — 거기선 정렬 기준이 아니다.
 const LIST_FIELDS = `${CARD_FIELDS}, description, popularity, created_at`;
 
+// 홈 추천용. 카드 필드 + description.
+// [description 이 필요해진 이유 — 2026-08-14] 홈 카드도 이제 그 자리에서 참여 팝업(JoinModal)을 연다.
+//   팝업은 program.description 을 본문으로 그리는데, 전에는 홈이 CARD_FIELDS 만 가져와서 그 값이
+//   undefined 였다 — 팝업을 열면 설명이 통째로 빈 채로 떴을 자리다.
+//   popularity/created_at 은 여전히 안 가져온다: 홈은 정렬 UI 가 없고(관심 계열 우선 + 최신순 고정),
+//   popularity 는 화면에 절대 렌더하지 않는 값이다(원칙 1).
+const HOME_FIELDS = `${CARD_FIELDS}, description`;
+
 /**
  * 프로그램 선택 화면용 전체 목록.
  *
@@ -607,7 +615,7 @@ export async function fetchRecommendedPrograms(profile, limit = 8) {
   const [{ data, error }, appliedIds] = await Promise.all([
     supabase
       .from('programs')
-      .select(CARD_FIELDS)
+      .select(HOME_FIELDS)
       // is_published 조건은 RLS(programs_select_published)와 중복이지만 의도를 코드에 명시한다 (이중 안전장치).
       .eq('is_published', true)
       // 지난 날짜 제외. todayISO()는 로컬(KST) 기준 — toISOString()을 쓰면 KST 오전 9시 이전에 하루 밀린다.
