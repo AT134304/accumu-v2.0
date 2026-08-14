@@ -8,7 +8,7 @@
 // [진행 상태는 로그인한 학생별로 localStorage에 남는다] 새로고침해도 트래커가 초기화되지 않는다.
 //   "시작했는가"와 "몇 단계인가"만 남기고, "완료했는가"는 이 컨텍스트가 판단하지 않는다 — 그건
 //   실제로 참여가 완료됐는지 DB로 확인할 문제라 홈 화면이 fetchTutorialProgram()+참여 여부로 따로 본다.
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { useAuth } from './AuthContext';
 
 const TutorialContext = createContext(undefined);
@@ -107,11 +107,20 @@ export function TutorialProvider({ children }) {
   // 계정마다 독립된 진행 상태 — 같은 브라우저에서 학생 계정을 오갈 때 서로 섞이지 않는다.
   const storageKey = profile?.id ? `${STORAGE_PREFIX}${profile.id}` : null;
 
+  // [저장된 진행 상태를 effect 가 아니라 렌더 중에 읽는다 — 2026-08-14]
+  //   원래는 useEffect 로 storageKey 변화를 따라갔는데, 그러면 **첫 렌더가 반드시 IDLE 로 한 번
+  //   지나간다.** localStorage 읽기는 동기라 기다릴 이유가 없는데도 트래커가 한 프레임 꺼졌다
+  //   켜지는 셈이고, 그 사이 TutorialOverlay 가 "진행 중 아님"으로 렌더된다.
+  //   React 의 "prop 이 바뀔 때 state 를 조정하는" 패턴으로 바꾼다 — 조건이 참인 렌더는 커밋되지
+  //   않고 즉시 다시 렌더되므로 IDLE 이 화면에 나가지 않는다.
+  //   [loadedKey 초기값이 null 이 아니라 false 인 이유] storageKey 는 로그인 전 null 이 될 수 있어
+  //   null 을 "아직 안 읽음"으로 쓰면 그 상태에서 매 렌더 조건이 참이 되어 무한 루프가 된다.
   const [state, setState] = useState(IDLE);
-
-  useEffect(() => {
+  const [loadedKey, setLoadedKey] = useState(false);
+  if (loadedKey !== storageKey) {
+    setLoadedKey(storageKey);
     setState(loadState(storageKey));
-  }, [storageKey]);
+  }
 
   const start = useCallback(() => {
     const next = { active: true, step: 1 };

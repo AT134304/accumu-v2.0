@@ -12,7 +12,7 @@
 //
 // [원칙 4] 포인트 입력칸은 상단·강조 위치에 두지 않는다. 제목·유형·설명·일정 아래에 두고,
 //   amber 는 값 표시에만 쓴다. 폼 어디에도 참여자 수/신청자 수 관련 칸이 없다(F-3: 데이터를 얻을 수도 없다).
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import Modal from '../Modal';
 import Icon from '../Icon';
 import { CAT, TRACK, STATUS } from '../../lib/taxonomy';
@@ -112,7 +112,18 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
   const [isPeriod, setIsPeriod] = useState(() => Boolean(program?.end_date));
   // [진행일 목록 — 20260809180000] Set<'YYYY-MM-DD'>. 저장 진실은 이 Set 하나뿐이고, 아래 프리셋
   // 버튼들은 전부 이 Set을 채우는 도우미다(계산 결과를 별도로 저장하지 않는다).
-  const [sessionDates, setSessionDates] = useState(() => new Set(program?.session_dates ?? []));
+  // [초기값이 단순 복사가 아닌 이유 — 예전 행 보정] 기간제인데 session_dates 가 비어 있는 행이
+  //   있다(진행일 개념이 생기기 전 20260809180000 이전에 만들어진 것들). 그런 행을 빈 상태로 열면
+  //   저장 버튼이 "진행일을 하나 이상 선택" 에 걸려 수정 자체가 막힌다. 기간 전체로 채워서 연다.
+  //   범위 밖 날짜를 걷어내는 것도 여기서 한 번에 한다(기간이 줄어든 채 저장된 행 대비).
+  //   >>> 이 보정은 예전에 useEffect 가 마운트 때 하던 일이다. effect 를 없애며 여기로 옮겼으니
+  //       "왜 초기값이 이렇게 복잡한가" 로 다시 단순화하지 말 것.
+  const [sessionDates, setSessionDates] = useState(() => {
+    if (!program?.date || !program?.end_date) return new Set(program?.session_dates ?? []);
+    const valid = new Set(datesBetween(program.date, program.end_date));
+    const saved = (program.session_dates ?? []).filter((d) => valid.has(d));
+    return saved.length > 0 ? new Set(saved) : valid;
+  });
   const [touched, setTouched] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -148,19 +159,33 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
   };
   const blur = (key) => () => setTouched((prev) => ({ ...prev, [key]: true }));
 
-  // [기간이 바뀌면 진행일 목록을 그 범위로 정리한다]
+  // [기간이 바뀌면 진행일 목록을 그 범위로 정리한다 — 시작일·종료일 input 전용 onChange]
   //   - 처음 기간을 잡는 순간(Set이 비어 있을 때)은 "매일"로 기본 채운다 — 빈 캘린더보다 낫다.
   //   - 이미 손댄 뒤(Set에 값이 있음)라면 범위 밖으로 밀려난 날짜만 걷어낸다. 골라둔 요일 패턴을
   //     날짜만 살짝 조정했다고 통째로 초기화하지 않는다.
-  useEffect(() => {
-    if (!isPeriod || !v.date || !v.end_date) return;
-    const valid = new Set(datesBetween(v.date, v.end_date));
+  //
+  //   [effect 가 아니라 이벤트인 이유 — 2026-08-14]
+  //     원래 useEffect([isPeriod, v.date, v.end_date]) 였다. 하지만 이건 "상태가 바뀐 결과를 따라가는
+  //     동기화"가 아니라 **관리자가 날짜를 고친 그 순간의 처리**다. effect 로 두면 렌더가 한 번 더
+  //     돌고(진행일 그리드가 옛 범위로 한 프레임 그려진다), 무엇보다 마운트 때도 실행돼서
+  //     "폼을 열기만 해도 진행일이 바뀌는" 경로가 생긴다 — 그 마운트 몫은 위 useState 초기값으로
+  //     옮겼다. 남은 것은 진짜 이벤트뿐이라 여기 있는 게 맞다.
+  //   [기간제 체크박스에는 붙이지 않는다] 체크를 켜는 순간에는 종료일이 언제나 빈 값이다(끄면
+  //     아래 핸들러가 end_date 를 지운다). 범위가 없으니 정리할 것도 없다.
+  const changeRange = (key) => (e) => {
+    const next = e.target.value;
+    const merged = { ...v, [key]: next };
+    setV(merged);
+    setServerErr((prev) => (prev && prev.field === key ? null : prev));
+
+    if (!isPeriod || !merged.date || !merged.end_date) return;
+    const valid = new Set(datesBetween(merged.date, merged.end_date));
     setSessionDates((prev) => {
       if (prev.size === 0) return valid;
-      const next = new Set([...prev].filter((d) => valid.has(d)));
-      return next.size === prev.size ? prev : next;
+      const kept = new Set([...prev].filter((d) => valid.has(d)));
+      return kept.size === prev.size ? prev : kept;
     });
-  }, [isPeriod, v.date, v.end_date]);
+  };
 
   // 필수 8개 (category/title/org/description/date/time/career_track/points).
   // capacity 는 선택 — 빈칸 = 정원 제한 없음.
@@ -539,7 +564,7 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
                 id="pf-date"
                 type="date"
                 value={v.date}
-                onChange={set('date')}
+                onChange={changeRange('date')}
                 onBlur={blur('date')}
               />
             </Field>
@@ -598,7 +623,7 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
                 id="pf-enddate"
                 type="date"
                 value={v.end_date}
-                onChange={set('end_date')}
+                onChange={changeRange('end_date')}
                 onBlur={blur('end_date')}
                 min={v.date || undefined}
               />

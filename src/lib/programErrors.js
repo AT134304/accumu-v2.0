@@ -11,10 +11,14 @@ export const POINTS_RULE_MSG = '포인트는 150~3,000P 사이의 10원 단위�
 export const CAPACITY_RULE_MSG = '정원은 1명 이상이거나 비워두세요.';
 export const END_DATE_RULE_MSG = '종료일은 시작일보다 빠를 수 없습니다.';
 export const MIN_DAYS_RULE_MSG = '최소 참여일수는 1일 이상, 전체 기간 이하여야 합니다.';
+/** DB CHECK(programs_image_url_shape, 20260814120000) = "우리 스토리지에 올린 사진만". 외부 주소는 거부된다. */
+export const IMAGE_URL_RULE_MSG = '사진 주소가 올바르지 않습니다. 사진을 지우고 다시 올려 주세요.';
 
 /**
  * @param {any} err supabase-js 에러 또는 ProgramNotAffectedError
- * @returns {{field?: 'points'|'capacity', message: string}} field 가 있으면 그 입력칸 아래 인라인으로 표시한다
+ * @returns {{field?: 'points'|'capacity'|'end_date'|'min_attendance_days', message: string}}
+ *          field 가 있으면 그 입력칸 아래 인라인으로 표시한다. 없으면 폼 상단에 한 줄로 뜬다
+ *          (사진처럼 입력칸이 폼 필드가 아닌 경우가 여기 해당한다).
  */
 export function describeSaveError(err) {
   const code = err?.code;
@@ -32,6 +36,11 @@ export function describeSaveError(err) {
     if (raw.includes('programs_threshold_requires_min_days') || raw.includes('programs_min_days_requires_threshold')) {
       return { field: 'min_attendance_days', message: MIN_DAYS_RULE_MSG };
     }
+    // 대표 사진 URL (programs_image_url_shape, 20260814120000). 폼은 업로드 결과 URL 만 넣으므로
+    // 정상 경로로는 절대 오지 않는다 — 여기 걸렸다면 (a) 개발자도구로 값을 바꿨거나
+    // (b) 버킷/프로젝트가 바뀌어 uploadProgramImage 가 만든 주소가 체크와 어긋난 것이다.
+    // (b)면 "다시 시도"로 안 풀리므로 사진을 빼라고 말해주는 편이 낫다.
+    if (raw.includes('programs_image_url_shape')) return { message: IMAGE_URL_RULE_MSG };
     return { message: '입력값이 저장 규칙에 맞지 않습니다. 값을 다시 확인해 주세요.' };
   }
 
