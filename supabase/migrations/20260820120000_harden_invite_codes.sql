@@ -217,6 +217,16 @@ begin
     end if;
   end if;
 
+  -- [중복처럼 보이지만 원본 그대로다] 위 begin 직후에 이미 같은 계산을 한다. 결과가 같은
+  --   재계산이라 지워도 동작은 같지만, 이 마이그레이션은 **초대코드 한 줄만** 바꾸는 것이
+  --   목적이라 나머지를 건드리지 않는다(재정의본을 원본과 그대로 대조할 수 있어야 한다).
+  --   >>> 정리하려면 보안 변경이 아닌 별도 커밋에서 할 것.
+  begin
+    v_track := nullif(v_meta->>'career_interest', '')::public.career_track;
+  exception when others then
+    v_track := null;
+  end;
+
   insert into public.profiles (id, role, code, name, career_interest, account_type, school)
   values (new.id, v_role, v_code, v_name, v_track, v_account, v_school);
 
