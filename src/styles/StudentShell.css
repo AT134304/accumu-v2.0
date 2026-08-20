@@ -413,6 +413,17 @@ h2.sec { font-size: clamp(20px, 3.4vw, 23px); font-weight: 800; letter-spacing: 
 .rp-reason:hover:not(:disabled) { border-color: var(--line2); background: var(--bg); }
 .rp-reason.on { border-color: var(--brand); background: var(--brand-soft); }
 .rp-reason:disabled { opacity: .6; cursor: not-allowed; }
+/* 참여자 전용 사유를 아직 고를 수 없는 상태 (ADR 0026) — 숨기지 않고 잠근 채로 보여준다.
+   [흐리기만 하지 않는다] opacity 만 주면 "고장난 항목"으로 보인다. 자물쇠 + 사유 문구가 함께 있어야
+   "지금은 못 고르지만 조건이 있다"로 읽힌다. */
+.rp-reason.locked { background: var(--bg); border-style: dashed; opacity: 1; }
+.rp-reason.locked .rp-rtext b { color: var(--muted); }
+.rp-lockednote {
+  margin: -2px 0 0; padding: 8px 11px; border-radius: 10px;
+  background: var(--brand-soft); color: var(--brand-dk);
+  font-size: 11.5px; line-height: 1.6; font-weight: 600;
+}
+.rp-lockednote b { font-weight: 800; }
 .rp-dot {
   flex: none; width: 15px; height: 15px; margin-top: 2px; border-radius: 50%;
   border: 2px solid var(--line2); background: #fff; transition: .14s;

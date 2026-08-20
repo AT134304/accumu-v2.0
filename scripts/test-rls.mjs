@@ -85,6 +85,11 @@ const kstDate = (offsetDays = 0) =>
 const TODAY = kstDate(0);
 const YESTERDAY = kstDate(-1);
 
+// 신고 이유용 긴 문장 생성 (ADR 0026: 공개 150자 / 참여자 80자).
+// [정확한 길이로 자른다] 경계값(149/150)을 테스트해야 하는데 대충 길게 쓰면 무엇을 검증하는지 흐려진다.
+const FILLER = '공고에 적힌 내용과 실제 진행이 어떻게 달랐는지 구체적으로 적은 신고 사유입니다. ';
+const detailOf = (n) => FILLER.repeat(Math.ceil(n / FILLER.length)).slice(0, n);
+
 const sr = createClient(URL_, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 const anon = () => createClient(URL_, ANON_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
@@ -551,8 +556,9 @@ async function main() {
         .select('id');
       expect(!error, `내리기는 통과해야 한다: ${error?.code} ${error?.message}`);
       expect((data ?? []).length === 1, '1행이 바뀌어야 한다');
-      // 되돌려 둔다 — 뒤의 테스트가 이 프로그램을 게시 상태로 본다.
-      await sr.from('programs').update({ is_published: true }).eq('id', progPast);
+      // [되돌리지 않는다 — ADR 0026] 이제 false -> true 는 publish_my_program() 만 할 수 있고,
+      //   끝난 프로그램은 그 함수가 'over' 로 거부한다. 뒤의 테스트도 이 프로그램의 게시 상태에
+      //   의존하지 않는다(dismiss_my_participation 은 정책이 아니라 행을 직접 읽는다).
     });
     await t('★ 날짜를 미래로 밀어 잠금을 푸는 우회가 막힌다 (판정은 OLD 기준)', () =>
       expectError(
@@ -620,8 +626,8 @@ async function main() {
           program_id: progReport,
           student_id: stuB.id,
           reason: 'not_real',
-          // 제약(detail 필수)이 아니라 **정책**에 걸려야 하는 테스트다 — 값을 채워서 42501 을 확인한다.
-          detail: '남의 이름으로 신고가 되는지 확인하는 문장입니다. 서른 자를 넘깁니다.',
+          // 제약이 아니라 **정책**에 걸려야 하는 테스트다 — 두 분류의 하한을 모두 넘겨서 42501 을 확인한다.
+          detail: detailOf(160),
         }),
         ['42501']
       ));
@@ -629,44 +635,76 @@ async function main() {
       const { error } = await cAdmA.rpc('report_my_program', {
         p_program_id: progReport,
         p_reason: 'not_real',
-        p_detail: '관리자가 신고할 수 있는지 확인하는 문장입니다. 서른 자를 넘기려고 씁니다.',
+        p_detail: detailOf(160),
       });
       expect(error?.code === '42501', `42501 을 기대했다. 받은 값: ${error?.code} ${error?.message}`);
     });
-    await t('★ 어떤 사유든 이유를 적어야 한다 (전에는 기타만 필수였다)', async () => {
-      for (const reason of ['not_real', 'mismatch', 'irrelevant', 'paid', 'other']) {
+    await t('★ 참여하지 않은 학생은 참여자 전용 사유를 쓸 수 없다', async () => {
+      for (const reason of ['not_real', 'mismatch', 'unpunctual', 'other']) {
         const { data } = await cStuA.rpc('report_my_program', {
           p_program_id: progReport,
           p_reason: reason,
-          p_detail: null,
+          p_detail: detailOf(200),
         });
         expect(
-          data?.reason === 'detail_required',
-          `${reason}: detail_required 를 기대했다. 받은 값: ${JSON.stringify(data)}`
+          data?.reason === 'not_participant',
+          `${reason}: not_participant 를 기대했다. 받은 값: ${JSON.stringify(data)}`
         );
       }
     });
-    await t('★ 29자 이유는 거부된다 (하한 30자 = 장난 신고의 비용)', async () => {
-      const { data } = await cStuA.rpc('report_my_program', {
-        p_program_id: progReport,
-        p_reason: 'not_real',
-        p_detail: '가'.repeat(29),
-      });
-      expect(data?.reason === 'detail_length', `detail_length 를 기대했다. 받은 값: ${JSON.stringify(data)}`);
+    await t('★ 참여하지 않아도 공개 사유는 쓸 수 있다 (자격 자체는 통과한다)', async () => {
+      // 149자라 길이에서 걸린다 — "자격은 통과했고 길이만 남았다"를 이 사유로 확인한다.
+      for (const reason of ['irrelevant', 'paid', 'inappropriate']) {
+        const { data } = await cStuA.rpc('report_my_program', {
+          p_program_id: progReport,
+          p_reason: reason,
+          p_detail: detailOf(149),
+        });
+        expect(
+          data?.reason === 'detail_length',
+          `${reason}: detail_length 를 기대했다(not_participant 가 오면 분류가 틀린 것). 받은 값: ${JSON.stringify(data)}`
+        );
+        expect(data?.min === 150, `공개 사유 하한은 150 이어야 한다. 받은 값: ${JSON.stringify(data)}`);
+      }
     });
-    await t('공백만 30자인 이유는 거부된다 (btrim 기준)', async () => {
+    await t('★ 어떤 사유든 이유가 필요하다', async () => {
       const { data } = await cStuA.rpc('report_my_program', {
         p_program_id: progReport,
-        p_reason: 'not_real',
-        p_detail: ' '.repeat(40),
+        p_reason: 'inappropriate',
+        p_detail: null,
       });
       expect(data?.reason === 'detail_required', `detail_required 를 기대했다. 받은 값: ${JSON.stringify(data)}`);
+    });
+    await t('공백만 있는 이유는 거부된다 (btrim 기준)', async () => {
+      const { data } = await cStuA.rpc('report_my_program', {
+        p_program_id: progReport,
+        p_reason: 'inappropriate',
+        p_detail: ' '.repeat(200),
+      });
+      expect(data?.reason === 'detail_required', `detail_required 를 기대했다. 받은 값: ${JSON.stringify(data)}`);
+    });
+    await t('★ 참여한 학생은 참여자 전용 사유를 80자부터 쓸 수 있다', async () => {
+      // 학생 A 는 위 6·8번에서 progA 에 입장·퇴장 인증을 마쳤다(status=completed).
+      const short = await cStuA.rpc('report_my_program', {
+        p_program_id: progA,
+        p_reason: 'unpunctual',
+        p_detail: detailOf(79),
+      });
+      expect(short.data?.reason === 'detail_length', `79자는 거부돼야 한다. 받은 값: ${JSON.stringify(short.data)}`);
+      expect(short.data?.min === 80, `참여자 사유 하한은 80 이어야 한다. 받은 값: ${JSON.stringify(short.data)}`);
+
+      const okRes = await cStuA.rpc('report_my_program', {
+        p_program_id: progA,
+        p_reason: 'unpunctual',
+        p_detail: detailOf(80),
+      });
+      expect(okRes.data?.ok === true, `80자는 통과해야 한다. 받은 값: ${JSON.stringify(okRes.data)}`);
     });
     await t('신고 1건 — 아직 게시 중이다', async () => {
       const { data } = await cStuA.rpc('report_my_program', {
         p_program_id: progReport,
-        p_reason: 'not_real',
-        p_detail: '공고에는 8월 5일 진행이라고 적혀 있었는데 그날 아무 안내도 없었어요.',
+        p_reason: 'inappropriate',
+        p_detail: detailOf(150),
       });
       expect(data?.ok === true, `접수돼야 한다. 받은 값: ${JSON.stringify(data)}`);
       const { data: prog } = await sr.from('programs').select('is_published').eq('id', progReport).single();
@@ -675,8 +713,8 @@ async function main() {
     await t('★ 같은 학생의 두 번째 신고는 에러가 아니라 already 다', async () => {
       const { data } = await cStuA.rpc('report_my_program', {
         p_program_id: progReport,
-        p_reason: 'mismatch',
-        p_detail: '두 번째로 다시 신고해 보는 문장입니다. 서른 자를 넘기려고 조금 더 씁니다.',
+        p_reason: 'paid',
+        p_detail: detailOf(150),
       });
       expect(data?.reason === 'already', `already 를 기대했다. 받은 값: ${JSON.stringify(data)}`);
     });
@@ -684,7 +722,7 @@ async function main() {
       await cStuB.rpc('report_my_program', {
         p_program_id: progReport,
         p_reason: 'paid',
-        p_detail: '참가비 만 원을 따로 내야 한다고 안내받았습니다. 공고에는 그런 말이 없었어요.',
+        p_detail: detailOf(150),
       });
       const { data: prog } = await sr.from('programs').select('is_published').eq('id', progReport).single();
       expect(prog?.is_published === true, '2건으로는 내려가면 안 된다');
@@ -693,7 +731,7 @@ async function main() {
       const { data } = await cStuC.rpc('report_my_program', {
         p_program_id: progReport,
         p_reason: 'irrelevant',
-        p_detail: '진로 체험이 아니라 그냥 자습 감독이었습니다. 두 시간 내내 문제집만 풀었어요.',
+        p_detail: detailOf(150),
       });
       expect(data?.ok === true, `접수돼야 한다. 받은 값: ${JSON.stringify(data)}`);
       const { data: prog } = await sr.from('programs').select('is_published').eq('id', progReport).single();
@@ -716,7 +754,8 @@ async function main() {
     await t('★ 관리자는 자기 프로그램의 신고도 읽을 수 없다', () =>
       expectRows(cAdmB.from('program_reports').select('id').eq('program_id', progReport), 0));
     await t('학생은 자기가 낸 신고만 보인다', async () => {
-      await expectRows(cStuA.from('program_reports').select('id'), 1);
+      // stuA 는 progReport(공개 사유) + progA(참여자 사유) 2건을 냈다.
+      await expectRows(cStuA.from('program_reports').select('id'), 2);
       await expectRows(cStuA.from('program_reports').select('id').eq('student_id', stuB.id), 0);
     });
     await t('신고는 취소·수정할 수 없다 (정책 0개)', async () => {
@@ -778,6 +817,61 @@ async function main() {
       const { data } = await cStuB.rpc('dismiss_my_participation', { p_participation_id: pastPart.id });
       expect(data?.ok === true, `지워져야 한다. 받은 값: ${JSON.stringify(data)}`);
       await expectRows(cStuB.from('participations').select('id').eq('id', pastPart.id), 0);
+    });
+
+
+    // =====================================================================
+    group('12. 게시 게이트 — 올리기는 검사를 거쳐야 한다 (ADR 0026)');
+    // =====================================================================
+    await t('★ 직접 update 로 게시할 수 없다 (RPC 를 거쳐야 한다)', () =>
+      expectError(
+        cAdmA.from('programs').update({ is_published: true }).eq('id', progADraft).select('id'),
+        ['42501']
+      ));
+    await t('★ 설명이 짧으면 게시가 거부된다', async () => {
+      const { data } = await cAdmA.rpc('publish_my_program', { p_program_id: progADraft });
+      expect(data?.reason === 'too_short', `too_short 를 기대했다. 받은 값: ${JSON.stringify(data)}`);
+      const { data: prog } = await sr.from('programs').select('is_published').eq('id', progADraft).single();
+      expect(prog?.is_published === false, '거부됐는데 게시되면 안 된다');
+    });
+    await t('설명을 채우면 게시된다', async () => {
+      const { error: upErr } = await cAdmA
+        .from('programs')
+        .update({ description: detailOf(60) })
+        .eq('id', progADraft)
+        .select('id');
+      expect(!upErr, `설명 수정이 막히면 안 된다: ${upErr?.code} ${upErr?.message}`);
+
+      const { data } = await cAdmA.rpc('publish_my_program', { p_program_id: progADraft });
+      expect(data?.ok === true, `게시돼야 한다. 받은 값: ${JSON.stringify(data)}`);
+      const { data: prog } = await sr.from('programs').select('is_published').eq('id', progADraft).single();
+      expect(prog?.is_published === true, '실제로 게시돼야 한다');
+    });
+    await t('이미 게시중이면 already', async () => {
+      const { data } = await cAdmA.rpc('publish_my_program', { p_program_id: progADraft });
+      expect(data?.reason === 'already', `already 를 기대했다. 받은 값: ${JSON.stringify(data)}`);
+    });
+    await t('★ 진행이 끝난 프로그램은 올릴 수 없다 (내리기는 되지만 올리기는 안 된다)', async () => {
+      // progPast 는 7번에서 내려둔 상태다.
+      const { data } = await cAdmA.rpc('publish_my_program', { p_program_id: progPast });
+      expect(data?.reason === 'over', `over 를 기대했다. 받은 값: ${JSON.stringify(data)}`);
+    });
+    await t('남의 프로그램은 올릴 수 없다 (존재 여부도 알려주지 않는다)', async () => {
+      const { data } = await cAdmB.rpc('publish_my_program', { p_program_id: progADraft });
+      expect(data?.reason === 'not_found', `not_found 를 기대했다. 받은 값: ${JSON.stringify(data)}`);
+    });
+    await t('학생은 게시 함수를 부를 수 없다', async () => {
+      const { error } = await cStuA.rpc('publish_my_program', { p_program_id: progADraft });
+      expect(error?.code === '42501', `42501 을 기대했다. 받은 값: ${error?.code} ${error?.message}`);
+    });
+    await t('내리기는 여전히 평범한 update 로 된다 (문턱은 올리는 쪽에만 있다)', async () => {
+      const { data, error } = await cAdmA
+        .from('programs')
+        .update({ is_published: false })
+        .eq('id', progADraft)
+        .select('id');
+      expect(!error, `내리기가 막히면 안 된다: ${error?.code} ${error?.message}`);
+      expect((data ?? []).length === 1, '1행이 바뀌어야 한다');
     });
 
   } finally {

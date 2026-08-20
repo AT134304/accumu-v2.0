@@ -32,7 +32,12 @@ import Modal from '../components/Modal';
 import ProgramFormModal from '../components/admin/ProgramFormModal';
 import { catOf, statusOf } from '../lib/taxonomy';
 import { endOfProgram, fmtDateRange, isProgramOver, todayISO } from '../lib/date';
-import { fetchAdminPrograms, fetchApplicantCounts, setProgramPublished } from '../lib/programService';
+import {
+  fetchAdminPrograms,
+  fetchApplicantCounts,
+  publishMyProgram,
+  setProgramPublished,
+} from '../lib/programService';
 import { describeSaveError } from '../lib/programErrors';
 import '../styles/AdminShell.css';
 
@@ -46,6 +51,9 @@ export default function AdminProgramsPage() {
   const [state, setState] = useState('loading'); // 'loading' | 'ready' | 'error'
   const [form, setForm] = useState(null); // { mode: 'create'|'edit', program }
   const [confirmRow, setConfirmRow] = useState(null); // 내리기 확인 대상 (확정 J)
+  // [ADR 0026] 올리기 확인 대상. 내리기보다 **되돌리기 어려운** 쪽인데 확인이 없었다 —
+  //   내린 프로그램은 아무도 못 보지만, 올린 프로그램은 이미 본 학생을 되돌릴 수 없다.
+  const [publishRow, setPublishRow] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [toast, setToast] = useState(null);
   const [alert, setAlert] = useState(null); // 토글 실패 배너 — 조용히 삼키지 않는다
@@ -140,25 +148,46 @@ export default function AdminProgramsPage() {
     [focusRow]
   );
 
-  const handleTogglePublished = useCallback(
-    async (program, next) => {
+  // 내리기 — 평범한 update 다. 올리기와 달리 조건 검사가 없다(ADR 0026): stale 알림이 요구하는
+  // 행동이 "내리기"라서 그쪽에 문턱을 두면 앱이 하라는 일을 앱이 막게 된다.
+  //   >>> 여기로 is_published: true 를 보내지 말 것. 트리거 programs_publish_gate 가 거부한다.
+  const handleUnpublish = useCallback(
+    async (program) => {
       setAlert(null);
       setBusyId(program.id);
       try {
-        const row = await setProgramPublished(program.id, next);
+        const row = await setProgramPublished(program.id, false);
         setRows((prev) => prev.map((r) => (r.id === row.id ? row : r)));
         setConfirmRow(null);
-        setToast({
-          id: Date.now(),
-          message: next
-            ? '학생에게 공개했어요'
-            : '게시를 중단했어요. 언제든 다시 올릴 수 있어요',
-        });
+        setToast({ id: Date.now(), message: '게시를 중단했어요. 언제든 다시 올릴 수 있어요' });
         focusRow(row);
       } catch (err) {
-        console.error('[AdminPrograms] 게시 상태 변경 실패:', err);
+        console.error('[AdminPrograms] 게시 중단 실패:', err);
         setConfirmRow(null);
         setAlert(describeSaveError(err).message);
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [focusRow]
+  );
+
+  // 게시 — 서버가 조건을 검사한 뒤에만 공개된다(publish_my_program). 실패는 예외가 아니라
+  // "무엇이 부족한지"라서 alert 배너가 아니라 확인 창 안에 그대로 남긴다.
+  const handlePublish = useCallback(
+    async (program) => {
+      setAlert(null);
+      setBusyId(program.id);
+      try {
+        const res = await publishMyProgram(program.id);
+        if (!res.ok) return res.message;
+        // RPC 는 행을 돌려주지 않는다(검사 결과가 본체다) — 화면 상태만 맞춘다.
+        const next = { ...program, is_published: true };
+        setRows((prev) => prev.map((r) => (r.id === program.id ? next : r)));
+        setPublishRow(null);
+        setToast({ id: Date.now(), message: '학생에게 공개했어요' });
+        focusRow(next);
+        return null;
       } finally {
         setBusyId(null);
       }
@@ -179,7 +208,7 @@ export default function AdminProgramsPage() {
       }}
       locked={isProgramOver(p, today)}
       onEdit={() => setForm({ mode: 'edit', program: p })}
-      onPublish={() => handleTogglePublished(p, true)}
+      onPublish={() => setPublishRow(p)}
       onUnpublish={() => setConfirmRow(p)}
     />
   );
@@ -265,12 +294,21 @@ export default function AdminProgramsPage() {
         />
       )}
 
+      {publishRow && (
+        <PublishConfirm
+          program={publishRow}
+          busy={busyId === publishRow.id}
+          onCancel={() => setPublishRow(null)}
+          onConfirm={() => handlePublish(publishRow)}
+        />
+      )}
+
       {confirmRow && (
         <UnpublishConfirm
           program={confirmRow}
           busy={busyId === confirmRow.id}
           onCancel={() => setConfirmRow(null)}
-          onConfirm={() => handleTogglePublished(confirmRow, false)}
+          onConfirm={() => handleUnpublish(confirmRow)}
         />
       )}
 
@@ -363,6 +401,127 @@ function ProgramRow({ program, applicantCount = 0, busy, locked = false, highlig
         )}
       </div>
     </div>
+  );
+}
+
+/* ---------- 올리기 확인 창 (ADR 0026) ----------
+
+   [★ 왜 확인 창이 필요한가]
+     내리기에는 확인이 있었는데(확정 J) 올리기에는 없었다. 그런데 **되돌리기 어려운 쪽은 올리기다** —
+     내린 프로그램은 아무도 못 보지만, 올린 프로그램은 이미 본 학생을 되돌릴 수 없다.
+
+   [세 관문]
+     1) 미리보기   — 학생 화면에 어떻게 보이는지 그대로 (등록 폼에서는 절대 안 보이는 모습이다)
+     2) 체크리스트 — 서버가 판정할 수 없는 사실을 관리자가 스스로 확인한다
+     3) 서버 검사  — publish_my_program() 이 설명 길이·날짜·진행일을 본다 (실패 사유가 여기 뜬다)
+
+   [★ 체크리스트 3문장 = 공개 신고 사유 3종]
+     여기서 체크하는 것과, 참여하지 않은 학생이 신고할 수 있는 것이 **정확히 같은 목록**이다
+     (reportService.js REPORT_REASONS 의 scope:'open' 3종).
+     "네가 올리며 확인한 것이 곧 학생이 신고할 수 있는 것" — 그래서 신고가 취향 차이가 아니라
+     약속 위반을 가리킨다. >>> 한쪽을 바꾸면 다른 쪽도 함께 바꿀 것.
+
+   [체크를 저장하지 않는다] DB 에 컬럼을 만들지 않는다. 이건 기록이 아니라 **읽게 만드는 장치**다.
+     저장하면 "언제 체크했나"를 보여줄 화면이 필요해지고, 그건 관리자 기능이 하나 더 느는 일이다. */
+const PUBLISH_CHECKS = [
+  { key: 'career', label: '학업(자습·문제풀이)이 아니라 진로·커리어 활동입니다' },
+  { key: 'free', label: '참여에 수강료·재료비 등 비용이 들지 않습니다' },
+  { key: 'proper', label: '고등학생 대상 활동으로 부적절한 내용이 없습니다' },
+];
+
+function PublishConfirm({ program, busy, onCancel, onConfirm }) {
+  const [checked, setChecked] = useState(() => new Set());
+  const [serverMsg, setServerMsg] = useState(null);
+
+  const cat = catOf(program.category);
+  const allChecked = checked.size === PUBLISH_CHECKS.length;
+
+  const toggle = (key) =>
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  async function handleConfirm() {
+    setServerMsg(null);
+    // 실패하면 사유 문자열이, 성공하면 null 이 온다(호출부가 창을 닫는다).
+    const message = await onConfirm();
+    if (message) setServerMsg(message);
+  }
+
+  return (
+    <Modal onClose={busy ? () => {} : onCancel} labelledBy="pub-title" className="confirm-modal">
+      <div className="mbody">
+        <h3 id="pub-title">학생에게 공개할까요?</h3>
+
+        {/* 1) 미리보기 — 학생 목록의 카드와 같은 정보 순서(사진/유형·제목/주최·날짜·시간). */}
+        <div className="pub-preview">
+          <div className="pv-thumb" style={{ background: cat.soft }}>
+            {program.image_url ? (
+              <img src={program.image_url} alt="" loading="lazy" />
+            ) : (
+              <Icon name={cat.icon} size={22} color={cat.color} />
+            )}
+          </div>
+          <div className="pv-info">
+            <span className="pv-cat" style={{ color: cat.color, background: cat.soft }}>
+              {cat.name}
+            </span>
+            <h5>{program.title}</h5>
+            <div className="pv-meta">
+              {[program.org, fmtDateRange(program.date, program.end_date), program.time]
+                .filter(Boolean)
+                .join(' · ')}
+            </div>
+          </div>
+        </div>
+        <p className="pv-caption">학생 목록에 이렇게 보입니다.</p>
+
+        {/* 2) 체크리스트 — 서버가 알 수 없는 사실. 전부 체크해야 버튼이 열린다. */}
+        <div className="pub-checks">
+          {PUBLISH_CHECKS.map((c) => (
+            <label key={c.key} className={checked.has(c.key) ? 'pub-check on' : 'pub-check'}>
+              <input
+                type="checkbox"
+                checked={checked.has(c.key)}
+                disabled={busy}
+                onChange={() => toggle(c.key)}
+              />
+              <span>{c.label}</span>
+            </label>
+          ))}
+        </div>
+
+        {/* 어긴 채로 올리면 어떻게 되는지 말해준다 — 체크가 형식이 되지 않게. */}
+        <p className="confirm-desc">
+          공개하면 모든 학생의 목록에 즉시 나타나고, 신청을 받기 시작합니다.{' '}
+          <b>위 세 가지는 학생이 그대로 신고할 수 있는 항목</b>이며, 서로 다른 학생 3명이 신고하면
+          게시가 자동으로 중단됩니다.
+        </p>
+
+        {serverMsg && (
+          <div className="join-err" role="alert">
+            {serverMsg}
+          </div>
+        )}
+
+        <div className="pf-actions">
+          <button type="button" className="pf-btn ghost" onClick={onCancel} disabled={busy}>
+            취소
+          </button>
+          <button
+            type="button"
+            className="pf-btn primary"
+            onClick={handleConfirm}
+            disabled={busy || !allChecked}
+          >
+            {busy ? '처리 중…' : allChecked ? '공개하기' : '위 항목을 확인해 주세요'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

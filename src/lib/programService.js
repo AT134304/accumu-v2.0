@@ -597,6 +597,39 @@ export async function updateProgram(programId, fields) {
   return patchProgramRow(programId, pickFormColumns(fields));
 }
 
+/** publishMyProgram 실패 사유 → 화면 문구. 사유마다 "무엇을 고쳐야 하는가"가 다르다. */
+const PUBLISH_REASON_TEXT = {
+  not_found: '이 프로그램을 올릴 권한이 없거나 목록이 오래됐습니다. 새로고침해 주세요.',
+  already: '이미 학생에게 공개된 프로그램이에요.',
+  over: '진행이 끝난 프로그램은 올릴 수 없어요. 날짜를 확인해 주세요.',
+  no_session: '오늘 이후 진행일이 하나도 없어요. 진행일을 다시 선택해 주세요.',
+  too_short: '설명이 너무 짧아요. 학생이 무엇을 신청하는지 알 수 있도록 50자 이상 적어주세요.',
+};
+
+/**
+ * 게시(올리기) — **유일한 경로다** (ADR 0026).
+ *
+ * [왜 setProgramPublished(true) 가 아닌가]
+ *   올리기는 되돌리기가 가장 어려운 동작이다. 내린 프로그램은 아무도 못 보지만, 올린 프로그램은
+ *   **이미 본 학생을 되돌릴 수 없다.** 그런데 확인 창은 내리기에만 있었고(확정 J) 올리기는
+ *   update 한 줄이었다. 서버가 조건을 검사하고 나서만 공개되도록 RPC 로 옮겼다.
+ * [화면에서 막는 것은 UX 다] 트리거 programs_publish_gate 가 이 RPC 를 거치지 않은
+ *   false -> true 전이를 42501 로 거부한다 — 개발자도구로 update 를 직접 보내도 막힌다.
+ * [내리기는 그대로 update 다] 아래 setProgramPublished 를 계속 쓴다. 문턱은 올리는 쪽에만 있다 —
+ *   stale 알림이 요구하는 행동이 "내리기"라서 그쪽을 막으면 앱이 하라는 일을 앱이 막게 된다.
+ *
+ * @returns {Promise<{ok:true} | {ok:false, message:string}>}
+ */
+export async function publishMyProgram(programId) {
+  const { data, error } = await supabase.rpc('publish_my_program', { p_program_id: programId });
+  if (error) {
+    console.error('[programService] 게시 실패:', error);
+    return { ok: false, message: '게시하지 못했어요. 잠시 후 다시 시도해 주세요.' };
+  }
+  if (data?.ok) return { ok: true };
+  return { ok: false, message: PUBLISH_REASON_TEXT[data?.reason] ?? '게시하지 못했어요.' };
+}
+
 /**
  * 올리기 / 내리기 토글.
  *
@@ -605,6 +638,8 @@ export async function updateProgram(programId, fields) {
  * [삭제가 아니다] delete 정책 0개. 내려도 학생의 참여 기록·QR 인증은 그대로 동작한다(ADR 0005 결정 7-4).
  */
 export async function setProgramPublished(programId, nextPublished) {
+  // [ADR 0026] 올리기는 이 함수로 하지 않는다 — publishMyProgram() 을 쓴다. 여기로 true 를 보내면
+  //   트리거 programs_publish_gate 가 42501 로 거부한다(그게 의도다).
   return patchProgramRow(programId, { is_published: nextPublished });
 }
 

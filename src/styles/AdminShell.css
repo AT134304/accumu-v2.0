@@ -335,6 +335,37 @@
 .pf-btn.danger:hover:not(:disabled) { background: #CE4359; }
 .pf-btn:disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; }
 
+/* ---------- 올리기 확인 창 (ADR 0026) ----------
+   미리보기 + 체크리스트. 등록 폼에서는 절대 볼 수 없는 "학생에게 보이는 모습"을 여기서 한 번 보여준다. */
+.pub-preview {
+  display: flex; align-items: center; gap: 12px; margin: 14px 0 6px; padding: 12px;
+  border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--card);
+}
+.pv-thumb {
+  position: relative; flex: none; width: 62px; height: 62px; border-radius: 12px;
+  display: grid; place-items: center; overflow: hidden;
+}
+/* 흐름에서 빼내지 않으면 원본 높이가 행 크기 계산에 참여해 카드를 덮는다 (ADR 0022 에서 겪은 그 버그) */
+.pv-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.pv-info { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pv-cat {
+  align-self: flex-start; font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 20px;
+}
+.pv-info h5 { font-size: 14px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-meta { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.pv-caption { font-size: 11.5px; color: var(--muted); font-weight: 600; margin: 0 0 14px; }
+
+.pub-checks { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
+/* 체크는 "읽게 만드는 장치"라 항목이 눌리기 쉬워야 한다 — 라벨 전체가 클릭 영역이다. */
+.pub-check {
+  display: flex; align-items: flex-start; gap: 9px; padding: 10px 12px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 10px; background: #fff; transition: .14s;
+  font-size: 12.5px; font-weight: 600; line-height: 1.5; color: var(--ink2);
+}
+.pub-check:hover { border-color: var(--line2); background: var(--bg); }
+.pub-check.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-dk); }
+.pub-check input { flex: none; width: 16px; height: 16px; margin-top: 1px; accent-color: var(--brand); }
+
 /* ---------- 내리기 확인 창 (확정 J) ---------- */
 .confirm-target {
   margin: 12px 0 10px; padding: 10px 13px; border-radius: 10px; background: var(--bg);

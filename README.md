@@ -140,7 +140,12 @@ npx supabase functions deploy naver-auth --no-verify-jwt
 3) 20260821140000_program_reports_and_admin_audit.sql
 4) 20260821160000_dismiss_past_participation.sql
 5) 20260821180000_report_detail_required_and_notice_fix.sql
+6) 20260822100000_extend_report_reason.sql          ← 단독 실행 (enum 값 커밋, 55P04 회피)
+7) 20260822120000_report_scope_and_publish_gate.sql
 ```
+
+> **6번도 단독으로 먼저 실행해야 한다.** 7번의 CHECK 제약이 6번에서 추가한 enum 값을 직접 쓴다 —
+> 같은 트랜잭션에서 추가한 enum 값은 그 트랜잭션 안에서 쓸 수 없다(55P04). 6번은 재실행이 안전하다.
 
 > **5번은 반드시 적용할 것.** 4번까지만 적용된 상태에서는 신고 3건째와 "목록에서 지우기"가
 > `notifications` 컬럼 이름(`student_id` -> `recipient_id`) 때문에 42703 으로 죽는다.
@@ -168,7 +173,7 @@ select created_at, actor_id, action, target_id, changes
 npm run test:rls
 ```
 
-anon / 학생 3명 / 관리자 2명의 **anon 키 세션**으로 금지된 요청 약 90건을 실제로 쏴서 전부 막히는지 확인한다.
+anon / 학생 3명 / 관리자 2명의 **anon 키 세션**으로 금지된 요청 약 100건을 실제로 쏴서 전부 막히는지 확인한다.
 정책·definer 함수·초대코드·QR을 건드렸다면 반드시 돌릴 것.
 
 - 필요한 값: `.env.seed`의 `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` + `.env.local`의 `VITE_SUPABASE_ANON_KEY`

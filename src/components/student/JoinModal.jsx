@@ -347,6 +347,11 @@ export default function JoinModal({
             ) : reportOpen ? (
               <ReportPanel
                 programId={program.id}
+                // [ADR 0026] 참여자 전용 사유(시간 미준수 등)를 고를 수 있는가.
+                //   applied(신청만 함)·waitlisted(대기)는 그 자리에 있지 않았다 — 참여가 아니다.
+                //   entered 는 QR 입장 인증을 통과했다는 뜻이고, 그 인증은 관리자가 카메라로 찍어 준
+                //   것이라 학생이 스스로 만들 수 없는 증거다. 서버도 같은 기준으로 판정한다.
+                canReportParticipant={status === 'entered' || status === 'completed'}
                 onReported={() => {
                   setReported(true);
                   setReportOpen(false);
