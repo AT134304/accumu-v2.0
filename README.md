@@ -189,11 +189,25 @@ anon / 학생 3명 / 관리자 2명의 **anon 키 세션**으로 금지된 요�
 시연 전에 SQL 편집기에서 새 값을 읽어 둘 것:
 
 ```sql
-select ic.kind, ic.code, p.code as admin_code, p.name
+select ic.kind, ic.code, ic.is_active, p.code as admin_code, p.name
   from public.invite_codes ic
   left join public.profiles p on p.id = ic.admin_id
  order by ic.kind, p.code;
 ```
+
+### 관리자 초대코드를 다시 발급받아야 할 때
+
+`scripts/rotate-admin-invite.sql` 을 SQL 편집기에 붙여넣고 실행하면 **새 코드가 결과 그리드에 뜬다.**
+값이 파일에 적혀 있지 않은 것이 의도다 — 저장소에는 "만드는 방법"만 남고 값은 실행한 사람 화면에만 있다.
+
+- 문자셋에서 `0`·`1`·`L` 을 뺐다. 불러 주거나 칠판에 적어도 틀리지 않는다.
+- **시연이 끝나면 끌 것.** 코드를 아는 사람은 누구나 관리자 계정을 만들 수 있다.
+
+  ```sql
+  update public.invite_codes set is_active = false where kind = 'admin';
+  ```
+
+- 학교 코드(`kind='school'`)는 끄지 말 것 — 학생이 담당 관리자에게 연동될 수 없게 된다.
 
 ## Edge Function 배포 시 (ADR 0024 — CORS)
 
