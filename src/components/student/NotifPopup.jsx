@@ -41,6 +41,10 @@ const LOOK = {
   upcoming_admin: { icon: 'ic-calendar', color: 'var(--brand)', soft: 'var(--brand-soft)' },
   // "내려도 괜찮아요" 는 오류가 아니라 정리 권유다 — rose(거부/실패)를 쓰지 않는다.
   stale: { icon: 'ic-calendar', color: 'var(--ink2)', soft: 'var(--bg2)' },
+  // [ADR 0025] 신고 누적으로 내 프로그램이 자동 게시중단됨 (관리자 수신).
+  //   경고색(rose)을 쓰되 문구·아이콘 어디에도 신고자·신고 수가 없다 — 알림이 나르는 사실은
+  //   "내려갔다" 하나다(신고자를 특정할 수 있으면 보복 경로가 생긴다).
+  reported: { icon: 'ic-alert', color: 'var(--rose)', soft: 'var(--rose-soft)' },
 };
 const lookOf = (type) => LOOK[type] ?? { icon: 'ic-bell', color: 'var(--brand)', soft: 'var(--brand-soft)' };
 

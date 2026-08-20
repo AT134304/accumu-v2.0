@@ -33,9 +33,15 @@
 .reviewinput::placeholder { color: var(--muted); -webkit-text-fill-color: var(--muted); }
 .reviewinput:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-soft); }
 .reviewinput:disabled { background: var(--bg); }
-/* 남은 글자 수 — 상한(60자)이 DB CHECK 와 같은 값이라 "왜 잘렸는지"를 화면이 미리 말한다.
-   진척도 표시가 아니다(원칙 1). */
-.revcount { align-self: flex-end; margin-top: 5px; font-size: 11px; color: var(--muted); font-weight: 600; }
+/* 한줄평 상태 줄 (ADR 0025) — 안 씀(선택) / 쓰다 맒(N자 더) / 충분함(N자) 세 문장을 그린다.
+   상한이 아니라 **하한**을 말한다. 진척도·게이지가 아니다(원칙 1) — 그래서 막대도 퍼센트도 없다.
+   [flex-end 에서 stretch 로 바꾼 이유] 이제 숫자가 아니라 문장이 들어와서 좁은 화면에서 줄바꿈된다. */
+.revcount {
+  align-self: stretch; text-align: right; margin-top: 5px;
+  font-size: 11px; color: var(--muted); font-weight: 600; line-height: 1.5;
+}
+/* 아직 저장할 수 없는 상태. rose 는 이 프로젝트의 부정/경고색이다(amber 는 포인트 전용 — 원칙 4). */
+.revcount.short { color: var(--rose); }
 
 .survey .survey-submit { margin-top: 12px; }
 .skipbtn { margin-top: 10px; font-size: 13px; color: var(--muted); font-weight: 600; padding: 6px; }

@@ -89,6 +89,9 @@
   border: 1.5px solid var(--line2); background: transparent;
 }
 .pubbadge.on { border-color: var(--brand); color: var(--brand-dk); background: var(--brand-soft); }
+/* 수정 잠금 (ADR 0025) — 끝난 프로그램. 상태가 아니라 "할 수 없는 일"이라 채우지 않고 점만 진하게 둔다. */
+.pubbadge.lock { border-color: var(--line2); color: var(--ink2); background: var(--bg2); }
+.pubbadge.lock::before { border-color: var(--ink2); background: var(--ink2); }
 .pubbadge.on::before { border-color: var(--brand); background: var(--brand); }
 
 /* 미게시 = 행 흐림 (확정 B). 배지와 액션 버튼은 흐리지 않는다 — 흐리면 "올리기"를 누를 수 없어 보인다. */

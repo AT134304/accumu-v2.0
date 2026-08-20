@@ -167,5 +167,22 @@ Deno.serve(async (req) => {
     return json({ ok: false, reason: 'update_failed' }, 500);
   }
 
+  // [감사 로그 — ADR 0025] 이 함수는 트리거가 잡을 수 없는 자리다(auth.users 를 Admin API 로 바꾼다).
+  //   그래서 여기서 직접 남긴다. service_role 이라 RLS(정책 0개)를 우회한다.
+  //   [actor 는 호출한 관리자다] 위에서 mentor_students 조회로 이미 신원이 확인된 세션이다.
+  //   [★ 임시 비밀번호를 남기지 않는다] 로그에 평문이 들어가면 이 함수가 지키려던 것이 무너진다.
+  //   실패해도 응답을 막지 않는다 — 비밀번호는 이미 바뀌었고, 그 사실을 못 돌려주는 쪽이 더 나쁘다.
+  const { data: caller } = await callerClient.auth.getUser();
+  const { error: auditError } = await adminClient.from('admin_audit').insert({
+    actor_id: caller?.user?.id ?? null,
+    action: 'password_reset',
+    target_table: 'profiles',
+    target_id: studentId,
+    changes: null,
+  });
+  if (auditError) {
+    console.error('[admin-reset-student-password] 감사 로그 기록 실패:', auditError);
+  }
+
   return json({ ok: true, temp_password: tempPassword });
 });

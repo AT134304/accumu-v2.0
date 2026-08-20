@@ -173,6 +173,39 @@ export async function cancelMyParticipation(participationId) {
   return data;
 }
 
+/** dismissMyParticipation 실패 사유 → 화면 문구. 사유별로 다른 문장을 갖는 것이 이 맵의 목적이다. */
+const DISMISS_REASON_TEXT = {
+  not_over: '아직 진행이 끝나지 않은 활동이에요.',
+  completed: '완료한 활동은 아카이브에 남습니다.',
+  has_points: '포인트가 지급된 활동은 기록에서 지울 수 없어요.',
+  not_found: '이미 정리된 활동이에요. 목록을 새로고침할게요.',
+};
+
+/**
+ * 끝난 활동을 QR 목록에서 지운다 (ADR 0025 / dismiss_my_participation).
+ *
+ * [취소(cancelMyParticipation)와 다른 함수다 — 합치지 말 것]
+ *   취소는 **시작 전날까지**만 되고, 비는 자리를 대기자에게 넘긴다.
+ *   이것은 **끝난 뒤에만** 되고, 넘겨줄 자리가 없다(끝난 프로그램에 사람을 밀어 넣으면 그 학생은
+ *   참여할 수 없는 확정 자리를 받는다). 시점도 부수효과도 반대라 한 함수로 묶으면 둘 다 틀린다.
+ *
+ * [실패를 throw 하지 않는다] "아직 안 끝났다"·"포인트가 지급됐다"는 오류가 아니라 **상태**다.
+ *   화면은 사유를 그대로 보여주고 목록을 새로고침하면 된다.
+ *
+ * @returns {Promise<{ok:true} | {ok:false, message:string}>}
+ */
+export async function dismissMyParticipation(participationId) {
+  const { data, error } = await supabase.rpc('dismiss_my_participation', {
+    p_participation_id: participationId,
+  });
+  if (error) {
+    console.error('[programService] 활동 정리 실패:', error);
+    return { ok: false, message: '지우지 못했어요. 잠시 후 다시 시도해 주세요.' };
+  }
+  if (data?.ok) return { ok: true };
+  return { ok: false, message: DISMISS_REASON_TEXT[data?.reason] ?? '지우지 못했어요.' };
+}
+
 /**
  * 프로그램별 신청자 수 (ADR 0016).
  *

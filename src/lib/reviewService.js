@@ -11,8 +11,16 @@
 //      = 평가를 남겨도 포인트가 늘지 않는다.
 import { supabase } from './supabaseClient';
 
-/** 한줄평 상한. DB CHECK(char_length <= 60)와 같은 값 — 프런트 maxLength 는 우회 가능하므로 DB 가 최종 판정자다. */
-export const REVIEW_COMMENT_MAX = 60;
+/* 한줄평 길이 규칙 (ADR 0025 / 20260821120000) — DB CHECK(reviews_comment_shape)와 **같은 값**이다.
+   >>> 한쪽을 바꾸면 마이그레이션도 함께 바꿀 것. 프런트는 우회 가능하므로 최종 판정자는 DB 다.
+
+   [상한 60 -> 500, 하한 신설 20]
+     상한 60자는 포트폴리오에 남길 글로는 너무 짧았고, 반대로 한두 글자짜리 성의 없는 평을 막을
+     장치는 없었다. 케빈 요청(2026-08-20)으로 둘을 맞바꿨다.
+   [하한은 "쓰기로 한 사람"에게만 적용된다] 한줄평은 여전히 **선택**이다. 비우면 null 이고 아무
+     제약도 걸리지 않는다 — 평가를 강제하면 QR 흐름의 마지막이 막힌다(스펙 D-2 "건너뛰기는 필수"). */
+export const REVIEW_COMMENT_MIN = 20;
+export const REVIEW_COMMENT_MAX = 500;
 
 const REVIEW_FIELDS = 'id, participation_id, rating, comment, created_at';
 
@@ -35,7 +43,9 @@ function failText(error) {
       // 정책 위반(남의 참여/미완료 참여) 또는 컬럼 grant 위반. 정상 UI 에서는 발생하지 않는다.
       return '이 활동에는 평가를 남길 수 없어요. 화면을 새로고침해 주세요.';
     case '23514':
-      return `한 줄 평은 ${REVIEW_COMMENT_MAX}자까지 쓸 수 있어요.`;
+      // 제약이 하나(reviews_comment_shape)라 어느 쪽을 넘겼는지는 사유 문자열에 없다.
+      // 정상 UI 에서는 폼이 먼저 막으므로 여기는 폼을 우회한 요청이다 — 규칙 전체를 말해준다.
+      return `한 줄 평은 비워두거나 ${REVIEW_COMMENT_MIN}자 이상 ${REVIEW_COMMENT_MAX}자 이하로 써주세요.`;
     default:
       return '평가를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.';
   }
@@ -58,10 +68,23 @@ export async function upsertMyReview({ participationId, rating, comment }) {
     return { ok: false, message: '별점을 먼저 선택해 주세요.' };
   }
 
-  // 빈 한줄평은 '' 이 아니라 null 로 보낸다 — DB 는 ''을 막지 않으므로 프런트가 이 규율을 진다
-  // (빈 문자열이 저장되면 "한 줄 평 없음" 과 "빈 문자열" 두 상태가 갈라진다).
+  // 빈 한줄평은 '' 이 아니라 null 로 보낸다 — 빈 문자열이 저장되면 "한 줄 평 없음" 과 "빈 문자열"
+  // 두 상태가 갈라진다. (이제는 ''이 들어와도 DB CHECK 가 함께 잡는다 — 방어선이 하나 늘었다.)
+  //
+  // [★ slice() 로 잘라내지 않는다 — ADR 0025]
+  //   예전에는 상한을 넘으면 조용히 잘라 보냈다. 상한이 60자일 때는 "어차피 폼이 막는다"였지만,
+  //   하한이 생긴 지금 잘라내기는 위험한 습관이다: 자른 결과가 하한 아래로 떨어질 수 있고, 무엇보다
+  //   **사용자가 쓴 글을 말없이 바꿔서 저장**하는 동작이다. 길이 판정은 폼이 하고, 최종 거부는 DB 가 한다.
   const text = (comment ?? '').trim();
-  const payload = { rating, comment: text ? text.slice(0, REVIEW_COMMENT_MAX) : null };
+  const payload = { rating, comment: text ? text : null };
+
+  // 폼을 우회한 호출이 23514 로 떨어지기 전에 같은 문구로 먼저 막는다(사유가 분명해진다).
+  if (text && (text.length < REVIEW_COMMENT_MIN || text.length > REVIEW_COMMENT_MAX)) {
+    return {
+      ok: false,
+      message: `한 줄 평은 비워두거나 ${REVIEW_COMMENT_MIN}자 이상 ${REVIEW_COMMENT_MAX}자 이하로 써주세요.`,
+    };
+  }
 
   const ins = await supabase
     .from('reviews')

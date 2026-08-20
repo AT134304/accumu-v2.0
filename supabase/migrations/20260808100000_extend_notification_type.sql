@@ -21,6 +21,7 @@
 --   3) 20260808140000 (내일 예정·퇴장 미완료 알림 + 가입/연동 구분)
 --   4) 20260811200000 (대기열 승격 알림, ADR 0018 — 'promoted' 값이 필요하다)
 --   5) 20260811220000 (프로그램 일정 변경 알림, ADR 0018 — 'rescheduled' 값이 필요하다)
+--   6) 20260821140000 (학생 신고 자동 게시중단, ADR 0025 — 'reported' 값이 필요하다)
 --
 --   재실행해도 안전하다(if not exists). >>> 이 파일이 이미 적용된 환경에서 새 값을 추가했다면,
 --   파일 전체를 다시 한 번(단독으로) 실행하기만 하면 된다 — 기존 값들은 add value if not exists라
@@ -60,3 +61,8 @@ alter type public.notification_type add value if not exists 'promoted';
 
 -- 학생 — 신청/대기 중인 프로그램의 일정(날짜·시간·진행일)이 관리자 수정으로 바뀜(20260811220000)
 alter type public.notification_type add value if not exists 'rescheduled';
+
+-- 관리자 — 내 프로그램이 신고 누적으로 자동 게시중단됨 (ADR 0025)
+--   [신고자를 알려주지 않는다] 메시지에 학생 이름·수·사유가 들어가지 않는다. 관리자가 신고자를
+--   특정할 수 있으면 보복 경로가 생기고, 그 순간 신고 기능 자체가 죽는다.
+alter type public.notification_type add value if not exists 'reported';

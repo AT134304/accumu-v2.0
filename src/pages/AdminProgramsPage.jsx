@@ -7,6 +7,13 @@
 //   띄우면 "누르면 반드시 실패하는 버튼"이 된다.
 // [삭제가 없다] delete 정책 0개. "내리기"는 is_published=false 토글이다. 삭제 UI를 만들지 않는다.
 //
+// [★ 끝난 프로그램은 수정할 수 없다 — ADR 0025 / 20260821120000]
+//   진행이 끝난 프로그램(coalesce(end_date, date) < 오늘)에는 이미 참여한 학생과 지급된 포인트가
+//   붙어 있다. 그 내용을 나중에 바꾸는 것은 **끝난 사실의 기록을 고치는 일**이라 서버 트리거가 막는다.
+//   화면은 그 사실을 미리 말해줄 뿐이다(수정 버튼 비활성) — 경계는 트리거다.
+//   게시 상태(올리기/내리기)는 끝난 뒤에도 계속 바꿀 수 있다. stale 알림이 요구하는 행동이 "내리기"라서,
+//   그것까지 막으면 앱이 하라는 일을 앱이 막는 상태가 된다.
+//
 // [원칙 1·6 가드 — 이 화면에 없는 것]
 //   신청자 명단 / 학번·이름 / 출석률 / 랭킹 / popularity / "남은 자리 N석"(비율·게이지).
 //   [ADR 0016로 예외가 하나 생겼다 — 신청자 수] 케빈이 학생 화면에 신청자 수를 열면서 관리자 목록에도
@@ -28,6 +35,12 @@ import { fmtDateRange, todayISO } from '../lib/date';
 import { fetchAdminPrograms, fetchApplicantCounts, setProgramPublished } from '../lib/programService';
 import { describeSaveError } from '../lib/programErrors';
 import '../styles/AdminShell.css';
+
+/** 진행이 끝났는가 — 서버 트리거(programs_lock_after_end)와 **같은 식**이다.
+ *  기간제는 종료일, 단일 일자는 그 날짜. 진행 중인 기간제는 아직 끝나지 않았다.
+ *  >>> 한쪽을 바꾸면 20260821120000 도 함께 바꿀 것. */
+const endOf = (p) => String(p.end_date ?? p.date);
+const isOver = (p, today) => !p.is_tutorial && endOf(p) < today;
 
 export default function AdminProgramsPage() {
   const { profile } = useAuth();
@@ -78,11 +91,16 @@ export default function AdminProgramsPage() {
 
   // 확정 C — 날짜 축 2그룹. "오늘·예정" 오름차순(가까운 것 먼저) / "지난 프로그램" 내림차순.
   // 미게시 행도 이 축 안에 섞인다(게시 상태로 그룹을 나누지 않는다 — 확정 B).
+  //
+  // [ADR 0025 — 기준을 date 에서 coalesce(end_date, date) 로 바꿨다]
+  //   전에는 시작일만 봐서 **진행 중인 기간제**가 '지난 프로그램'으로 접혀 들어갔다(8/1~8/30 짜리를
+  //   8/15 에 열면 '지남'). 수정 잠금이 생기면서 이 어긋남이 눈에 보이게 됐다 — 지난 그룹에 있는데
+  //   수정 버튼은 켜져 있는 행이 생긴다. 두 자리가 같은 식을 쓰도록 맞춘다.
   const { upcoming, past } = useMemo(() => {
-    const asc = (a, b) => String(a.date).localeCompare(String(b.date));
+    const asc = (a, b) => endOf(a).localeCompare(endOf(b));
     return {
-      upcoming: rows.filter((p) => String(p.date) >= today).sort(asc),
-      past: rows.filter((p) => String(p.date) < today).sort((a, b) => asc(b, a)),
+      upcoming: rows.filter((p) => !isOver(p, today)).sort(asc),
+      past: rows.filter((p) => isOver(p, today)).sort((a, b) => asc(b, a)),
     };
   }, [rows, today]);
 
@@ -100,7 +118,7 @@ export default function AdminProgramsPage() {
   // 대상 행이 접힌 "지난 프로그램" 안에 있으면 먼저 펼친다 — 안 그러면 스크롤할 DOM 이 없다.
   const focusRow = useCallback(
     (row) => {
-      if (String(row.date) < today) setPastOpen(true);
+      if (isOver(row, today)) setPastOpen(true);
       setHighlight({ id: row.id, seq: Date.now() });
     },
     [today]
@@ -165,6 +183,7 @@ export default function AdminProgramsPage() {
         if (el) rowRefs.current.set(p.id, el);
         else rowRefs.current.delete(p.id);
       }}
+      locked={isOver(p, today)}
       onEdit={() => setForm({ mode: 'edit', program: p })}
       onPublish={() => handleTogglePublished(p, true)}
       onUnpublish={() => setConfirmRow(p)}
@@ -267,7 +286,7 @@ export default function AdminProgramsPage() {
 }
 
 /* ---------- 목록 행 (관리자 홈의 .adm-row 를 확장) ---------- */
-function ProgramRow({ program, applicantCount = 0, busy, highlighted, rowRef, onEdit, onPublish, onUnpublish }) {
+function ProgramRow({ program, applicantCount = 0, busy, locked = false, highlighted, rowRef, onEdit, onPublish, onUnpublish }) {
   const cat = catOf(program.category);
   const st = statusOf(program.status);
   const published = program.is_published;
@@ -312,6 +331,9 @@ function ProgramRow({ program, applicantCount = 0, busy, highlighted, rowRef, on
             {published ? '게시중' : '미게시'}
           </span>
           <span className={`badge ${st.cls}`}>{st.label}</span>
+          {/* 끝난 프로그램임을 배지로도 말해준다 — 비활성 버튼만으로는 이유가 전달되지 않는다.
+              게시 상태는 여전히 바꿀 수 있으므로 "잠김"이 아니라 "수정 잠금"이다. */}
+          {locked && <span className="pubbadge lock">수정 잠금</span>}
         </div>
       </div>
 
@@ -319,8 +341,16 @@ function ProgramRow({ program, applicantCount = 0, busy, highlighted, rowRef, on
       {program.points != null && <div className="pt">{program.points.toLocaleString()}P</div>}
 
       <div className="adm-acts">
-        <button type="button" className="adm-act" onClick={onEdit} disabled={busy}>
-          <Icon name="ic-edit" size={15} />
+        {/* [ADR 0025] 끝난 프로그램은 내용을 못 고친다. 버튼을 숨기지 않고 **비활성 + 사유**로 둔다 —
+            숨기면 "수정 기능이 어디 갔지"가 되고, 왜 못 하는지는 영영 알 수 없다. */}
+        <button
+          type="button"
+          className="adm-act"
+          onClick={onEdit}
+          disabled={busy || locked}
+          title={locked ? '진행이 끝난 프로그램은 내용을 수정할 수 없습니다' : undefined}
+        >
+          <Icon name={locked ? 'ic-lock' : 'ic-edit'} size={15} />
           수정
         </button>
         {published ? (

@@ -27,6 +27,7 @@ import {
   issueRejectText,
   verifyTutorialQr,
 } from '../../lib/participationService';
+import { dismissMyParticipation } from '../../lib/programService';
 import '../../styles/Qr.css';
 
 // [폴링 주기 — 2026-08-07 단일 10초에서 2단으로 바꿨다]
@@ -136,6 +137,20 @@ function periodActionOf(item, sessions) {
   return { disabled: true, label: '오늘 출석 완료', type: null, note: nextNote(today) };
 }
 
+/**
+ * 진행이 끝난 참여인가 (ADR 0025) — 서버 dismiss_my_participation() 의 조건과 **같은 식**이다.
+ * 기간제는 종료일, 단일 일자는 그 날짜. 튜토리얼(상시 진행)은 끝나지 않는다.
+ *
+ * [program 이 null 이면 false 다] 게시가 중단된 프로그램은 RLS 때문에 조회되지 않아 날짜를 알 수 없다.
+ *   모르는 것을 "끝났다"로 단정하지 않는다 — 그 행은 지금처럼 본 목록에 "볼 수 없는 활동"으로 남는다.
+ * >>> 이 식을 바꾸면 20260821160000 도 함께 바꿀 것. 어긋나면 "목록엔 있는데 지워지지 않는 행"이 생긴다.
+ */
+function isOverItem(it, today) {
+  const prog = it.program;
+  if (!prog || prog.is_tutorial) return false;
+  return String(prog.end_date ?? prog.date) < today;
+}
+
 export default function QrCenterModal({ onClose }) {
   const tutorial = useTutorial();
   const [items, setItems] = useState([]);
@@ -146,6 +161,8 @@ export default function QrCenterModal({ onClose }) {
   const [active, setActive] = useState(null); // { participation, type, issued, period }
   const [busyId, setBusyId] = useState(null);
   const [notice, setNotice] = useState('');
+  // [지난 활동 — ADR 0025] 끝난 참여는 본 목록에서 빼고 접이식으로 내린다. 기본은 접힘.
+  const [pastOpen, setPastOpen] = useState(false);
 
   const load = useCallback(async () => {
     setState('loading');
@@ -211,11 +228,99 @@ export default function QrCenterModal({ onClose }) {
     }
   }
 
+  // [끝난 활동을 본 목록에서 뺀다 — 케빈, 2026-08-20]
+  //   전에는 "완료되지 않은 내 참여"를 전부 한 줄로 늘어놓아서, 신청만 하고 안 간 활동이 날짜가
+  //   한참 지난 뒤에도 '입장 QR' 버튼을 켠 채 남아 있었다(서버는 거부하는데 화면은 권했다).
+  //   이제 본 목록은 **오늘 할 일이 있는 것**만 그리고, 끝난 것은 아래 접이식으로 내려간다.
+  const { live, past } = useMemo(() => {
+    const today = todayISO();
+    return {
+      live: items.filter((it) => !isOverItem(it, today)),
+      past: items.filter((it) => isOverItem(it, today)),
+    };
+  }, [items]);
+
+  // [지우기는 서버가 판정한다] 화면에서 감추는 것은 다음 기기·다음 로그인에서 되돌아온다.
+  //   무엇을 지워도 되는지(포인트 미지급 등)는 dismiss_my_participation() 이 정한다.
+  async function handleDismiss(participation) {
+    if (busyId) return;
+    setBusyId(participation.id);
+    setNotice('');
+    try {
+      const res = await dismissMyParticipation(participation.id);
+      if (!res.ok) {
+        setNotice(res.message);
+        await load(); // 화면 상태가 서버와 어긋난 것이므로 다시 읽는다
+        return;
+      }
+      // 성공하면 그 행만 걷어낸다 — 목록 전체를 다시 읽지 않는다(스크롤이 튀고 접힘이 풀린다).
+      setItems((prev) => prev.filter((r) => r.id !== participation.id));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   function backToList() {
     setActive(null);
     setNotice('');
     load();
   }
+
+  // 목록 행 하나. 본 목록과 "지난 활동"이 같은 행 모양을 쓰고 **오른쪽 버튼만** 갈린다 —
+  // 두 벌로 나누면 아이콘·메타 조립 규칙이 갈라진다(ReviewForm 을 하나로 둔 것과 같은 규율).
+  const renderItem = (it, over = false) => {
+    const v = programView(it.program);
+    // 기간제면 periodActionOf가 "오늘" 액션을 결정한다. null이면 단일 일자 — 기존 분기 그대로.
+    const period = periodActionOf(it, sessionsByParticipation.get(it.id));
+    const isEntry = period ? period.type === 'entry' : it.status === 'applied';
+    // [다음 진행일 안내] 오늘 할 일이 없는 기간제 항목(period.note)에만 붙는다 — 오늘
+    // 입/퇴장이 가능한 날에는 note가 없다(할 일이 이미 명확하므로 덧붙일 사실이 없다).
+    const statusText = over
+      ? STATUS_LABEL[it.status] ?? it.status
+      : period
+        ? [period.label, period.note].filter(Boolean).join(' · ')
+        : STATUS_LABEL[it.status] ?? it.status;
+    const disabled = busyId === it.id || (period ? period.disabled : false);
+    // [ADR 0021] 튜토리얼 참여의 입장/퇴장 버튼만 각각 5·7단계 하이라이트 대상이다.
+    // (튜토리얼은 상시 진행이라 over 가 될 수 없다 — isOverItem 참고.)
+    const isTutorial = Boolean(it.program?.is_tutorial);
+    const tutStep = isTutorial ? (isEntry ? tutorial.isStep(5) && 5 : tutorial.isStep(7) && 7) : undefined;
+
+    return (
+      <div className={over ? 'qi over' : 'qi'} key={it.id}>
+        <div className="ic" style={{ background: v.soft }}>
+          <Icon name={v.icon} size={20} color={v.color} />
+        </div>
+        <div className="info">
+          <h5>{v.title}</h5>
+          <div className="m">{[...v.meta, statusText].join(' · ')}</div>
+        </div>
+        {over ? (
+          // 끝난 활동에는 QR 버튼을 그리지 않는다 — 눌러도 서버가 거부하는 버튼을 권하지 않는다.
+          <button
+            type="button"
+            className="qi-dismiss"
+            onClick={() => handleDismiss(it)}
+            disabled={busyId === it.id}
+          >
+            {busyId === it.id ? '지우는 중…' : '목록에서 지우기'}
+          </button>
+        ) : (
+          /* 입장 인증 전에는 퇴장 QR 버튼이 아예 뜨지 않는다. 우회해도 서버가 wrong_order 로 막는다.
+             기간제는 periodActionOf가 이미 "오늘 할 수 있는 것" 하나로 좁혀서 같은 규칙이 유지된다. */
+          <button
+            type="button"
+            className={isEntry ? 'scanbtn enter' : 'scanbtn exit'}
+            onClick={() => openQr(it, period ? period.type : isEntry ? 'entry' : 'exit', Boolean(period))}
+            disabled={disabled}
+            data-tutorial={tutStep || undefined}
+          >
+            {busyId === it.id ? '발급 중…' : period ? period.label : isEntry ? '입장 QR' : '퇴장 QR'}
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
     <Modal onClose={onClose} labelledBy="qr-title">
@@ -260,62 +365,48 @@ export default function QrCenterModal({ onClose }) {
             </div>
           )}
 
-          {state === 'ready' &&
-            (items.length === 0 ? (
-              // 빈 상태도 같은 오해를 반복했다("발급된 QR이 없습니다") — 발급 전이라 없는 게 아니라
-              // **인증할 활동이 없는** 것이다. 이모지 없음은 프로토타입 1005줄 규율 그대로.
-              <div className="empty">
-                인증할 활동이 없습니다.
-                <br />
-                프로그램에 신청하면 여기에서 입·퇴장을 인증할 수 있어요.
-              </div>
-            ) : (
-              <div className="qrlist">
-                {items.map((it) => {
-                  const v = programView(it.program);
-                  // 기간제면 periodActionOf가 "오늘" 액션을 결정한다. null이면 단일 일자 — 기존 분기 그대로.
-                  const period = periodActionOf(it, sessionsByParticipation.get(it.id));
-                  const isEntry = period ? period.type === 'entry' : it.status === 'applied';
-                  // [다음 진행일 안내] 오늘 할 일이 없는 기간제 항목(period.note)에만 붙는다 — 오늘
-                  // 입/퇴장이 가능한 날에는 note가 없다(할 일이 이미 명확하므로 덧붙일 사실이 없다).
-                  const statusText = period
-                    ? [period.label, period.note].filter(Boolean).join(' · ')
-                    : STATUS_LABEL[it.status] ?? it.status;
-                  const disabled = busyId === it.id || (period ? period.disabled : false);
-                  // [ADR 0021] 튜토리얼 참여의 입장/퇴장 버튼만 각각 5·7단계 하이라이트 대상이다.
-                  const isTutorial = Boolean(it.program?.is_tutorial);
-                  const tutStep = isTutorial ? (isEntry ? tutorial.isStep(5) && 5 : tutorial.isStep(7) && 7) : undefined;
-                  return (
-                    <div className="qi" key={it.id}>
-                      <div className="ic" style={{ background: v.soft }}>
-                        <Icon name={v.icon} size={20} color={v.color} />
-                      </div>
-                      <div className="info">
-                        <h5>{v.title}</h5>
-                        <div className="m">{[...v.meta, statusText].join(' · ')}</div>
-                      </div>
-                      {/* 입장 인증 전에는 퇴장 QR 버튼이 아예 뜨지 않는다. 우회해도 서버가 wrong_order 로 막는다.
-                          기간제는 periodActionOf가 이미 "오늘 할 수 있는 것" 하나로 좁혀서 같은 규칙이 유지된다. */}
-                      <button
-                        type="button"
-                        className={isEntry ? 'scanbtn enter' : 'scanbtn exit'}
-                        onClick={() => openQr(it, period ? period.type : isEntry ? 'entry' : 'exit', Boolean(period))}
-                        disabled={disabled}
-                        data-tutorial={tutStep || undefined}
-                      >
-                        {busyId === it.id
-                          ? '발급 중…'
-                          : period
-                            ? period.label
-                            : isEntry
-                              ? '입장 QR'
-                              : '퇴장 QR'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+          {state === 'ready' && items.length === 0 && (
+            // 빈 상태도 같은 오해를 반복했다("발급된 QR이 없습니다") — 발급 전이라 없는 게 아니라
+            // **인증할 활동이 없는** 것이다. 이모지 없음은 프로토타입 1005줄 규율 그대로.
+            <div className="empty">
+              인증할 활동이 없습니다.
+              <br />
+              프로그램에 신청하면 여기에서 입·퇴장을 인증할 수 있어요.
+            </div>
+          )}
+
+          {/* 본 목록 — 오늘 할 일이 있는 활동만 (ADR 0025). 끝난 것은 아래 접이식으로 내려간다. */}
+          {state === 'ready' && live.length > 0 && (
+            <div className="qrlist">{live.map((it) => renderItem(it))}</div>
+          )}
+
+          {/* [끝난 활동이 하나도 없으면 이 줄 자체가 없다] 항상 떠 있으면 "정리할 게 있나?"를 매번
+              확인하게 만든다 — 할 일이 있을 때만 나타나는 자리다. */}
+          {state === 'ready' && past.length > 0 && (
+            <div className="qr-fold">
+              <button
+                type="button"
+                className="qr-foldbtn"
+                aria-expanded={pastOpen}
+                onClick={() => setPastOpen((o) => !o)}
+              >
+                <Icon name="ic-clock" size={15} />
+                지난 활동
+                <span className="cnt">{past.length}건</span>
+                <span className={pastOpen ? 'chev on' : 'chev'} aria-hidden="true" />
+              </button>
+              {pastOpen && (
+                <>
+                  {/* 지우면 무엇이 사라지는지 먼저 말한다 — 되돌릴 수 없는 행동이다. */}
+                  <p className="qr-foldnote">
+                    진행이 끝나 인증할 수 없는 활동이에요. 지우면 이 목록에서 사라집니다.{' '}
+                    <b>완료한 활동과 포인트를 받은 활동은 아카이브에 그대로 남아요.</b>
+                  </p>
+                  <div className="qrlist past">{past.map((it) => renderItem(it, true))}</div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
     </Modal>

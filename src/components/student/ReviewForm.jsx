@@ -1,8 +1,11 @@
 // Accumu v2 — 만족도 평가 폼 (별점 + 한줄평). docs/specs/student-archive-mypage.md 결정 D / C절
 //
 // [폼은 하나뿐이다 — 복제 금지] 퇴장 인증 완료 화면(QrCenterModal)과 아카이브 활동 상세 모달이
-//   같은 이 컴포넌트를 쓴다. 두 개로 나누면 별점 필수·60자 상한·빈 값 null 규칙이 갈라진다
+//   같은 이 컴포넌트를 쓴다. 두 개로 나누면 별점 필수·길이 규칙·빈 값 null 규칙이 갈라진다
 //   (admin-programs 확정 A 와 같은 규율).
+//
+// [한줄평 길이 — ADR 0025] 비워두거나, 쓴다면 20~500자. 하한은 "쓰기로 한 사람"에게만 걸린다.
+//   >>> 하한을 "한줄평 필수"로 바꾸지 말 것 — 평가를 강제하면 QR 흐름의 마지막 단계가 막힌다.
 //
 // [원칙 1 가드]
 //   - 평가를 남겨도 포인트·뱃지·보상이 없다. 이 파일에 포인트를 다루는 코드가 없다.
@@ -10,7 +13,7 @@
 //   - 별 색 amber 는 CLAUDE.md 2장 1번이 명시적으로 허용한 요소다(포인트 표시가 아니다).
 import { useState } from 'react';
 import Icon from '../Icon';
-import { REVIEW_COMMENT_MAX, upsertMyReview } from '../../lib/reviewService';
+import { REVIEW_COMMENT_MAX, REVIEW_COMMENT_MIN, upsertMyReview } from '../../lib/reviewService';
 import '../../styles/Review.css';
 
 /** 별점 라벨 5종 — 프로토타입 RATE_TXT(1067줄) 그대로. 인덱스 0 은 미선택 상태다. */
@@ -39,11 +42,20 @@ export default function ReviewForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  // 공백만 남긴 입력은 "안 쓴 것"이다 — 저장 시 null 로 나가는 값과 같은 기준으로 센다.
+  const trimmed = comment.trim();
+  const tooShort = trimmed.length > 0 && trimmed.length < REVIEW_COMMENT_MIN;
+
   async function handleSubmit() {
     if (busy) return;
     // 별점은 필수다(스펙 D-3). 서버 CHECK 도 1~5 를 요구하므로 여기서 막지 않으면 23514 가 된다.
     if (!rating) {
       setError('별점을 먼저 선택해 주세요.');
+      return;
+    }
+    // [ADR 0025] 쓰다 만 한줄평은 저장하지 않는다. 비우는 것은 언제나 허용된다.
+    if (tooShort) {
+      setError(`한 줄 평은 ${REVIEW_COMMENT_MIN}자 이상 써주세요. 비워두셔도 괜찮아요.`);
       return;
     }
     setBusy(true);
@@ -89,17 +101,29 @@ export default function ReviewForm({
       </div>
       <div className="ratelabel">{RATE_TXT[rating]}</div>
 
+      {/* [maxLength 는 상한 방어선으로만 남긴다] 500자는 한줄평으로는 사실상 무제한이라 평소에
+          걸릴 일이 없다. 사용자에게 말해주는 숫자는 상한이 아니라 **하한**이다 — 지금 신경 써야
+          하는 규칙이 그쪽이기 때문이다. */}
       <textarea
         className="reviewinput"
-        rows={2}
+        rows={3}
         maxLength={REVIEW_COMMENT_MAX}
-        placeholder="한 줄 평을 남겨보세요 (선택) · 포트폴리오에 함께 기록됩니다"
+        placeholder={`한 줄 평을 남겨보세요 (선택) · 쓴다면 ${REVIEW_COMMENT_MIN}자 이상`}
         value={comment}
         disabled={busy}
-        onChange={(e) => setComment(e.target.value)}
+        onChange={(e) => {
+          setComment(e.target.value);
+          setError('');
+        }}
       />
-      <div className="revcount">
-        {comment.length}/{REVIEW_COMMENT_MAX}
+      {/* 세 가지 상태를 각각 다른 문장으로 말한다: 안 씀(선택) / 쓰다 맒(몇 자 더) / 충분함(글자 수).
+          "0/60" 같은 진행 표시를 만들지 않는다 — 채워야 할 게이지가 아니다(원칙 1). */}
+      <div className={tooShort ? 'revcount short' : 'revcount'}>
+        {trimmed.length === 0
+          ? '한 줄 평은 선택이에요 · 포트폴리오에 함께 기록됩니다'
+          : tooShort
+            ? `${REVIEW_COMMENT_MIN - trimmed.length}자 더 쓰면 저장할 수 있어요`
+            : `${trimmed.length}자`}
       </div>
 
       <button type="button" className="mbtn survey-submit" onClick={handleSubmit} disabled={busy}>

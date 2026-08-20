@@ -77,7 +77,13 @@ if (!URL_ || !SERVICE_KEY || !ANON_KEY) {
 const MARK = '[RLS-TEST]';
 const CODE_PREFIX = 'RLSTEST-';
 const PW = 'rls-test-2026!';
-const TODAY = new Date().toISOString().slice(0, 10);
+// [★ 날짜는 KST 로 만든다] 서버의 today_kst() 와 같은 기준이어야 한다. UTC 로 만들면 UTC 15:00~24:00
+//   (KST 오전 0~9시) 구간에서 하루가 어긋나, "오늘" 프로그램이 서버에겐 "어제"가 되면서 수정 잠금
+//   테스트가 시간대에 따라 통과했다 실패했다 한다.
+const kstDate = (offsetDays = 0) =>
+  new Date(Date.now() + 9 * 3600000 + offsetDays * 86400000).toISOString().slice(0, 10);
+const TODAY = kstDate(0);
+const YESTERDAY = kstDate(-1);
 
 const sr = createClient(URL_, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 const anon = () => createClient(URL_, ANON_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
@@ -137,9 +143,19 @@ function expect(cond, msg) {
 // 준비 / 정리
 // ---------------------------------------------------------------------------
 async function cleanup() {
-  // 프로그램 먼저 — participations 가 cascade 로 함께 사라진다.
-  await sr.from('programs').delete().like('title', `${MARK}%`);
+  // [감사 로그를 먼저 치운다 — ADR 0025] admin_audit 은 programs/profiles 를 FK 로 참조하지 않아
+  //   cascade 로 사라지지 않는다. 지우기 전에 대상 id 를 모아둬야 어느 행이 테스트 것인지 알 수 있다.
+  //   >>> 이 정리를 빼면 테스트를 돌릴 때마다 시연용 DB 의 감사 로그가 가짜 행으로 불어난다.
+  const { data: doomedProgs } = await sr.from('programs').select('id').like('title', `${MARK}%`);
   const { data: profs } = await sr.from('profiles').select('id').like('code', `${CODE_PREFIX}%`);
+  const targets = [...(doomedProgs ?? []), ...(profs ?? [])].map((r) => r.id);
+  if (targets.length > 0) {
+    await sr.from('admin_audit').delete().in('target_id', targets);
+    await sr.from('admin_audit').delete().in('actor_id', (profs ?? []).map((r) => r.id));
+  }
+
+  // 프로그램 — participations / program_reports 가 cascade 로 함께 사라진다.
+  await sr.from('programs').delete().like('title', `${MARK}%`);
   for (const p of profs ?? []) {
     await sr.auth.admin.deleteUser(p.id); // profiles 는 on delete cascade
   }
@@ -216,11 +232,21 @@ async function main() {
     code: `${CODE_PREFIX}STUB`, role: 'student', name: '테스트학생B', school: null, accountType: 'personal',
   });
 
+  const stuC = await makeUser({
+    code: `${CODE_PREFIX}STUC`, role: 'student', name: '테스트학생C', school: null, accountType: 'personal',
+  });
+
   await sr.from('mentor_students').insert({ admin_id: admA.id, student_id: stuA.id });
 
   const progA = await makeProgram({ owner: admA.id, title: 'A의 공개 프로그램', published: true });
   const progADraft = await makeProgram({ owner: admA.id, title: 'A의 미게시 초안', published: false });
   const progB = await makeProgram({ owner: admB.id, title: 'B의 공개 프로그램', published: true });
+  // 끝난 프로그램(어제) — 수정 잠금 / 활동 정리 테스트용.
+  const progPast = await makeProgram({
+    owner: admA.id, title: 'A의 끝난 프로그램', published: true, extra: { date: YESTERDAY },
+  });
+  // 신고 임계치 테스트 전용. 자동 게시중단이 일어나므로 다른 테스트와 섞지 않는다.
+  const progReport = await makeProgram({ owner: admB.id, title: 'B의 신고 대상', published: true });
 
   // 학생 A 가 A의 프로그램에 신청 (QR 테스트의 재료)
   const { data: part, error: partErr } = await sr
@@ -230,9 +256,18 @@ async function main() {
     .single();
   if (partErr) throw new Error(`테스트 참여 생성 실패: ${partErr.message}`);
 
+  // 끝난 프로그램에 남은 참여(no-show) — "목록에서 지우기" 테스트의 재료.
+  const { data: pastPart, error: pastErr } = await sr
+    .from('participations')
+    .insert({ student_id: stuB.id, program_id: progPast })
+    .select('id')
+    .single();
+  if (pastErr) throw new Error(`테스트 참여(지난) 생성 실패: ${pastErr.message}`);
+
   const cAnon = anon();
   const cStuA = await signIn(stuA.email);
   const cStuB = await signIn(stuB.email);
+  const cStuC = await signIn(stuC.email);
   const cAdmA = await signIn(admA.email);
   const cAdmB = await signIn(admB.email);
 
@@ -499,8 +534,225 @@ async function main() {
       expect(!error, `에러: ${error?.message}`);
       expect(typeof data?.token === 'string', `입장을 마쳤으므로 퇴장 토큰이 나와야 한다. 받은 값: ${JSON.stringify(data)}`);
     });
+
+    // =====================================================================
+    group('7. 끝난 프로그램 수정 잠금 — ADR 0025 / 20260821120000');
+    // =====================================================================
+    await t('★ 끝난 프로그램의 내용은 수정할 수 없다', () =>
+      expectError(
+        cAdmA.from('programs').update({ title: `${MARK} 바뀐 제목` }).eq('id', progPast).select('id'),
+        ['22023']
+      ));
+    await t('★ 끝난 프로그램도 게시 상태는 바꿀 수 있다 (stale 알림이 요구하는 행동)', async () => {
+      const { data, error } = await cAdmA
+        .from('programs')
+        .update({ is_published: false })
+        .eq('id', progPast)
+        .select('id');
+      expect(!error, `내리기는 통과해야 한다: ${error?.code} ${error?.message}`);
+      expect((data ?? []).length === 1, '1행이 바뀌어야 한다');
+      // 되돌려 둔다 — 뒤의 테스트가 이 프로그램을 게시 상태로 본다.
+      await sr.from('programs').update({ is_published: true }).eq('id', progPast);
+    });
+    await t('★ 날짜를 미래로 밀어 잠금을 푸는 우회가 막힌다 (판정은 OLD 기준)', () =>
+      expectError(
+        cAdmA.from('programs').update({ date: TODAY }).eq('id', progPast).select('id'),
+        ['22023']
+      ));
+    await t('진행 중/예정 프로그램은 그대로 수정된다 (회귀 확인)', async () => {
+      const { error } = await cAdmA
+        .from('programs')
+        .update({ org: '테스트기관2' })
+        .eq('id', progA)
+        .select('id');
+      expect(!error, `정상 수정이 막히면 안 된다: ${error?.code} ${error?.message}`);
+    });
+
+    // =====================================================================
+    group('8. 한줄평 길이 — 상한 60 폐기, 하한 20 신설 (ADR 0025)');
+    // =====================================================================
+    // 리뷰는 completed 참여에만 달 수 있다. 위 6번에서 입장까지 갔으니 퇴장까지 마쳐 완료로 만든다.
+    await t('퇴장 인증까지 마치면 참여가 완료된다 (리뷰 전제 조건)', async () => {
+      const { data: issued } = await cStuA.rpc('issue_participation_qr', {
+        p_participation_id: part.id,
+        p_type: 'exit',
+      });
+      const { data } = await cAdmA.rpc('verify_participation_qr', { p_token: issued?.token });
+      expect(data?.ok === true, `퇴장 인증이 성공해야 한다. 받은 값: ${JSON.stringify(data)}`);
+    });
+    await t('★ 19자 한줄평은 거부된다', () =>
+      expectError(
+        cStuA.from('reviews').insert({ participation_id: part.id, rating: 5, comment: '가'.repeat(19) }),
+        ['23514']
+      ));
+    await t('★ 501자 한줄평은 거부된다', () =>
+      expectError(
+        cStuA.from('reviews').insert({ participation_id: part.id, rating: 5, comment: '가'.repeat(501) }),
+        ['23514']
+      ));
+    await t('★ 공백만 있는 한줄평은 거부된다 (btrim 기준)', () =>
+      expectError(
+        cStuA.from('reviews').insert({ participation_id: part.id, rating: 5, comment: ' '.repeat(30) }),
+        ['23514']
+      ));
+    await t('한줄평 없이(null) 별점만 저장된다 — 여전히 선택 항목이다', async () => {
+      const { error } = await cStuA
+        .from('reviews')
+        .insert({ participation_id: part.id, rating: 4, comment: null });
+      expect(!error, `별점만 저장이 막히면 안 된다: ${error?.code} ${error?.message}`);
+    });
+    await t('★ 60자 한줄평이 이제 저장된다 (옛 상한이 풀렸다)', async () => {
+      const { data, error } = await cStuA
+        .from('reviews')
+        .update({ comment: '가'.repeat(60) })
+        .eq('participation_id', part.id)
+        .select('id');
+      expect(!error, `에러: ${error?.code} ${error?.message}`);
+      expect((data ?? []).length === 1, '1행이 바뀌어야 한다');
+    });
+
+    // =====================================================================
+    group('9. 학생 신고 → 자동 게시중단 (ADR 0025)');
+    // =====================================================================
+    await t('학생은 신고 테이블에 남의 이름으로 쓸 수 없다', () =>
+      expectError(
+        cStuA.from('program_reports').insert({
+          program_id: progReport,
+          student_id: stuB.id,
+          reason: 'not_real',
+        }),
+        ['42501']
+      ));
+    await t('★ 관리자는 신고할 수 없다 (관리자끼리의 무기가 되지 않게)', async () => {
+      const { error } = await cAdmA.rpc('report_my_program', {
+        p_program_id: progReport,
+        p_reason: 'not_real',
+        p_detail: null,
+      });
+      expect(error?.code === '42501', `42501 을 기대했다. 받은 값: ${error?.code} ${error?.message}`);
+    });
+    await t('기타 사유는 이유를 적어야 한다', async () => {
+      const { data } = await cStuA.rpc('report_my_program', {
+        p_program_id: progReport,
+        p_reason: 'other',
+        p_detail: null,
+      });
+      expect(data?.reason === 'detail_required', `detail_required 를 기대했다. 받은 값: ${JSON.stringify(data)}`);
+    });
+    await t('신고 1건 — 아직 게시 중이다', async () => {
+      const { data } = await cStuA.rpc('report_my_program', {
+        p_program_id: progReport,
+        p_reason: 'not_real',
+        p_detail: null,
+      });
+      expect(data?.ok === true, `접수돼야 한다. 받은 값: ${JSON.stringify(data)}`);
+      const { data: prog } = await sr.from('programs').select('is_published').eq('id', progReport).single();
+      expect(prog?.is_published === true, '1건으로는 내려가면 안 된다');
+    });
+    await t('★ 같은 학생의 두 번째 신고는 에러가 아니라 already 다', async () => {
+      const { data } = await cStuA.rpc('report_my_program', {
+        p_program_id: progReport,
+        p_reason: 'mismatch',
+        p_detail: null,
+      });
+      expect(data?.reason === 'already', `already 를 기대했다. 받은 값: ${JSON.stringify(data)}`);
+    });
+    await t('신고 2건 — 아직 게시 중이다', async () => {
+      await cStuB.rpc('report_my_program', { p_program_id: progReport, p_reason: 'paid', p_detail: null });
+      const { data: prog } = await sr.from('programs').select('is_published').eq('id', progReport).single();
+      expect(prog?.is_published === true, '2건으로는 내려가면 안 된다');
+    });
+    await t('★ 서로 다른 학생 3명이면 서버가 자동으로 게시를 중단한다', async () => {
+      const { data } = await cStuC.rpc('report_my_program', {
+        p_program_id: progReport,
+        p_reason: 'irrelevant',
+        p_detail: null,
+      });
+      expect(data?.ok === true, `접수돼야 한다. 받은 값: ${JSON.stringify(data)}`);
+      const { data: prog } = await sr.from('programs').select('is_published').eq('id', progReport).single();
+      expect(prog?.is_published === false, '3건째에 내려가야 한다');
+    });
+    await t('★ 관리자 알림에 신고자·건수·사유가 담기지 않는다', async () => {
+      const { data } = await sr
+        .from('notifications')
+        .select('type, message, detail')
+        .eq('student_id', admB.id)
+        .eq('type', 'reported');
+      expect((data ?? []).length === 1, `알림 1건을 기대했다. 받은 값: ${(data ?? []).length}건`);
+      const blob = `${data[0].message} ${data[0].detail ?? ''}`;
+      for (const leak of ['테스트학생', '3명', '실제로 열리지']) {
+        expect(!blob.includes(leak), `알림 문구에 "${leak}" 이 들어가면 안 된다: ${blob}`);
+      }
+    });
+    await t('★ 관리자는 자기 프로그램의 신고도 읽을 수 없다', () =>
+      expectRows(cAdmB.from('program_reports').select('id').eq('program_id', progReport), 0));
+    await t('학생은 자기가 낸 신고만 보인다', async () => {
+      await expectRows(cStuA.from('program_reports').select('id'), 1);
+      await expectRows(cStuA.from('program_reports').select('id').eq('student_id', stuB.id), 0);
+    });
+    await t('신고는 취소·수정할 수 없다 (정책 0개)', async () => {
+      await expectNoRowsAffected(
+        cStuA.from('program_reports').delete().eq('student_id', stuA.id).select('id')
+      );
+      await expectNoRowsAffected(
+        cStuA.from('program_reports').update({ reason: 'paid' }).eq('student_id', stuA.id).select('id')
+      );
+    });
+
+    // =====================================================================
+    group('10. 감사 로그 — 남되, 앱에서는 아무도 못 읽는다 (ADR 0025)');
+    // =====================================================================
+    await t('★ 관리자도 감사 로그를 읽을 수 없다', () =>
+      expectRows(cAdmA.from('admin_audit').select('id'), 0));
+    await t('★ 학생도 감사 로그를 읽을 수 없다', () =>
+      expectRows(cStuA.from('admin_audit').select('id'), 0));
+    await t('감사 로그에 쓸 수도 없다 (기록 위조 차단)', () =>
+      expectError(
+        cAdmA.from('admin_audit').insert({ action: 'fake', target_table: 'programs' }),
+        ['42501']
+      ));
+    await t('★ 관리자의 프로그램 수정이 실제로 기록된다', async () => {
+      const { data } = await sr
+        .from('admin_audit')
+        .select('action, actor_id, changes')
+        .eq('target_id', progA)
+        .eq('action', 'program_update');
+      expect((data ?? []).length > 0, '7번의 org 수정이 기록돼야 한다');
+      expect(data[0].actor_id === admA.id, '행위자가 관리자 A 여야 한다');
+      expect(
+        data[0].changes?.org?.to === '테스트기관2',
+        `바뀐 값이 담겨야 한다: ${JSON.stringify(data[0].changes)}`
+      );
+    });
+    await t('★ 서버가 스스로 내린 게시중단은 사람을 행위자로 적지 않는다', async () => {
+      const { data } = await sr
+        .from('admin_audit')
+        .select('actor_id, action')
+        .eq('target_id', progReport)
+        .eq('action', 'auto_unpublish_reported');
+      expect((data ?? []).length === 1, `auto_unpublish_reported 1건을 기대했다. 받은 값: ${(data ?? []).length}건`);
+      expect(data[0].actor_id === null, '행위자가 NULL 이어야 한다(신고한 학생이 아니다)');
+    });
+
+    // =====================================================================
+    group('11. 끝난 활동 정리 (ADR 0025)');
+    // =====================================================================
+    await t('★ 아직 안 끝난 활동은 지울 수 없다', async () => {
+      const { data } = await cStuA.rpc('dismiss_my_participation', { p_participation_id: part.id });
+      expect(data?.ok === false, `거부돼야 한다. 받은 값: ${JSON.stringify(data)}`);
+    });
+    await t('★ 남의 참여는 지울 수 없다 (존재 여부도 알려주지 않는다)', async () => {
+      const { data } = await cStuA.rpc('dismiss_my_participation', { p_participation_id: pastPart.id });
+      expect(data?.reason === 'not_found', `not_found 를 기대했다. 받은 값: ${JSON.stringify(data)}`);
+    });
+    await t('★ 끝난 프로그램의 내 참여는 지워진다', async () => {
+      const { data } = await cStuB.rpc('dismiss_my_participation', { p_participation_id: pastPart.id });
+      expect(data?.ok === true, `지워져야 한다. 받은 값: ${JSON.stringify(data)}`);
+      await expectRows(cStuB.from('participations').select('id').eq('id', pastPart.id), 0);
+    });
+
   } finally {
-    for (const c of [cStuA, cStuB, cAdmA, cAdmB]) {
+    for (const c of [cStuA, cStuB, cStuC, cAdmA, cAdmB]) {
       await c.auth.signOut().catch(() => {});
     }
     await cleanup();

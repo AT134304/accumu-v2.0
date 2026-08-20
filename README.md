@@ -129,13 +129,41 @@ npx supabase functions deploy naver-auth --no-verify-jwt
 
 **Supabase 대시보드에서 Google Provider를 켜 뒀다면 꺼도 된다** — 그 경로는 더 이상 쓰지 않는다.
 
+## 마이그레이션 적용 순서 (ADR 0025 — 2026-08-21분)
+
+`notification_type` 에 값을 더할 때는 **enum 추가 파일을 먼저 단독 실행**해야 한다. 같은 트랜잭션에서
+추가한 enum 값은 그 트랜잭션 안에서 쓸 수 없다(55P04).
+
+```
+1) 20260808100000_extend_notification_type.sql   ← 다시 한 번, 단독으로 ('reported' 값 커밋)
+2) 20260821120000_lock_past_programs_and_review_length.sql
+3) 20260821140000_program_reports_and_admin_audit.sql
+4) 20260821160000_dismiss_past_participation.sql
+```
+
+1번은 `add value if not exists` 라 재실행이 안전하다.
+
+## 감사 로그 확인 (ADR 0025 — 읽는 화면이 없다)
+
+관리자의 쓰기 행위는 `admin_audit` 에 남지만 **앱의 어떤 키로도 읽을 수 없다**(정책 0개).
+SQL 콘솔에서만 본다.
+
+```sql
+select created_at, actor_id, action, target_id, changes
+  from public.admin_audit
+ order by id desc
+ limit 30;
+```
+
+`actor_id` 가 NULL 인 행은 사람이 아니라 서버가 한 일이다(신고 누적 자동 게시중단).
+
 ## 권한 경계 테스트 (ADR 0024)
 
 ```bash
 npm run test:rls
 ```
 
-anon / 학생 2명 / 관리자 2명의 **anon 키 세션**으로 금지된 요청 약 50건을 실제로 쏴서 전부 막히는지 확인한다.
+anon / 학생 3명 / 관리자 2명의 **anon 키 세션**으로 금지된 요청 약 90건을 실제로 쏴서 전부 막히는지 확인한다.
 정책·definer 함수·초대코드·QR을 건드렸다면 반드시 돌릴 것.
 
 - 필요한 값: `.env.seed`의 `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` + `.env.local`의 `VITE_SUPABASE_ANON_KEY`

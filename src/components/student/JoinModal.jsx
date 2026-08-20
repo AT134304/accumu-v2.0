@@ -15,12 +15,14 @@
 //    과거 프로그램도 status='open'이면 버튼이 활성인 버그가 있다 — 재현하지 않는다.
 //  - ADR 0016: 정원이 차도 신청을 거부하지 않는다 — 'waitlisted'로 등록된다. 그래서 예전의 '마감'
 //    분기(버튼 비활성)가 사라지고 "신청하면 대기로 등록된다"는 사전 안내로 바뀌었다.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Modal from '../Modal';
 import Icon from '../Icon';
 import { useTutorial } from '../../context/TutorialContext';
 import { catOf, statusOf, TRACK } from '../../lib/taxonomy';
 import { fmtDateRange, todayISO } from '../../lib/date';
+import ReportPanel from './ReportPanel';
+import { hasReportedProgram } from '../../lib/reportService';
 
 /**
  * @param {object}   program         프로그램 행 (description 포함)
@@ -58,6 +60,10 @@ export default function JoinModal({
   const track = TRACK[program.career_track] ?? null;
   const tutorial = useTutorial();
   const [pending, setPending] = useState(false);
+  // [신고 — ADR 0025] 관리자를 견제하는 유일한 학생측 경로. 참여 여부와 무관하게 열려 있다 —
+  //   "아무거나 올린 프로그램"은 참여하기 전에 목록에서 먼저 보이기 때문이다.
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reported, setReported] = useState(false);
   const [failed, setFailed] = useState(false);
   const [cancelMsg, setCancelMsg] = useState(null);
   // 대표 사진(ADR 0022). 깨진 URL이면 아이콘으로 되돌린다 — ProgramCard와 같은 처리.
@@ -70,6 +76,21 @@ export default function JoinModal({
   const today = todayISO();
   const isPast = !program.is_tutorial && (program.end_date ?? program.date) < today;
   const isPeriod = Boolean(program.end_date);
+  // 튜토리얼(연습용)은 신고 대상이 아니다 — 시딩으로 심은 앱 자신의 프로그램이다(ADR 0021).
+  const reportable = !program.is_tutorial;
+
+  // [실패해도 팝업을 막지 않는다] 이 값은 버튼 문구만 정한다. 중복 신고는 서버 unique 가 막는다.
+  useEffect(() => {
+    if (!reportable) return undefined;
+    let cancelled = false;
+    (async () => {
+      const already = await hasReportedProgram(program.id);
+      if (!cancelled) setReported(already);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [program.id, reportable]);
 
   const status = participation?.status; // undefined | applied | waitlisted | entered | completed
   const joined = Boolean(status);
@@ -311,6 +332,32 @@ export default function JoinModal({
         {failed && (
           <div className="join-err" role="alert">
             처리에 실패했어요. 잠시 후 다시 시도해 주세요.
+          </div>
+        )}
+
+        {/* [신고 — ADR 0025] 본문 맨 아래, 작은 텍스트 한 줄. 참여 신청 버튼보다 크거나 먼저 읽히면
+            "신고하는 앱"이 된다(원칙 4의 연장). 신고 수·처리 상태를 여기서 보여주지 않는다. */}
+        {reportable && (
+          <div className="join-report">
+            {reported ? (
+              <span className="jr-done">
+                <Icon name="ic-check" size={14} />
+                신고가 접수된 프로그램이에요
+              </span>
+            ) : reportOpen ? (
+              <ReportPanel
+                programId={program.id}
+                onReported={() => {
+                  setReported(true);
+                  setReportOpen(false);
+                }}
+                onCancel={() => setReportOpen(false)}
+              />
+            ) : (
+              <button type="button" className="jr-open" onClick={() => setReportOpen(true)}>
+                <Icon name="ic-alert" size={13} />이 프로그램 신고하기
+              </button>
+            )}
           </div>
         )}
       </div>

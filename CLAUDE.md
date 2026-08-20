@@ -61,11 +61,13 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 | `profiles` | id, role, code, name, points_balance, points_total, currency_balance, career_interest, account_type, school | 학생/관리자 공통 계정. `account_type`(school/personal)은 학생 전용 (ADR 0008). `school`(2026-08-14)은 **학교 계정 학생과 관리자가 각각 가입 시 직접 입력**한다 — 둘이 일치해야 하는 관계가 아니고, **같은 학교의 관리자가 없어도 성립한다**. 개인·소셜 계정은 NULL. `mentor_students` 트리거는 학생 학교가 **비어 있을 때만** 관리자 값으로 채운다(덮어쓰면 그 학생이 로그인하지 못한다) |
 | `mentor_students` | admin_id, student_id | 관리자-담당학생 매핑. **권한 경계 자체**. 생기는 경로는 시딩 + 학생의 초대코드 입력(`link_school_account`) 2가지, 없어지는 경로는 관리자의 "담당 해제" 1가지뿐(ADR 0015). 그 외 편집 UI 없음 |
 | `invite_codes` | code, kind(school/admin), admin_id, is_active | 가입 초대코드 (ADR 0008). 관리자별 고정 school 코드 + 관리자 승격용 코드. **앱에서 생성 불가**(정책 0개, 시딩/SQL 전용). `code`는 **난수**다(ADR 0024) — 관리자 id에서 유도되지 않는다 |
-| `programs` | id, category, title, org, description, date, time, capacity, points, career_track, is_published, created_by, image_url | is_published로 게시/게시중단. `category`·`career_track` 값은 아래 참고. `image_url`(ADR 0022)은 대표 사진 **1장**의 공개 URL — NULL이면 카드가 기존 category 아이콘을 그린다(아이콘은 폐기가 아니라 fallback). 배열/갤러리로 늘리지 말 것. **텍스트 4종은 DB CHECK가 경계다**(ADR 0024): title 80 / org 60 / description 400 / time 40자 + 공백만 금지, capacity 1~1000, date 2020~2035 — 숫자가 폼의 `maxLength`와 같으니 한쪽을 바꾸면 다른 쪽도 바꿀 것 |
+| `programs` | id, category, title, org, description, date, time, capacity, points, career_track, is_published, created_by, image_url | is_published로 게시/게시중단. `category`·`career_track` 값은 아래 참고. `image_url`(ADR 0022)은 대표 사진 **1장**의 공개 URL — NULL이면 카드가 기존 category 아이콘을 그린다(아이콘은 폐기가 아니라 fallback). 배열/갤러리로 늘리지 말 것. **텍스트 4종은 DB CHECK가 경계다**(ADR 0024): title 80 / org 60 / description 400 / time 40자 + 공백만 금지, capacity 1~1000, date 2020~2035 — 숫자가 폼의 `maxLength`와 같으니 한쪽을 바꾸면 다른 쪽도 바꿀 것. **진행이 끝나면(`coalesce(end_date,date) < 오늘`) 내용 수정이 트리거로 막힌다**(ADR 0025) — `is_published` 토글만 예외다(`stale` 알림이 요구하는 행동이 '내리기'라서) |
 | `participations` | id, student_id, program_id, status, entry_at, exit_at, entry_token, exit_token | 신청·입장·퇴장 상태 + QR 토큰 |
 | `point_transactions` | id, student_id, type(적립/전환), amount, related_participation_id, settled_month | 포인트 내역. `settled_month`(전환 행 전용)는 "어느 달 적립분의 정산인가" — ADR 0012 |
-| `reviews` | id, participation_id, rating, comment | 별점 + 한줄평 |
+| `reviews` | id, participation_id, rating, comment | 별점 + 한줄평. `comment`는 **선택이지만 쓴다면 20~500자**(ADR 0025 — 옛 60자 상한 폐기). 하한을 '한줄평 필수'로 바꾸지 말 것: 평가를 강제하면 QR 흐름의 마지막이 막힌다 |
 | `notifications` | id, recipient_id, type, message, detail, program_id, is_read, created_at | 인앱 알림. 수신자는 학생·관리자 둘 다 가능하며 역할은 `profiles.role`이 소유한다 (ADR 0013) |
+| `program_reports` | id, program_id, student_id, reason, detail | 학생의 프로그램 신고 (ADR 0025). **서로 다른 학생 3명**이면 서버가 자동으로 게시중단(삭제 아님). 학생 1명당 1건(unique). **관리자는 자기 프로그램의 신고도 읽을 수 없다** — 신고자를 특정하면 보복 경로가 생긴다. 취소·수정 정책 0개 |
+| `admin_audit` | id, actor_id, action, target_table, target_id, changes | 관리자 쓰기 행위의 흔적 (ADR 0025). **정책 0개 = 앱에서 아무도 못 읽는다**(SQL 콘솔 전용). `actor_id`가 NULL인 행은 서버가 스스로 한 일(`auto_unpublish_reported`) |
 
 ### 프로그램 분류 (ADR 0014 / 2026-08-09 재편)
 
@@ -135,6 +137,10 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 
 로그인 → 메인 → 프로그램 선택 → 참여 팝업 → QR 입·퇴장 인증 → 만족도 평가 → 디지털 아카이브 → 마이페이지(포인트/지역화폐) / 상단 공통: 알림, 캘린더(기본값 = 실제 오늘 날짜).
 
+**참여 팝업 맨 아래에 '신고하기'가 있다 (ADR 0025).** 관리자를 견제하는 유일한 학생측 경로다 — 서로 다른 학생 3명이 신고하면 서버가 그 프로그램을 자동으로 내린다(사람이 처리하지 않는다). >>> 신고 수·임계치 진행률을 화면에 그리지 말 것(원칙 1), 관리자에게 신고자를 알려주지 말 것.
+
+**QR 센터는 '오늘 할 일이 있는 활동'만 그린다 (ADR 0025).** 진행이 끝난 참여는 '지난 활동 N건' 접이식으로 내려가고, 거기서 `dismiss_my_participation()`으로 지울 수 있다. 포인트가 지급된 참여는 지워지지 않는다 — 원장이 cascade로 사라지면 잔액과 어긋난다.
+
 ## 10. 관리자 화면 (기획서 5장)
 
 관리자 홈(오늘 진행 프로그램 우선) / 프로그램 관리(올리기·내리기·수정 — 등록·수정 폼에서 **대표 사진 1장** 업로드, ADR 0022. 새 메뉴가 아니라 폼 안의 입력칸 하나다) / 담당 학생 5명 아카이브 조회 + PDF 확인 + 포인트 열람(ADR 0015) + 담당 해제(ADR 0015) + 비밀번호 초기화(ADR 0019) / QR 카메라 스캔.
@@ -143,8 +149,9 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 관한 **읽기**이고 관리자가 새로 할 수 있게 된 일이 0개다(셸 메뉴도 4개 그대로 — 담당 해제는 새 메뉴가
 아니라 담당 학생 상세 화면 안의 버튼 하나다).
 
-- 알림 4종: `apply_admin`(내 프로그램에 새 신청) / `mentee`(담당 학생 추가 — 가입·연동 두 경로를 문구로 구분) /
-  `stale`(일정이 지난 게시중 프로그램) / `upcoming_admin`(내일 진행 — QR 스캔 준비)
+- 알림 5종: `apply_admin`(내 프로그램에 새 신청) / `mentee`(담당 학생 추가 — 가입·연동 두 경로를 문구로 구분) /
+  `stale`(일정이 지난 게시중 프로그램) / `upcoming_admin`(내일 진행 — QR 스캔 준비) /
+  `reported`(신고 누적으로 내 프로그램이 자동 게시중단됨, ADR 0025 — **신고자·건수·사유를 담지 않는다**)
 - 캘린더: 내가 올린 프로그램의 날짜축. 새 테이블·새 권한 0개
 - 학생 알림도 함께 늘었다: `convert`(지역화폐 전환 완료) / `upcoming`(내일 참여 예정) / `exit_due`(퇴장 인증 미완료) /
   `promoted`(대기 중이던 자리가 취소로 확정됨, ADR 0018) / `rescheduled`(신청한 프로그램의 일정이 바뀜, ADR 0018)
