@@ -9,8 +9,9 @@
 //   "신고하는 앱"이 된다. 그래서 진입은 본문 맨 아래의 작은 텍스트 버튼 하나다.
 //
 // [★ 사유가 두 종류다 — ADR 0026]
-//   공개(open)         : 공고만 봐도 아는 것. 누구나 신고할 수 있다.
-//   참여자(participant): 겪어야 아는 것. QR 입장 인증을 마친 학생만 신고할 수 있다.
+//   공개(open)         : 대부분. 누구나 신고할 수 있다.
+//   참여자(participant): 설명 불일치 / 시간 미준수 2종. QR 입장 인증을 마친 학생만.
+//   가르는 기준은 "참여 인증(QR)이 실제로 남을 수 있는 일인가"다 — reportService.js 상단 참고.
 //   잠긴 항목을 **숨기지 않고 잠근 채로 보여준다** — 숨기면 "시간 안 지킨 건 신고할 데가 없네"가
 //   되고, 보여주면 "참여하면 신고할 수 있구나"가 된다. 목록 자체가 규칙을 설명한다.
 //
@@ -20,7 +21,6 @@ import { useState } from 'react';
 import Icon from '../Icon';
 import {
   REPORT_DETAIL_MAX,
-  REPORT_DETAIL_MIN,
   REPORT_REASONS,
   reasonMinLength,
   reportProgram,
@@ -45,8 +45,10 @@ export default function ReportPanel({ programId, canReportParticipant = false, o
   //   신고가 됐고, 그게 장난 신고의 비용이었다.
   //   >>> 사유별로 "필수인가"를 다시 가르지 말 것. 갈리는 순간 가장 싼 사유로 신고가 몰린다.
   //   (갈리는 것은 필수 여부가 아니라 **길이**다 — 아래 min. 근거는 reportService.js 상단.)
-  const min = reason ? reasonMinLength(reason) : REPORT_DETAIL_MIN.participant;
-  const detailShort = trimmed.length < min;
+  // [사유를 고르기 전에는 숫자를 말하지 않는다] 하한이 사유마다 다르므로(공개 150 / 참여자 80)
+  //   아무 값이나 먼저 보여주면 곧 다른 숫자로 바뀌어 "왜 늘었지"가 된다.
+  const min = reason ? reasonMinLength(reason) : null;
+  const detailShort = min !== null && trimmed.length < min;
   const blocked = !reason || busy || detailShort;
 
   const lockedOf = (r) => r.scope === 'participant' && !canReportParticipant;
@@ -113,14 +115,14 @@ export default function ReportPanel({ programId, canReportParticipant = false, o
       {/* 잠긴 항목이 왜 잠겼는지 목록 아래에서 한 번 더 설명한다 — 항목마다 반복하지 않는다. */}
       {!canReportParticipant && (
         <p className="rp-lockednote">
-          아래 네 가지는 <b>실제로 참여해 봐야 알 수 있는 일</b>이라, QR 입장 인증을 마친 학생만
+          아래 두 가지는 <b>활동에 참여해야 알 수 있는 일</b>이라, QR 입장 인증을 마친 학생만
           신고할 수 있어요.
         </p>
       )}
 
       <div className="rp-head">
         <b>어떤 상황이었는지 적어주세요</b>
-        <em>필수 · {min}자 이상</em>
+        <em>{min === null ? '필수' : `필수 · ${min}자 이상`}</em>
       </div>
       <textarea
         className="rp-detail"
@@ -136,7 +138,11 @@ export default function ReportPanel({ programId, canReportParticipant = false, o
       />
       {/* 남은 글자 수를 "게이지"로 그리지 않는다(원칙 1) — 문장 하나로 말한다. */}
       <div className={detailShort ? 'rp-hint short' : 'rp-hint'}>
-        {detailShort ? `${min - trimmed.length}자 더 써주세요` : `${trimmed.length}자`}
+        {min === null
+          ? '사유를 먼저 골라주세요'
+          : detailShort
+            ? `${min - trimmed.length}자 더 써주세요`
+            : `${trimmed.length}자`}
       </div>
 
       {/* 신고가 무엇을 하는지 정확히 말한다 — "관리자가 처벌된다"로 오해되지 않게.

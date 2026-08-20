@@ -142,6 +142,7 @@ npx supabase functions deploy naver-auth --no-verify-jwt
 5) 20260821180000_report_detail_required_and_notice_fix.sql
 6) 20260822100000_extend_report_reason.sql          ← 단독 실행 (enum 값 커밋, 55P04 회피)
 7) 20260822120000_report_scope_and_publish_gate.sql
+8) 20260822140000_open_not_real_and_other.sql
 ```
 
 > **6번도 단독으로 먼저 실행해야 한다.** 7번의 CHECK 제약이 6번에서 추가한 enum 값을 직접 쓴다 —

@@ -639,8 +639,8 @@ async function main() {
       });
       expect(error?.code === '42501', `42501 을 기대했다. 받은 값: ${error?.code} ${error?.message}`);
     });
-    await t('★ 참여하지 않은 학생은 참여자 전용 사유를 쓸 수 없다', async () => {
-      for (const reason of ['not_real', 'mismatch', 'unpunctual', 'other']) {
+    await t('★ 참여하지 않은 학생은 참여자 전용 사유(설명 불일치·시간 미준수)를 쓸 수 없다', async () => {
+      for (const reason of ['mismatch', 'unpunctual']) {
         const { data } = await cStuA.rpc('report_my_program', {
           p_program_id: progReport,
           p_reason: reason,
@@ -652,9 +652,12 @@ async function main() {
         );
       }
     });
-    await t('★ 참여하지 않아도 공개 사유는 쓸 수 있다 (자격 자체는 통과한다)', async () => {
+    await t('★ 참여하지 않아도 공개 사유 5종은 쓸 수 있다 (자격 자체는 통과한다)', async () => {
       // 149자라 길이에서 걸린다 — "자격은 통과했고 길이만 남았다"를 이 사유로 확인한다.
-      for (const reason of ['irrelevant', 'paid', 'inappropriate']) {
+      // [not_real / other 가 여기 있는 것이 2026-08-22 개정의 핵심이다]
+      //   not_real 은 프로그램이 안 열린 경우라 QR 을 찍을 수 없다 — 참여자 전용으로 두면
+      //   자격이 영원히 생기지 않아 아무도 못 쓰는 죽은 사유가 된다.
+      for (const reason of ['irrelevant', 'paid', 'inappropriate', 'not_real', 'other']) {
         const { data } = await cStuA.rpc('report_my_program', {
           p_program_id: progReport,
           p_reason: reason,
