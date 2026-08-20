@@ -348,7 +348,9 @@ export default function SignupPage() {
               <label htmlFor="su-invite">{tab === 'admin' ? '관리자 초대코드' : '학교 초대코드'}</label>
               <input
                 id="su-invite"
-                placeholder={tab === 'admin' ? '예: ADMIN-2026' : '예: SCH-1A2B'}
+                // [실제 값을 예시로 쓰지 않는다 — 20260820120000] 옛 placeholder 는 관리자 승격
+                //   코드의 진짜 값('ADMIN-2026')이었다. 코드는 난수로 바뀌었고, 형식만 알려준다.
+                placeholder={tab === 'admin' ? '관리자 초대코드' : '예: SCH-1A2B3C4D'}
                 value={form.invite}
                 onChange={(e) => setForm((f) => ({ ...f, invite: e.target.value }))}
               />

@@ -129,6 +129,44 @@ npx supabase functions deploy naver-auth --no-verify-jwt
 
 **Supabase 대시보드에서 Google Provider를 켜 뒀다면 꺼도 된다** — 그 경로는 더 이상 쓰지 않는다.
 
+## 권한 경계 테스트 (ADR 0024)
+
+```bash
+npm run test:rls
+```
+
+anon / 학생 2명 / 관리자 2명의 **anon 키 세션**으로 금지된 요청 약 50건을 실제로 쏴서 전부 막히는지 확인한다.
+정책·definer 함수·초대코드·QR을 건드렸다면 반드시 돌릴 것.
+
+- 필요한 값: `.env.seed`의 `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` + `.env.local`의 `VITE_SUPABASE_ANON_KEY`
+- `service_role`은 **테스트 계정 생성·정리에만** 쓴다. 그 키로 검증하면 RLS를 우회해 전부 통과하고 아무것도 검증하지 않는다.
+- 만드는 데이터에는 마커(`[RLS-TEST]`, `RLSTEST-`)가 붙고 끝나면 지운다. 중간에 죽었으면 `node scripts/test-rls.mjs --cleanup`.
+
+## 초대코드 확인 (ADR 0024 — 값이 코드베이스에 없다)
+
+마이그레이션 `20260820120000` 이후 학교/관리자 초대코드는 **난수**다. 예전 규칙(`SCH-` + md5(관리자 uuid) 앞 4자)은
+관리자 uuid가 대표 사진 공개 URL에 그대로 들어 있어 학생이 코드를 계산해낼 수 있었다.
+
+시연 전에 SQL 편집기에서 새 값을 읽어 둘 것:
+
+```sql
+select ic.kind, ic.code, p.code as admin_code, p.name
+  from public.invite_codes ic
+  left join public.profiles p on p.id = ic.admin_id
+ order by ic.kind, p.code;
+```
+
+## Edge Function 배포 시 (ADR 0024 — CORS)
+
+세 함수 모두 `Access-Control-Allow-Origin`을 **허용목록**으로 좁혔다. 배포 주소가 정해지면 넣어 둔다.
+
+```bash
+supabase secrets set ALLOWED_ORIGINS=https://<배포주소>
+```
+
+안 넣어도 `localhost`와 `*.vercel.app`은 통과하므로 시연이 막히진 않는다. 다만 `*.vercel.app`은 느슨한
+규칙이라, 주소가 확정되면 위 값을 넣고 그 규칙을 지우는 것이 맞다.
+
 ## 참고
 
 - `CLAUDE.md`가 5개 에이전트 전체가 공유하는 "헌법"입니다. 원칙·데이터 모델·디자인 시스템이 바뀌면 반드시 이 파일부터 수정하세요.

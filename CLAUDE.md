@@ -51,6 +51,7 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 - **소셜 계정은 언제나 학생·개인 계정이며 관리자가 될 수 없습니다.** 두 함수 모두 `createUser`에 넘기는 metadata가 `{ name }` 뿐이라 role을 심을 자리가 없고, 트리거의 개인 계정 분기를 타기 때문입니다. 소셜 버튼을 **학생 탭 + 개인 계정 밖으로** 옮기려는 변경, 두 Edge Function에 **인자를 추가**하려는 변경(`role`·`code`·`invite`·`redirect_uri` 포함)은 ADR 0009 결정 3 / ADR 0011 결정 4의 가드 표를 반드시 다시 검토하세요.
 - **관리자**는 **사전 발급된 관리자 초대코드**가 있어야 가입됩니다.
 - **`role`은 클라이언트가 정하지 않습니다.** 가입 요청의 role은 신청일 뿐이고, 승인은 DB 트리거 `handle_new_user()`가 `invite_codes`를 조회해서 합니다. 초대코드가 없으면 가입 자체가 롤백됩니다(학생으로 대신 만들어주지 않음).
+- **초대코드 값은 난수이며 코드베이스에 없습니다 (ADR 0024, 2026-08-20).** 예전 규칙은 `SCH-` + md5(관리자 uuid) 앞 4자였는데, 그 uuid가 대표 사진 공개 URL 경로에 들어 있어 **학생이 코드를 계산해낼 수 있었습니다.** 지금은 `new_school_invite_code()`가 뽑는 난수 8자리이고, 관리자 승격 코드도 난수 12자리입니다. >>> 규칙을 마이그레이션에 리터럴로 다시 쓰지 말 것 — `handle_new_user()`는 저 함수를 호출합니다. 실제 값은 `select code from invite_codes`로 읽으세요.
 - 초대코드는 **관리자별 고정 1개**이며 관리자 마이페이지에 **표시만** 합니다. 생성·만료·회수 UI를 만들지 않습니다 — 만드는 순간 관리자 기능이 5번째가 되고(원칙 6), 관리자가 자기 담당 학생을 스스로 늘리는 도구가 됩니다. (담당을 **줄이는** 쪽은 ADR 0015로 열렸습니다 — "담당 해제". 늘리는 쪽은 여전히 닫혀 있습니다: 초대코드 재발급/신규 발급 UI는 이 문단이 계속 막습니다.)
 
 ## 5. 데이터 모델
@@ -59,8 +60,8 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 |---|---|---|
 | `profiles` | id, role, code, name, points_balance, points_total, currency_balance, career_interest, account_type, school | 학생/관리자 공통 계정. `account_type`(school/personal)은 학생 전용 (ADR 0008). `school`(2026-08-14)은 **학교 계정 학생과 관리자가 각각 가입 시 직접 입력**한다 — 둘이 일치해야 하는 관계가 아니고, **같은 학교의 관리자가 없어도 성립한다**. 개인·소셜 계정은 NULL. `mentor_students` 트리거는 학생 학교가 **비어 있을 때만** 관리자 값으로 채운다(덮어쓰면 그 학생이 로그인하지 못한다) |
 | `mentor_students` | admin_id, student_id | 관리자-담당학생 매핑. **권한 경계 자체**. 생기는 경로는 시딩 + 학생의 초대코드 입력(`link_school_account`) 2가지, 없어지는 경로는 관리자의 "담당 해제" 1가지뿐(ADR 0015). 그 외 편집 UI 없음 |
-| `invite_codes` | code, kind(school/admin), admin_id, is_active | 가입 초대코드 (ADR 0008). 관리자별 고정 school 코드 + 관리자 승격용 코드. **앱에서 생성 불가**(정책 0개, 시딩/SQL 전용) |
-| `programs` | id, category, title, org, description, date, time, capacity, points, career_track, is_published, created_by, image_url | is_published로 게시/게시중단. `category`·`career_track` 값은 아래 참고. `image_url`(ADR 0022)은 대표 사진 **1장**의 공개 URL — NULL이면 카드가 기존 category 아이콘을 그린다(아이콘은 폐기가 아니라 fallback). 배열/갤러리로 늘리지 말 것 |
+| `invite_codes` | code, kind(school/admin), admin_id, is_active | 가입 초대코드 (ADR 0008). 관리자별 고정 school 코드 + 관리자 승격용 코드. **앱에서 생성 불가**(정책 0개, 시딩/SQL 전용). `code`는 **난수**다(ADR 0024) — 관리자 id에서 유도되지 않는다 |
+| `programs` | id, category, title, org, description, date, time, capacity, points, career_track, is_published, created_by, image_url | is_published로 게시/게시중단. `category`·`career_track` 값은 아래 참고. `image_url`(ADR 0022)은 대표 사진 **1장**의 공개 URL — NULL이면 카드가 기존 category 아이콘을 그린다(아이콘은 폐기가 아니라 fallback). 배열/갤러리로 늘리지 말 것. **텍스트 4종은 DB CHECK가 경계다**(ADR 0024): title 80 / org 60 / description 400 / time 40자 + 공백만 금지, capacity 1~1000, date 2020~2035 — 숫자가 폼의 `maxLength`와 같으니 한쪽을 바꾸면 다른 쪽도 바꿀 것 |
 | `participations` | id, student_id, program_id, status, entry_at, exit_at, entry_token, exit_token | 신청·입장·퇴장 상태 + QR 토큰 |
 | `point_transactions` | id, student_id, type(적립/전환), amount, related_participation_id, settled_month | 포인트 내역. `settled_month`(전환 행 전용)는 "어느 달 적립분의 정산인가" — ADR 0012 |
 | `reviews` | id, participation_id, rating, comment | 별점 + 한줄평 |
@@ -169,6 +170,11 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 5. **qa-agent** — 구현 후 검증 (원칙 준수, 권한 누수, 반응형, 데이터 정합성).
 
 기본 흐름: `pm-agent`(스펙) → `architect-agent`(설계, 필요시) → `backend-agent`(스키마/API) → `frontend-agent`(화면) → `qa-agent`(검증). 단순 UI 수정은 pm-agent 없이 바로 frontend-agent를 불러도 됩니다.
+
+**권한 경계를 건드리는 변경(정책·definer 함수·초대코드·QR)은 `npm run test:rls`로 확인하세요 (ADR 0024).**
+anon/학생 2명/관리자 2명 세션으로 금지된 요청 약 50건을 실제로 쏴서 **전부 막히는지** 봅니다 — 통과가 아니라 거부를 기대하는 테스트가 대부분입니다.
+정책은 한 줄만 어긋나도 조용히 열리고, 조용히 열린 것은 화면을 봐서는 절대 발견되지 않습니다(화면은 원래 그 데이터를 안 그립니다).
+>>> 정책을 새로 만들거나 고쳤으면 `scripts/test-rls.mjs`에 그 경계를 확인하는 케이스를 함께 추가할 것.
 
 ## 13. 커뮤니케이션 톤
 

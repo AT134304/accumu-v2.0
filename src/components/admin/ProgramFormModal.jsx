@@ -218,10 +218,12 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
       const n = Number(p);
       if (!Number.isInteger(n) || n < 150 || n > 3000 || n % 10 !== 0) e.points = POINTS_RULE_MSG;
     }
+    // [상한 1000 — DB 제약 programs_capacity_range(20260820140000)와 같은 값]
+    //   상한이 없으면 20억 같은 값이 저장돼 "정원 있음"이 사실상 "정원 없음"(= NULL)과 같아진다.
     const c = String(v.capacity).trim();
     if (c) {
       const n = Number(c);
-      if (!Number.isInteger(n) || n < 1) e.capacity = CAPACITY_RULE_MSG;
+      if (!Number.isInteger(n) || n < 1 || n > 1000) e.capacity = CAPACITY_RULE_MSG;
     }
     // [기간제 — DB 제약 programs_end_date_after_start 를 프런트에서 먼저 막는다]
     if (isPeriod && v.date && v.end_date && v.end_date < v.date) {
@@ -774,6 +776,7 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
                 type="number"
                 inputMode="numeric"
                 min={1}
+                max={1000}
                 value={v.capacity}
                 onChange={set('capacity')}
                 onBlur={blur('capacity')}
