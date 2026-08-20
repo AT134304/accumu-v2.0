@@ -620,6 +620,8 @@ async function main() {
           program_id: progReport,
           student_id: stuB.id,
           reason: 'not_real',
+          // 제약(detail 필수)이 아니라 **정책**에 걸려야 하는 테스트다 — 값을 채워서 42501 을 확인한다.
+          detail: '남의 이름으로 신고가 되는지 확인하는 문장입니다. 서른 자를 넘깁니다.',
         }),
         ['42501']
       ));
@@ -627,15 +629,36 @@ async function main() {
       const { error } = await cAdmA.rpc('report_my_program', {
         p_program_id: progReport,
         p_reason: 'not_real',
-        p_detail: null,
+        p_detail: '관리자가 신고할 수 있는지 확인하는 문장입니다. 서른 자를 넘기려고 씁니다.',
       });
       expect(error?.code === '42501', `42501 을 기대했다. 받은 값: ${error?.code} ${error?.message}`);
     });
-    await t('기타 사유는 이유를 적어야 한다', async () => {
+    await t('★ 어떤 사유든 이유를 적어야 한다 (전에는 기타만 필수였다)', async () => {
+      for (const reason of ['not_real', 'mismatch', 'irrelevant', 'paid', 'other']) {
+        const { data } = await cStuA.rpc('report_my_program', {
+          p_program_id: progReport,
+          p_reason: reason,
+          p_detail: null,
+        });
+        expect(
+          data?.reason === 'detail_required',
+          `${reason}: detail_required 를 기대했다. 받은 값: ${JSON.stringify(data)}`
+        );
+      }
+    });
+    await t('★ 29자 이유는 거부된다 (하한 30자 = 장난 신고의 비용)', async () => {
       const { data } = await cStuA.rpc('report_my_program', {
         p_program_id: progReport,
-        p_reason: 'other',
-        p_detail: null,
+        p_reason: 'not_real',
+        p_detail: '가'.repeat(29),
+      });
+      expect(data?.reason === 'detail_length', `detail_length 를 기대했다. 받은 값: ${JSON.stringify(data)}`);
+    });
+    await t('공백만 30자인 이유는 거부된다 (btrim 기준)', async () => {
+      const { data } = await cStuA.rpc('report_my_program', {
+        p_program_id: progReport,
+        p_reason: 'not_real',
+        p_detail: ' '.repeat(40),
       });
       expect(data?.reason === 'detail_required', `detail_required 를 기대했다. 받은 값: ${JSON.stringify(data)}`);
     });
@@ -643,7 +666,7 @@ async function main() {
       const { data } = await cStuA.rpc('report_my_program', {
         p_program_id: progReport,
         p_reason: 'not_real',
-        p_detail: null,
+        p_detail: '공고에는 8월 5일 진행이라고 적혀 있었는데 그날 아무 안내도 없었어요.',
       });
       expect(data?.ok === true, `접수돼야 한다. 받은 값: ${JSON.stringify(data)}`);
       const { data: prog } = await sr.from('programs').select('is_published').eq('id', progReport).single();
@@ -653,12 +676,16 @@ async function main() {
       const { data } = await cStuA.rpc('report_my_program', {
         p_program_id: progReport,
         p_reason: 'mismatch',
-        p_detail: null,
+        p_detail: '두 번째로 다시 신고해 보는 문장입니다. 서른 자를 넘기려고 조금 더 씁니다.',
       });
       expect(data?.reason === 'already', `already 를 기대했다. 받은 값: ${JSON.stringify(data)}`);
     });
     await t('신고 2건 — 아직 게시 중이다', async () => {
-      await cStuB.rpc('report_my_program', { p_program_id: progReport, p_reason: 'paid', p_detail: null });
+      await cStuB.rpc('report_my_program', {
+        p_program_id: progReport,
+        p_reason: 'paid',
+        p_detail: '참가비 만 원을 따로 내야 한다고 안내받았습니다. 공고에는 그런 말이 없었어요.',
+      });
       const { data: prog } = await sr.from('programs').select('is_published').eq('id', progReport).single();
       expect(prog?.is_published === true, '2건으로는 내려가면 안 된다');
     });
@@ -666,7 +693,7 @@ async function main() {
       const { data } = await cStuC.rpc('report_my_program', {
         p_program_id: progReport,
         p_reason: 'irrelevant',
-        p_detail: null,
+        p_detail: '진로 체험이 아니라 그냥 자습 감독이었습니다. 두 시간 내내 문제집만 풀었어요.',
       });
       expect(data?.ok === true, `접수돼야 한다. 받은 값: ${JSON.stringify(data)}`);
       const { data: prog } = await sr.from('programs').select('is_published').eq('id', progReport).single();
@@ -676,7 +703,9 @@ async function main() {
       const { data } = await sr
         .from('notifications')
         .select('type, message, detail')
-        .eq('student_id', admB.id)
+        // [★ recipient_id 다] 20260808120000 에서 student_id -> recipient_id 로 바뀌었다.
+        //   이 테스트도 어제는 틀린 컬럼을 봤고, 그래서 서버 함수의 같은 실수를 못 잡았다.
+        .eq('recipient_id', admB.id)
         .eq('type', 'reported');
       expect((data ?? []).length === 1, `알림 1건을 기대했다. 받은 값: ${(data ?? []).length}건`);
       const blob = `${data[0].message} ${data[0].detail ?? ''}`;

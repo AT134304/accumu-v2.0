@@ -16,7 +16,7 @@ import ReviewForm from './ReviewForm';
 import { useAuth } from '../../context/AuthContext';
 import { useTutorial } from '../../context/TutorialContext';
 import { catOf } from '../../lib/taxonomy';
-import { fmtDateRange, todayISO } from '../../lib/date';
+import { fmtDateRange, isProgramOver, todayISO } from '../../lib/date';
 import {
   buildQrPayload,
   fetchAttendanceSessions,
@@ -138,17 +138,17 @@ function periodActionOf(item, sessions) {
 }
 
 /**
- * 진행이 끝난 참여인가 (ADR 0025) — 서버 dismiss_my_participation() 의 조건과 **같은 식**이다.
- * 기간제는 종료일, 단일 일자는 그 날짜. 튜토리얼(상시 진행)은 끝나지 않는다.
+ * 진행이 끝난 참여인가 — 판정 자체는 date.js 의 isProgramOver() 가 소유한다(앱 전체가 같은 식).
  *
  * [program 이 null 이면 false 다] 게시가 중단된 프로그램은 RLS 때문에 조회되지 않아 날짜를 알 수 없다.
  *   모르는 것을 "끝났다"로 단정하지 않는다 — 그 행은 지금처럼 본 목록에 "볼 수 없는 활동"으로 남는다.
- * >>> 이 식을 바꾸면 20260821160000 도 함께 바꿀 것. 어긋나면 "목록엔 있는데 지워지지 않는 행"이 생긴다.
+ *   (isProgramOver 도 null 을 false 로 돌려주므로 결과가 같다. 이 함수는 참여 행에서 프로그램을
+ *    꺼내는 껍데기일 뿐이다.)
+ * >>> 서버 dismiss_my_participation(20260821160000)도 같은 조건이다 — 어긋나면 "목록엔 있는데
+ *     지워지지 않는 행"이 생긴다.
  */
 function isOverItem(it, today) {
-  const prog = it.program;
-  if (!prog || prog.is_tutorial) return false;
-  return String(prog.end_date ?? prog.date) < today;
+  return isProgramOver(it.program, today);
 }
 
 export default function QrCenterModal({ onClose }) {

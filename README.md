@@ -139,7 +139,12 @@ npx supabase functions deploy naver-auth --no-verify-jwt
 2) 20260821120000_lock_past_programs_and_review_length.sql
 3) 20260821140000_program_reports_and_admin_audit.sql
 4) 20260821160000_dismiss_past_participation.sql
+5) 20260821180000_report_detail_required_and_notice_fix.sql
 ```
+
+> **5번은 반드시 적용할 것.** 4번까지만 적용된 상태에서는 신고 3건째와 "목록에서 지우기"가
+> `notifications` 컬럼 이름(`student_id` -> `recipient_id`) 때문에 42703 으로 죽는다.
+> plpgsql 함수 본문은 생성 시점에 검증되지 않아 마이그레이션은 성공한 것처럼 보인다.
 
 1번은 `add value if not exists` 라 재실행이 안전하다.
 

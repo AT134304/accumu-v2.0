@@ -16,7 +16,7 @@ import Toast from '../components/Toast';
 import ProgramCard from '../components/student/ProgramCard';
 import JoinModal from '../components/student/JoinModal';
 import { CAT, TRACK, catOf } from '../lib/taxonomy';
-import { todayISO } from '../lib/date';
+import { isProgramOver, todayISO } from '../lib/date';
 import {
   applyToProgram,
   cancelMyParticipation,
@@ -151,13 +151,11 @@ export default function StudentProgramsPage() {
         // 프로그램이 0개인 카테고리 행은 렌더하지 않는다
         .filter((row) => row.list.length > 0);
 
-    // [기간제] "지난"의 기준은 종료일이다 — 시작일이 지났어도 기간 중이면 여전히 참여할 수 있는 쪽이다.
-    // [is_tutorial — ADR 0021] 튜토리얼 프로그램은 date 값 자체에 의미가 없다("상시 진행") — 어떤
-    // 날짜를 넣어도 "지난 프로그램"으로 떨어지지 않게 항상 upcoming 쪽으로 분류한다.
-    const endOf = (p) => p.end_date ?? p.date;
-    const isPastProgram = (p) => !p.is_tutorial && endOf(p) < today;
-    const nextUpcomingRows = buildRows(visible.filter((p) => !isPastProgram(p)));
-    const nextPastRows = buildRows(visible.filter((p) => isPastProgram(p)));
+    // [판정의 소유자는 date.js 다 — 2026-08-21] 기간제는 종료일이 기준이고(시작일이 지났어도 기간
+    // 중이면 참여할 수 있다), 튜토리얼은 상시 진행이라 끝나지 않는다. 같은 식이 화면마다 따로
+    // 적혀 있어서 한쪽만 고쳐지는 일이 반복됐다 — 이제 한 함수를 부른다.
+    const nextUpcomingRows = buildRows(visible.filter((p) => !isProgramOver(p, today)));
+    const nextPastRows = buildRows(visible.filter((p) => isProgramOver(p, today)));
 
     const upcomingCount = nextUpcomingRows.reduce((m, r) => m + r.list.length, 0);
     const pastCount = nextPastRows.reduce((m, r) => m + r.list.length, 0);

@@ -31,16 +31,10 @@ import Toast from '../components/Toast';
 import Modal from '../components/Modal';
 import ProgramFormModal from '../components/admin/ProgramFormModal';
 import { catOf, statusOf } from '../lib/taxonomy';
-import { fmtDateRange, todayISO } from '../lib/date';
+import { endOfProgram, fmtDateRange, isProgramOver, todayISO } from '../lib/date';
 import { fetchAdminPrograms, fetchApplicantCounts, setProgramPublished } from '../lib/programService';
 import { describeSaveError } from '../lib/programErrors';
 import '../styles/AdminShell.css';
-
-/** 진행이 끝났는가 — 서버 트리거(programs_lock_after_end)와 **같은 식**이다.
- *  기간제는 종료일, 단일 일자는 그 날짜. 진행 중인 기간제는 아직 끝나지 않았다.
- *  >>> 한쪽을 바꾸면 20260821120000 도 함께 바꿀 것. */
-const endOf = (p) => String(p.end_date ?? p.date);
-const isOver = (p, today) => !p.is_tutorial && endOf(p) < today;
 
 export default function AdminProgramsPage() {
   const { profile } = useAuth();
@@ -97,10 +91,10 @@ export default function AdminProgramsPage() {
   //   8/15 에 열면 '지남'). 수정 잠금이 생기면서 이 어긋남이 눈에 보이게 됐다 — 지난 그룹에 있는데
   //   수정 버튼은 켜져 있는 행이 생긴다. 두 자리가 같은 식을 쓰도록 맞춘다.
   const { upcoming, past } = useMemo(() => {
-    const asc = (a, b) => endOf(a).localeCompare(endOf(b));
+    const asc = (a, b) => endOfProgram(a).localeCompare(endOfProgram(b));
     return {
-      upcoming: rows.filter((p) => !isOver(p, today)).sort(asc),
-      past: rows.filter((p) => isOver(p, today)).sort((a, b) => asc(b, a)),
+      upcoming: rows.filter((p) => !isProgramOver(p, today)).sort(asc),
+      past: rows.filter((p) => isProgramOver(p, today)).sort((a, b) => asc(b, a)),
     };
   }, [rows, today]);
 
@@ -118,7 +112,7 @@ export default function AdminProgramsPage() {
   // 대상 행이 접힌 "지난 프로그램" 안에 있으면 먼저 펼친다 — 안 그러면 스크롤할 DOM 이 없다.
   const focusRow = useCallback(
     (row) => {
-      if (isOver(row, today)) setPastOpen(true);
+      if (isProgramOver(row, today)) setPastOpen(true);
       setHighlight({ id: row.id, seq: Date.now() });
     },
     [today]
@@ -183,7 +177,7 @@ export default function AdminProgramsPage() {
         if (el) rowRefs.current.set(p.id, el);
         else rowRefs.current.delete(p.id);
       }}
-      locked={isOver(p, today)}
+      locked={isProgramOver(p, today)}
       onEdit={() => setForm({ mode: 'edit', program: p })}
       onPublish={() => handleTogglePublished(p, true)}
       onUnpublish={() => setConfirmRow(p)}

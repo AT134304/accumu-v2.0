@@ -110,3 +110,38 @@ export function fmtTime(timestamp) {
   if (Number.isNaN(d.getTime())) return '';
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
+
+/* ==========================================================================
+   프로그램이 "끝났는가" — 앱 전체에서 이 두 함수만 쓴다 (2026-08-21)
+
+   [★ 왜 한 곳에 모았나]
+     같은 판정이 다섯 군데에 각각 적혀 있었고, 그중 일부는 `date` 만 봐서 **진행 중인 기간제
+     프로그램을 "지난 것"으로 분류**했다(8/1~8/30 짜리를 8/15 에 열면 지남). 한 곳을 고쳐도 나머지가
+     남아 화면마다 다른 답을 내는 상태였다.
+     >>> 새로 "지났는가"를 판단할 자리가 생기면 여기 두 함수를 import 할 것. 식을 다시 쓰지 말 것.
+     >>> 서버 트리거 programs_lock_after_end(20260821120000)도 같은 식이다 — 한쪽을 바꾸면 같이 볼 것.
+
+   [기준] coalesce(end_date, date) < 오늘.
+     - 기간제(end_date 있음)는 **종료일**이 기준이다. 시작일이 지났어도 기간 중이면 진행 중이다.
+     - 단일 일자는 그 날짜 하루가 곧 시작이자 끝이다.
+     - 튜토리얼(is_tutorial)은 date 가 자리표시자라 "상시 진행"이다 — 끝나지 않는다(ADR 0021).
+   ========================================================================== */
+
+/** 프로그램이 끝나는 날짜('YYYY-MM-DD'). 기간제는 종료일, 단일 일자는 그 날짜. */
+export function endOfProgram(program) {
+  // [?? 가 아니라 || 인 이유] 폼 상태(ProgramFormModal)의 end_date 는 "기간제 아님"을 빈 문자열로
+  //   표현한다. ?? 는 ''을 통과시켜서 '' < '2026-08-21' 이 참이 되고, 모든 단일 일자 프로그램이
+  //   "끝났다"로 판정된다. DB 행(null)과 폼 값('') 둘 다 여기서 같은 뜻이어야 한다.
+  return String(program?.end_date || program?.date || '');
+}
+
+/**
+ * 진행이 끝났는가.
+ * @param {object} program end_date / date / is_tutorial 을 가진 객체 (DB 행 또는 폼 값)
+ * @param {string} today   'YYYY-MM-DD' (todayISO())
+ */
+export function isProgramOver(program, today) {
+  if (!program || program.is_tutorial) return false;
+  const end = endOfProgram(program);
+  return Boolean(end) && end < today;
+}

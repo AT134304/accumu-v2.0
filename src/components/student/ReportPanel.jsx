@@ -31,10 +31,11 @@ export default function ReportPanel({ programId, onReported, onCancel }) {
   const [error, setError] = useState('');
 
   const trimmed = detail.trim();
-  // 기타는 이유가 필수다(DB CHECK program_reports_other_needs_detail 과 같은 규칙).
-  const needsDetail = reason === 'other';
-  const detailTooShort = trimmed.length > 0 && trimmed.length < REPORT_DETAIL_MIN;
-  const blocked = !reason || busy || detailTooShort || (needsDetail && trimmed.length === 0);
+  // [★ 이유는 사유 종류와 무관하게 필수다 — 2026-08-21]
+  //   전에는 '기타'일 때만 요구했다. 나머지는 클릭 한 번이면 신고가 됐고, 그게 장난 신고의 비용이었다.
+  //   >>> 사유별로 필수 여부를 다시 가르지 말 것. 갈리는 순간 가장 싼 사유로 신고가 몰린다.
+  const detailShort = trimmed.length < REPORT_DETAIL_MIN;
+  const blocked = !reason || busy || detailShort;
 
   async function handleSubmit() {
     if (blocked) return;
@@ -81,15 +82,15 @@ export default function ReportPanel({ programId, onReported, onCancel }) {
         ))}
       </div>
 
+      <div className="rp-head">
+        <b>어떤 상황이었는지 적어주세요</b>
+        <em>필수 · {REPORT_DETAIL_MIN}자 이상</em>
+      </div>
       <textarea
         className="rp-detail"
-        rows={3}
+        rows={4}
         maxLength={REPORT_DETAIL_MAX}
-        placeholder={
-          needsDetail
-            ? `무엇이 문제인지 적어주세요 (${REPORT_DETAIL_MIN}자 이상)`
-            : `자세한 상황 (선택 · 쓴다면 ${REPORT_DETAIL_MIN}자 이상)`
-        }
+        placeholder="언제, 무엇이 공고와 달랐는지 구체적으로 적어주세요."
         value={detail}
         disabled={busy}
         onChange={(e) => {
@@ -97,15 +98,17 @@ export default function ReportPanel({ programId, onReported, onCancel }) {
           setError('');
         }}
       />
-      {detailTooShort && (
-        <div className="rp-hint short">{REPORT_DETAIL_MIN - trimmed.length}자 더 써주세요</div>
-      )}
+      {/* 남은 글자 수를 "게이지"로 그리지 않는다(원칙 1) — 문장 하나로 말한다. */}
+      <div className={detailShort ? 'rp-hint short' : 'rp-hint'}>
+        {detailShort ? `${REPORT_DETAIL_MIN - trimmed.length}자 더 써주세요` : `${trimmed.length}자`}
+      </div>
 
       {/* 신고가 무엇을 하는지 정확히 말한다 — "관리자가 처벌된다"로 오해되지 않게.
           동시에 남용을 막는 문장이기도 하다(취소가 없다는 사실을 미리 알린다). */}
       <p className="rp-note">
         신고는 <b>관리자에게 전달되지 않고</b>, 같은 신고가 여러 건 쌓이면 프로그램이 자동으로
-        내려갑니다. 누가 신고했는지는 아무에게도 보이지 않아요. <b>접수 후에는 취소할 수 없습니다.</b>
+        내려갑니다. 누가 신고했는지도, 적은 내용도 관리자에게 보이지 않아요.{' '}
+        <b>접수 후에는 취소할 수 없습니다.</b>
       </p>
 
       <div className="rp-acts">

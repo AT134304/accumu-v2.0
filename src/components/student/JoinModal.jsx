@@ -20,7 +20,7 @@ import Modal from '../Modal';
 import Icon from '../Icon';
 import { useTutorial } from '../../context/TutorialContext';
 import { catOf, statusOf, TRACK } from '../../lib/taxonomy';
-import { fmtDateRange, todayISO } from '../../lib/date';
+import { fmtDateRange, isProgramOver, todayISO } from '../../lib/date';
 import ReportPanel from './ReportPanel';
 import { hasReportedProgram } from '../../lib/reportService';
 
@@ -74,7 +74,7 @@ export default function JoinModal({
   // [기간제] 종료일이 지나야 "끝난 활동"이다 — 시작한 뒤에도 기간 중에는 계속 신청 가능해야 한다.
   // [is_tutorial — ADR 0021] date 값 자체가 의미 없는 자리표시자다 — "지난 날짜" 판정에서 제외한다.
   const today = todayISO();
-  const isPast = !program.is_tutorial && (program.end_date ?? program.date) < today;
+  const isPast = isProgramOver(program, today);
   const isPeriod = Boolean(program.end_date);
   // 튜토리얼(연습용)은 신고 대상이 아니다 — 시딩으로 심은 앱 자신의 프로그램이다(ADR 0021).
   const reportable = !program.is_tutorial;

@@ -66,7 +66,7 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 | `point_transactions` | id, student_id, type(적립/전환), amount, related_participation_id, settled_month | 포인트 내역. `settled_month`(전환 행 전용)는 "어느 달 적립분의 정산인가" — ADR 0012 |
 | `reviews` | id, participation_id, rating, comment | 별점 + 한줄평. `comment`는 **선택이지만 쓴다면 20~500자**(ADR 0025 — 옛 60자 상한 폐기). 하한을 '한줄평 필수'로 바꾸지 말 것: 평가를 강제하면 QR 흐름의 마지막이 막힌다 |
 | `notifications` | id, recipient_id, type, message, detail, program_id, is_read, created_at | 인앱 알림. 수신자는 학생·관리자 둘 다 가능하며 역할은 `profiles.role`이 소유한다 (ADR 0013) |
-| `program_reports` | id, program_id, student_id, reason, detail | 학생의 프로그램 신고 (ADR 0025). **서로 다른 학생 3명**이면 서버가 자동으로 게시중단(삭제 아님). 학생 1명당 1건(unique). **관리자는 자기 프로그램의 신고도 읽을 수 없다** — 신고자를 특정하면 보복 경로가 생긴다. 취소·수정 정책 0개 |
+| `program_reports` | id, program_id, student_id, reason, detail | 학생의 프로그램 신고 (ADR 0025). **서로 다른 학생 3명**이면 서버가 자동으로 게시중단(삭제 아님). 학생 1명당 1건(unique). **`detail`(이유 서술)은 사유 종류와 무관하게 필수이고 30~300자다** — 그 30자가 곧 장난 신고의 비용이다(2026-08-21). **관리자는 자기 프로그램의 신고도 읽을 수 없다** — 신고자를 특정하면 보복 경로가 생긴다. 취소·수정 정책 0개 |
 | `admin_audit` | id, actor_id, action, target_table, target_id, changes | 관리자 쓰기 행위의 흔적 (ADR 0025). **정책 0개 = 앱에서 아무도 못 읽는다**(SQL 콘솔 전용). `actor_id`가 NULL인 행은 서버가 스스로 한 일(`auto_unpublish_reported`) |
 
 ### 프로그램 분류 (ADR 0014 / 2026-08-09 재편)
@@ -138,6 +138,11 @@ Accumu는 **사업 출시가 아니라 입시 포트폴리오용으로 직접 �
 로그인 → 메인 → 프로그램 선택 → 참여 팝업 → QR 입·퇴장 인증 → 만족도 평가 → 디지털 아카이브 → 마이페이지(포인트/지역화폐) / 상단 공통: 알림, 캘린더(기본값 = 실제 오늘 날짜).
 
 **참여 팝업 맨 아래에 '신고하기'가 있다 (ADR 0025).** 관리자를 견제하는 유일한 학생측 경로다 — 서로 다른 학생 3명이 신고하면 서버가 그 프로그램을 자동으로 내린다(사람이 처리하지 않는다). >>> 신고 수·임계치 진행률을 화면에 그리지 말 것(원칙 1), 관리자에게 신고자를 알려주지 말 것.
+
+**"진행이 끝났는가" 판정은 `src/lib/date.js`의 `isProgramOver()` 하나가 소유한다 (2026-08-21).**
+기준은 `coalesce(end_date, date) < 오늘`이고 튜토리얼은 끝나지 않는다. 같은 식이 다섯 화면에 각각
+적혀 있어서 한 곳만 고쳐지는 일이 반복됐다(진행 중인 기간제가 '지난 프로그램'으로 분류되던 버그).
+서버 트리거 `programs_lock_after_end`도 같은 식이다. >>> 새로 판정할 자리가 생기면 그 함수를 import 할 것.
 
 **QR 센터는 '오늘 할 일이 있는 활동'만 그린다 (ADR 0025).** 진행이 끝난 참여는 '지난 활동 N건' 접이식으로 내려가고, 거기서 `dismiss_my_participation()`으로 지울 수 있다. 포인트가 지급된 참여는 지워지지 않는다 — 원장이 cascade로 사라지면 잔액과 어긋난다.
 

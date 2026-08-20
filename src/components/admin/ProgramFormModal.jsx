@@ -16,7 +16,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import Modal from '../Modal';
 import Icon from '../Icon';
 import { CAT, TRACK, STATUS } from '../../lib/taxonomy';
-import { todayISO } from '../../lib/date';
+import { isProgramOver, todayISO } from '../../lib/date';
 import ImageCropper from './ImageCropper';
 import {
   createProgram,
@@ -257,7 +257,13 @@ export default function ProgramFormModal({ mode, program = null, adminId, onClos
   };
 
   // 확정 H: 지난 날짜는 막지 않고 경고만 한다 (학생 쪽 차단이 이미 있고, 시드의 과거 행도 수정할 수 있어야 한다).
-  const isPastDate = Boolean(v.date) && v.date < todayISO();
+  //
+  // [2026-08-21 수정 — 기간제를 시작일로 판정하던 버그]
+  //   전에는 `v.date < 오늘` 이라, 8/1~8/30 짜리 기간제를 8/15 에 열면 "이미 지난 날짜입니다.
+  //   학생은 이 프로그램에 신청할 수 없습니다"라고 **거짓말을 했다** — 그 프로그램은 진행 중이고
+  //   학생은 실제로 신청할 수 있다. 판정을 date.js 의 한 함수로 옮겨 앱 전체와 같은 답을 내게 했다.
+  //   (isPeriod 가 꺼져 있으면 v.end_date 는 빈 문자열이고, endOfProgram 이 그것을 date 로 되돌린다.)
+  const isPastDate = isProgramOver({ ...v, end_date: isPeriod ? v.end_date : '' }, todayISO());
 
   // [진행일 그리드 핸들러 3개] 저장하는 값은 언제나 sessionDates(Set) 하나뿐 — 프리셋/요일칩/개별
   // 클릭 전부 이 Set을 채우는 도우미일 뿐 각자의 "모드"를 별도로 기억하지 않는다(원칙: 명시적 상태 하나).

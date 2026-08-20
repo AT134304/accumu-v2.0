@@ -22,11 +22,17 @@ export const REPORT_REASONS = [
   { key: 'mismatch', label: '설명과 실제 내용이 달라요', hint: '일정·장소·내용이 공고와 다름' },
   { key: 'irrelevant', label: '진로·커리어 활동이 아니에요', hint: '자습·문제풀이 등 학업 활동' },
   { key: 'paid', label: '참여에 비용이 들어요', hint: '수강료·재료비 등이 필요한 활동' },
-  { key: 'other', label: '기타', hint: '아래에 이유를 적어주세요' },
+  { key: 'other', label: '기타', hint: '위 항목에 해당하지 않는 문제' },
 ];
 
-/** 자유 서술 길이 — DB CHECK(program_reports_detail_shape)와 같은 값이다. */
-export const REPORT_DETAIL_MIN = 10;
+/* 신고 이유 서술 — **사유 종류와 무관하게 필수**이고 30~300자다 (2026-08-21 케빈 요청).
+   DB CHECK(program_reports_detail_shape)와 같은 값이다. >>> 한쪽을 바꾸면 마이그레이션도 같이 바꿀 것.
+
+   [왜 필수로 바꿨나] 전에는 '기타'를 골랐을 때만 이유가 필요했다. 나머지 4개 사유는 **클릭 한 번**이면
+     신고가 됐고, 그건 장난 신고의 비용이 클릭 1회라는 뜻이다. 세 명이 한 번씩 누르면 프로그램이 내려간다.
+   [왜 30자인가] 이 숫자가 곧 장난 신고의 비용이다. 낮추면 비용이 사라지고, 크게 올리면 진짜 문제를
+     겪은 학생이 귀찮아서 포기한다 — 그러면 견제 장치가 있으나 마나가 된다. */
+export const REPORT_DETAIL_MIN = 30;
 export const REPORT_DETAIL_MAX = 300;
 
 /**
@@ -55,7 +61,7 @@ export async function hasReportedProgram(programId) {
 const REASON_TEXT = {
   already: '이미 신고한 프로그램이에요.',
   bad_reason: '신고 사유를 다시 선택해 주세요.',
-  detail_required: '기타를 선택했다면 이유를 적어주세요.',
+  detail_required: `신고 이유를 ${REPORT_DETAIL_MIN}자 이상 적어주세요.`,
   detail_length: `이유는 ${REPORT_DETAIL_MIN}자 이상 ${REPORT_DETAIL_MAX}자 이하로 적어주세요.`,
   not_found: '지금은 신고할 수 없는 프로그램이에요. 화면을 새로고침해 주세요.',
 };

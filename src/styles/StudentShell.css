@@ -401,6 +401,8 @@ h2.sec { font-size: clamp(20px, 3.4vw, 23px); font-weight: 800; letter-spacing: 
 
 .reportpanel { display: flex; flex-direction: column; gap: 10px; }
 .rp-head { display: flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--ink); }
+/* 두 번째 rp-head 의 "필수 · 30자 이상" — 제목 오른쪽 끝에 붙는 조건 표시 */
+.rp-head em { margin-left: auto; font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--muted); }
 
 .rp-reasons { display: flex; flex-direction: column; gap: 6px; }
 /* 라디오 — 점 + 2줄 텍스트. 선택 상태는 brand 로 표시한다(경고색으로 채우면 고르는 것 자체가 위협적이다). */
