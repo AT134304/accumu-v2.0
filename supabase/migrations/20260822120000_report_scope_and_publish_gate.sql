@@ -73,6 +73,33 @@ comment on function public.report_reason_scope(public.report_reason) is
 alter table public.program_reports
   drop constraint if exists program_reports_detail_shape;
 
+-- ---------------------------------------------------------
+-- [★ 새 하한을 못 채우는 기존 신고를 먼저 정리한다]
+--   어제(20260821180000) 30자 규칙으로 접수된 행들이 남아 있으면 아래 add constraint 가 23514 로
+--   **마이그레이션 전체를 롤백**시킨다. 실제로 그렇게 실패했다(케빈, 2026-08-21).
+--
+--   [왜 유예(not valid)가 아니라 삭제인가 — reviews 와 다르게 판단한 이유]
+--     같은 상황에서 reviews.comment 는 not valid 로 기존 행을 살려 뒀다(20260821120000). 기준이 다르다:
+--       reviews          = 학생이 쓴 **본인의 기록**. 포트폴리오의 내용물이라 남의 규칙 변경으로 지우면 안 된다.
+--       program_reports  = **다른 사람에게 영향을 주는 판정 데이터**. 이 행 3개가 모이면 남의 프로그램이
+--                          내려간다. 새 비용을 치르지 않은 신고가 임계치에 기여하면
+--                          "모든 신고는 이 비용을 치렀다"가 첫날부터 거짓이 된다.
+--     >>> 앞으로 제약을 좁힐 때 이 기준으로 고를 것: **본인 기록이면 유예, 남에게 영향을 주면 삭제.**
+--
+--   [지우기 전에 확인하고 싶다면]
+--     select r.id, r.reason, public.report_reason_scope(r.reason) as scope,
+--            char_length(btrim(r.detail)) as len, r.detail
+--       from public.program_reports r
+--      where char_length(btrim(r.detail))
+--            < case when public.report_reason_scope(r.reason) = 'open' then 150 else 80 end;
+--
+--   [재실행 안전] 두 번째 실행에서는 이미 조건을 만족하는 행만 남아 0행이 지워진다.
+-- ---------------------------------------------------------
+delete from public.program_reports
+ where char_length(btrim(detail))
+       < case when public.report_reason_scope(reason) = 'open' then 150 else 80 end
+    or char_length(btrim(detail)) > 500;
+
 alter table public.program_reports
   add constraint program_reports_detail_shape
   check (
@@ -317,6 +344,7 @@ create trigger programs_publish_gate
 
 -- =========================================================
 -- 적용 후 확인
+--   0) select count(*) from public.program_reports;   -- 새 하한을 못 채우던 옛 신고는 지워졌다
 --   1) 관리자 세션에서 직접 게시 시도:
 --      update public.programs set is_published = true where id = '<내 초안>';   -- 42501 거부
 --   2) select public.publish_my_program('<설명 50자 미만인 내 초안>');          -- {"ok":false,"reason":"too_short"}
