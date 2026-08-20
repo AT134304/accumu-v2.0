@@ -419,9 +419,17 @@ async function main() {
     });
     await t('관리자는 다른 관리자의 프로그램을 못 고친다', () =>
       expectNoRowsAffected(cAdmA.from('programs').update({ points: 3000 }).eq('id', progB).select('id')));
+    // [0행이 아니라 42501 인 이유 — RLS 의 using 과 with check 는 실패 모양이 다르다]
+    //   using 실패   = 그 행이 애초에 안 보인다        -> 에러 없이 **0행**
+    //   with check 실패 = 행은 보이는데 결과가 금지된다 -> **42501 에러**
+    //   소유권 이전은 내 행을 고치는 것이라 using 은 통과하고(내 프로그램이 맞다),
+    //   바뀐 뒤의 created_by 가 내가 아니라서 with check 에서 걸린다.
+    //   >>> 위의 "남의 프로그램을 못 고친다"가 0행인 것과 대비된다. 두 실패를 같은 모양으로 기대하면
+    //       테스트가 "무엇이 막았는지"를 구분하지 못한다.
     await t('관리자는 소유권을 남에게 넘길 수 없다', () =>
-      expectNoRowsAffected(
-        cAdmA.from('programs').update({ created_by: admB.id }).eq('id', progA).select('id')
+      expectError(
+        cAdmA.from('programs').update({ created_by: admB.id }).eq('id', progA).select('id'),
+        ['42501']
       ));
     await t('관리자는 프로그램을 지울 수 없다 (delete 정책 0개)', () =>
       expectNoRowsAffected(cAdmA.from('programs').delete().eq('id', progA).select('id')));
@@ -476,11 +484,25 @@ async function main() {
       ));
     await t('포인트 규칙(150~3000, 끝자리 0)은 그대로 살아 있다', () =>
       expectError(cAdmA.from('programs').insert({ ...base, title: `${MARK} 포인트`, points: 3333 }), ['23514']));
-    await t('외부 주소 사진은 거부된다', () =>
+    // [★ 사진 URL 은 두 겹으로 막혀 있고, 바깥쪽이 먼저 잡는다]
+    //   바깥: 정책 programs_insert_own_as_admin 의 image_url 절 — "내 폴더 경로인가" (ADR 0024 결정 4)
+    //   안쪽: CHECK programs_image_url_shape — "우리 버킷의 공개 URL 모양인가" (20260814120000)
+    //   완전한 외부 주소는 폴더 조건부터 못 맞추므로 42501 로 떨어진다 — CHECK 까지 가지도 않는다.
+    //   >>> 그래서 두 케이스로 나눈다. 한 케이스로 두면 방어선 하나가 사라져도 알아채지 못한다.
+    await t('외부 주소 사진은 정책이 먼저 막는다 (내 폴더가 아니다)', () =>
       expectError(
         cAdmA.from('programs').insert({ ...base, title: `${MARK} 외부사진`, image_url: 'https://evil.example.com/x.png' }),
-        ['23514']
+        ['42501']
       ));
+    await t('★ 내 폴더 경로를 흉내 낸 외부 주소는 CHECK 가 막는다 (안쪽 방어선)', () => {
+      // 정책의 position() 조건은 통과한다 — 경로에 '/program-images/<내 uuid>/' 가 들어 있으니까.
+      // 그래도 호스트가 우리 것이 아니라서 programs_image_url_shape 에 걸린다.
+      const spoofed = `https://evil.example.com/storage/v1/object/public/program-images/${admA.id}/x.webp`;
+      return expectError(
+        cAdmA.from('programs').insert({ ...base, title: `${MARK} 흉내낸사진`, image_url: spoofed }),
+        ['23514']
+      );
+    });
     await t('★ 다른 관리자 폴더의 사진은 참조할 수 없다', () => {
       const host = new URL(URL_).host;
       const foreign = `https://${host}/storage/v1/object/public/program-images/${admB.id}/x.webp`;
